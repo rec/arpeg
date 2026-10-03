@@ -6,6 +6,7 @@ pub mod capture;
 pub mod gesture;
 pub mod history;
 pub mod live;
+pub mod marked_sample;
 
 pub type Beat = Ratio<i64>;
 

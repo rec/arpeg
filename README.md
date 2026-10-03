@@ -6,8 +6,9 @@ The project design is in [plan/arpeggiator.md](plan/arpeggiator.md). The Python
 package and the Rust event core render held and latched notes in ascending,
 descending, and played order against an exact beat grid. Both cores process
 live held and latched notes incrementally. Python also captures expressive MIDI
-phrases with controller entry state and retained source events. Audio realization
-is not implemented yet.
+phrases with controller entry state and retained source events. Marked sample
+regions can now be lowered to source-frame notes and realized through enge's
+existing sampler. Live sample playback is not wired yet.
 
 The Python package uses uFor's portable profile and capture contracts. The Rust
 crate in `crates/arpeg-core` contains event decisions only; it has no dependency
@@ -49,6 +50,15 @@ gestures to each output gate. It owns one sounding output note at a time:
 each new step ends the old note before starting the next gesture. `clear`
 forgets the history and releases the output note while continuing to capture
 new input. The Rust event core implements the same step and handoff rules.
+
+[src/arpeg/marked_sample.py](src/arpeg/marked_sample.py) turns ordered frame
+markers into identified `SourceNote` regions. An explicit marker at frame zero
+accounts for any prefix, and the last region ends at the asset boundary.
+Selection keys order regions without claiming an acoustic pitch. The Rust core
+checks the same [region fixture](conformance/marked-sample.json). The enge
+`sample_regions` adapter consumes these notes through its prepared sampler;
+adjacent source regions share a continuous cursor run. Source-rate identity and
+reordered playback have one-second WAV regressions on both sampler backends.
 
 The standalone `arpeg` executable validates supported profiles, renders
 single-track metrical MIDI files containing note and tempo events, and plays
