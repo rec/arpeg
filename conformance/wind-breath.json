@@ -1,0 +1,21 @@
+{
+  "capture_id": "wind",
+  "timebase": {"name": "milliseconds", "rate": {"numerator": 1000}},
+  "end_tick": 400,
+  "events": [
+    {"kind": "midi", "tick": 0, "ordinal": 0, "data": [178, 2, 0]},
+    {"kind": "midi", "tick": 0, "ordinal": 1, "data": [146, 60, 100]},
+    {"kind": "midi", "tick": 8, "ordinal": 0, "data": [178, 2, 38]},
+    {"kind": "midi", "tick": 40, "ordinal": 0, "data": [178, 2, 102]},
+    {"kind": "midi", "tick": 90, "ordinal": 0, "data": [226, 64, 81]},
+    {"kind": "midi", "tick": 180, "ordinal": 0, "data": [130, 60, 20]},
+    {"kind": "midi", "tick": 190, "ordinal": 0, "data": [178, 2, 13]},
+    {"kind": "midi", "tick": 220, "ordinal": 0, "data": [146, 64, 90]},
+    {"kind": "midi", "tick": 235, "ordinal": 0, "data": [178, 2, 83]},
+    {"kind": "midi", "tick": 400, "ordinal": 0, "data": [130, 64, 16]}
+  ],
+  "notes": [
+    {"capture_id": "wind", "note_id": "c", "onset_tick": 0, "gate_end_tick": 180, "cell_end_tick": 220, "onset_event": 1, "release_event": 5, "expression_events": [2, 3, 4], "following_events": [6], "entry_state": {"breath": {"value": 0.0, "source_event": 0}, "bend": {}}, "key": 60, "velocity": 0.7874015748031497, "release_velocity": 0.15748031496062992},
+    {"capture_id": "wind", "note_id": "e", "onset_tick": 220, "gate_end_tick": 400, "cell_end_tick": 400, "onset_event": 7, "release_event": 9, "expression_events": [8], "entry_state": {"breath": {"value": 0.10236220472440945, "source_event": 6}, "bend": {"value": 0.2734375, "source_event": 4}}, "key": 64, "velocity": 0.7086614173228346, "release_velocity": 0.12598425196850394}
+  ]
+}

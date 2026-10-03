@@ -5,8 +5,9 @@
 The project design is in [plan/arpeggiator.md](plan/arpeggiator.md). The Python
 package and the Rust event core render held and latched notes in ascending,
 descending, and played order against an exact beat grid. Both cores process
-live held and latched notes incrementally. Expressive capture and audio
-realization are not implemented yet.
+live held and latched notes incrementally. Python also captures expressive MIDI
+phrases with controller entry state and retained source events. Audio realization
+is not implemented yet.
 
 The Python package uses uFor's portable profile and capture contracts. The Rust
 crate in `crates/arpeg-core` contains event decisions only; it has no dependency
@@ -18,6 +19,31 @@ The readable Python live engine is [src/arpeg/live.py](src/arpeg/live.py).
 covered in [test/test_live.py](test/test_live.py) and the shared
 [live traces](conformance/live-classic.json). The CoreMIDI executable uses the Rust
 engine, so Python is not required when playing from MIDI ports.
+
+[src/arpeg/capture.py](src/arpeg/capture.py) records a MIDI phrase through
+`MidiCapture.accept` and closes it with `finish`. Its profile declares whether
+overlapping onsets hand off a monophonic segment or remain independent notes.
+The original MIDI bytes stay in the captured ledger, including velocity-zero
+note-on releases. The Python capture fixture checks use the wind and gap traces
+in `conformance/`.
+
+The Python [gesture renderer](src/arpeg/gesture.py) reorders completed MIDI
+notes in source timing or fits their gestures to an output gate. It restores
+known controller entry values before each onset, retains note-local event times,
+and allocates a separate channel when gestures overlap. Unowned gap events remain
+in the captured phrase and are not sent into an unrelated output note. It can
+instead use live breath and bend, or replay the original MIDI ledger unchanged.
+
+[src/arpeg/bank.py](src/arpeg/bank.py) records history or phrase takes. Completed
+history notes wait for the declared capture tail, and replace, overdub, undo,
+and clear changes become visible at `publish_step`. `select_step` chooses a
+source note from the published revision; callers can place it through the
+gesture renderer at an output onset.
+
+The Rust event core also captures MIDI note cells and controller state, and
+renders recorded gestures with channel allocation. Its tests compare the same
+wind and gap fixtures. The CoreMIDI live host still plays classic held and
+latched notes.
 
 The standalone `arpeg` executable validates supported profiles, renders
 single-track metrical MIDI files containing note and tempo events, and plays

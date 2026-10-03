@@ -1,0 +1,19 @@
+{
+  "capture_id": "gap",
+  "timebase": {"name": "milliseconds", "rate": {"numerator": 1000}},
+  "end_tick": 340,
+  "events": [
+    {"kind": "midi", "tick": 0, "ordinal": 0, "data": [176, 64, 127]},
+    {"kind": "midi", "tick": 10, "ordinal": 0, "data": [144, 60, 90]},
+    {"kind": "midi", "tick": 100, "ordinal": 0, "data": [128, 60, 0]},
+    {"kind": "midi", "tick": 110, "ordinal": 0, "data": [176, 2, 13]},
+    {"kind": "midi", "tick": 200, "ordinal": 0, "data": [144, 64, 90]},
+    {"kind": "midi", "tick": 300, "ordinal": 0, "data": [128, 64, 0]},
+    {"kind": "midi", "tick": 320, "ordinal": 0, "data": [176, 64, 0]}
+  ],
+  "prefix_events": [0],
+  "notes": [
+    {"capture_id": "gap", "note_id": "c", "onset_tick": 10, "gate_end_tick": 100, "cell_end_tick": 200, "onset_event": 1, "release_event": 2, "following_events": [3], "entry_state": {"breath": {}}, "key": 60},
+    {"capture_id": "gap", "note_id": "e", "onset_tick": 200, "gate_end_tick": 300, "cell_end_tick": 340, "onset_event": 4, "release_event": 5, "following_events": [6], "entry_state": {"breath": {"value": 0.10236220472440945, "source_event": 3}}, "key": 64}
+  ]
+}
