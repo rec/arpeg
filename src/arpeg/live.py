@@ -4,10 +4,13 @@ Feed note changes in beat order, then call ``advance`` to play through a beat.
 Changes at the same beat are applied before that beat's arpeggio step.
 """
 
-from fractions import Fraction
-from typing import Literal
+from __future__ import annotations
 
-from pydantic import BaseModel, Field
+from fractions import Fraction
+from functools import cached_property
+from typing import Literal, Self
+
+from pydantic import BaseModel, Field, model_validator
 from ufor.arpeggiator import (
     ArpeggiatorScore,
     Ascending,
@@ -28,11 +31,25 @@ class LiveEvent(BaseModel, frozen=True):
     velocity: int = Field(ge=0, le=127)
 
 
-class LiveArpeggiator:
+class LiveArpeggiator(BaseModel):
     """Turn changing input notes into ordered note events."""
 
-    def __init__(self, profile: ArpeggiatorScore) -> None:
-        body = profile.body
+    profile: ArpeggiatorScore = Field(frozen=True)
+    next_step: Fraction = Fraction(0)
+    now: Fraction = Fraction(0)
+    next_input_id: int = 0
+    next_output_id: int = 0
+    previous_note: _InputNote | None = None
+    input: list[_InputNote] = Field(default_factory=list)
+    bank: list[_InputNote] = Field(default_factory=list)
+    toggle_at: Fraction | None = None
+    toggled_keys: list[int] = Field(default_factory=list)
+    toggle_added_keys: list[int] = Field(default_factory=list)
+    sounding: list[_SoundingNote] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def supported_profile(self) -> Self:
+        body = self.profile.body
         if not isinstance(body.bank, (HeldBank, LatchedBank)):
             raise ValueError("live mode requires a held or latched bank")
         if not isinstance(body.selection, (Ascending, Descending, Played)):
@@ -46,23 +63,25 @@ class LiveArpeggiator:
             raise ValueError("live mode does not support repeated selections")
         if not isinstance(body.rhythm, Grid):
             raise ValueError("live mode requires grid rhythm")
+        return self
 
-        self.bank_mode = body.bank
-        self.retrigger = body.retrigger
-        self.selection = body.selection
-        self.step = Fraction(body.rhythm.step.removesuffix(" beat"))
-        self.gate = body.gate
-        self.next_step = Fraction(0)
-        self.now = Fraction(0)
-        self.next_input_id = 0
-        self.next_output_id = 0
-        self.previous_key: tuple[Fraction, int] | None = None
-        self.input: list[_InputNote] = []
-        self.bank: list[_InputNote] = []
-        self.toggle_at: Fraction | None = None
-        self.toggled_keys: list[int] = []
-        self.toggle_added_keys: list[int] = []
-        self.sounding: list[_SoundingNote] = []
+    @cached_property
+    def bank_mode(self) -> HeldBank | LatchedBank:
+        bank = self.profile.body.bank
+        assert isinstance(bank, (HeldBank, LatchedBank))
+        return bank
+
+    @cached_property
+    def selection(self) -> Ascending | Descending | Played:
+        selection = self.profile.body.selection
+        assert isinstance(selection, (Ascending, Descending, Played))
+        return selection
+
+    @cached_property
+    def step(self) -> Fraction:
+        rhythm = self.profile.body.rhythm
+        assert isinstance(rhythm, Grid)
+        return Fraction(rhythm.step.removesuffix(" beat"))
 
     def note_on(self, at: Fraction, key: int, velocity: int) -> list[LiveEvent]:
         """Add a note, leaving the step at ``at`` for ``advance``."""
@@ -98,10 +117,10 @@ class LiveArpeggiator:
                     self.bank.append(note)
                     edited = True
             if not self.bank:
-                self.previous_key = None
+                self.previous_note = None
                 events.extend(self._release_all(at))
-        if edited and self.retrigger == "bank_edit":
-            self.previous_key = None
+        if edited and self.profile.body.retrigger == "bank_edit":
+            self.previous_note = None
         self.next_input_id += 1
         return events
 
@@ -112,10 +131,13 @@ class LiveArpeggiator:
             raise ValueError("release has no matching onset")
         events = self._process_until(at, inclusive=False)
         self.input.pop(next(i for i, n in enumerate(self.input) if n.key == key))
-        if isinstance(self.bank_mode, HeldBank) and self.retrigger == "bank_edit":
-            self.previous_key = None
+        if (
+            isinstance(self.bank_mode, HeldBank)
+            and self.profile.body.retrigger == "bank_edit"
+        ):
+            self.previous_note = None
         if not self.input and isinstance(self.bank_mode, HeldBank):
-            self.previous_key = None
+            self.previous_note = None
             events.extend(self._release_all(at))
         return events
 
@@ -134,7 +156,7 @@ class LiveArpeggiator:
         self.toggle_at = None
         self.toggled_keys.clear()
         self.toggle_added_keys.clear()
-        self.previous_key = None
+        self.previous_note = None
         self.now = at
         return events
 
@@ -148,7 +170,7 @@ class LiveArpeggiator:
         self.toggle_at = None
         self.toggled_keys.clear()
         self.toggle_added_keys.clear()
-        self.previous_key = None
+        self.previous_note = None
         events.extend(self._release_all(at))
         return events
 
@@ -188,19 +210,19 @@ class LiveArpeggiator:
     def _play_step(self, at: Fraction) -> list[LiveEvent]:
         active = self.input if isinstance(self.bank_mode, HeldBank) else self.bank
         if not active:
-            self.previous_key = None
+            self.previous_note = None
             return []
         ordered = sorted(active, key=self._selection_key)
         note = next(
             (
                 n
                 for n in ordered
-                if self.previous_key is None
-                or self._selection_key(n) > self.previous_key
+                if self.previous_note is None
+                or self._selection_key(n) > self._selection_key(self.previous_note)
             ),
             ordered[0],
         )
-        self.previous_key = self._selection_key(note)
+        self.previous_note = note
         events: list[LiveEvent] = []
         remaining: list[_SoundingNote] = []
         for sounding in self.sounding:
@@ -230,7 +252,7 @@ class LiveArpeggiator:
                 velocity=note.velocity,
             )
         )
-        if (end := at + self.step * self.gate) == at:
+        if (end := at + self.step * self.profile.body.gate) == at:
             events.append(
                 LiveEvent(
                     at=at,
@@ -257,7 +279,7 @@ class LiveArpeggiator:
         self.sounding.clear()
         return events
 
-    def _selection_key(self, note: "_InputNote") -> tuple[Fraction, int]:
+    def _selection_key(self, note: _InputNote) -> tuple[Fraction, int]:
         selection = self.selection
         if isinstance(selection, Played):
             position = -note.onset if selection.direction == "reverse" else note.onset

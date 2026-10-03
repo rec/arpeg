@@ -14,7 +14,7 @@ def _profile() -> ArpeggiatorScore:
 
 
 def test_live_notes_follow_input_and_release_when_bank_empties() -> None:
-    arp = LiveArpeggiator(_profile())
+    arp = LiveArpeggiator(profile=_profile())
     assert arp.note_on(Fraction(0), 60, 100) == []
     assert [(e.kind, e.key, e.at) for e in arp.advance(Fraction(0))] == [
         ("on", 60, Fraction(0))
@@ -32,7 +32,7 @@ def test_live_notes_follow_input_and_release_when_bank_empties() -> None:
 
 
 def test_simultaneous_note_ons_join_first_step() -> None:
-    arp = LiveArpeggiator(_profile())
+    arp = LiveArpeggiator(profile=_profile())
     arp.note_on(Fraction(0), 64, 90)
     arp.note_on(Fraction(0), 60, 100)
     events = arp.advance(Fraction(0))
@@ -40,7 +40,7 @@ def test_simultaneous_note_ons_join_first_step() -> None:
 
 
 def test_stop_releases_only_sounding_outputs() -> None:
-    arp = LiveArpeggiator(_profile())
+    arp = LiveArpeggiator(profile=_profile())
     arp.note_on(Fraction(0), 60, 100)
     arp.advance(Fraction(0))
     assert [(e.kind, e.key, e.at) for e in arp.stop(Fraction(1, 10))] == [
@@ -50,7 +50,7 @@ def test_stop_releases_only_sounding_outputs() -> None:
 
 
 def test_late_input_and_unsupported_bank_fail_explicitly() -> None:
-    arp = LiveArpeggiator(_profile())
+    arp = LiveArpeggiator(profile=_profile())
     arp.advance(Fraction(1))
     with pytest.raises(ValueError, match="backwards"):
         arp.note_on(Fraction(0), 60, 100)
@@ -59,7 +59,7 @@ def test_late_input_and_unsupported_bank_fail_explicitly() -> None:
         update={"body": profile.body.model_copy(update={"bank": HistoryBank()})}
     )
     with pytest.raises(ValueError, match="held or latched"):
-        LiveArpeggiator(history)
+        LiveArpeggiator(profile=history)
 
 
 def test_latched_replace_groups_overlapping_keys_and_preserves_current_gate() -> None:
@@ -67,7 +67,7 @@ def test_latched_replace_groups_overlapping_keys_and_preserves_current_gate() ->
     profile = profile.model_copy(
         update={"body": profile.body.model_copy(update={"bank": LatchedBank()})}
     )
-    arp = LiveArpeggiator(profile)
+    arp = LiveArpeggiator(profile=profile)
     arp.note_on(Fraction(0), 60, 100)
     arp.note_on(Fraction(0), 64, 90)
     assert [(e.kind, e.key) for e in arp.advance(Fraction(0))] == [("on", 60)]
@@ -91,7 +91,7 @@ def test_latched_add_retains_released_notes() -> None:
             "body": profile.body.model_copy(update={"bank": LatchedBank(update="add")})
         }
     )
-    arp = LiveArpeggiator(profile)
+    arp = LiveArpeggiator(profile=profile)
     arp.note_on(Fraction(0), 60, 100)
     arp.advance(Fraction(0))
     arp.note_off(Fraction(1, 8), 60)
@@ -111,7 +111,7 @@ def test_latched_toggle_clears_bank_and_releases_its_output() -> None:
             )
         }
     )
-    arp = LiveArpeggiator(profile)
+    arp = LiveArpeggiator(profile=profile)
     arp.note_on(Fraction(0), 60, 100)
     arp.advance(Fraction(0))
     arp.note_off(Fraction(1, 8), 60)
@@ -135,7 +135,7 @@ def test_bank_edit_retrigger_restarts_selection_without_moving_grid(
             "body": {**profile.body.model_dump(), "retrigger": retrigger},
         }
     )
-    arp = LiveArpeggiator(profile)
+    arp = LiveArpeggiator(profile=profile)
     for key in (60, 64, 67):
         arp.note_on(Fraction(0), key, 100)
     arp.advance(Fraction(1, 4))
@@ -158,7 +158,7 @@ def test_latched_add_retriggers_on_bank_edit_but_not_key_release() -> None:
             },
         }
     )
-    arp = LiveArpeggiator(profile)
+    arp = LiveArpeggiator(profile=profile)
     for key in (60, 64, 67):
         arp.note_on(Fraction(0), key, 100)
     arp.advance(Fraction(1, 4))
@@ -179,7 +179,7 @@ def test_toggle_keeps_same_time_duplicate_pitches_distinct() -> None:
             )
         }
     )
-    arp = LiveArpeggiator(profile)
+    arp = LiveArpeggiator(profile=profile)
     arp.note_on(Fraction(0), 60, 90)
     arp.note_on(Fraction(0), 60, 100)
     assert [(e.kind, e.source_id, e.velocity) for e in arp.advance(Fraction(0))] == [
@@ -196,7 +196,7 @@ def test_clear_releases_latched_output_without_losing_input_pairing() -> None:
     profile = profile.model_copy(
         update={"body": profile.body.model_copy(update={"bank": LatchedBank()})}
     )
-    arp = LiveArpeggiator(profile)
+    arp = LiveArpeggiator(profile=profile)
     arp.note_on(Fraction(0), 60, 100)
     arp.advance(Fraction(0))
     assert [(e.kind, e.at) for e in arp.clear(Fraction(1, 8))] == [
@@ -225,7 +225,7 @@ def test_live_classic_matches_shared_python_rust_traces() -> None:
                 },
             }
         )
-        arp = LiveArpeggiator(profile)
+        arp = LiveArpeggiator(profile=profile)
         events = []
         for action in case["actions"]:
             at = Fraction(action[1])
