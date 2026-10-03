@@ -27,6 +27,12 @@ pub enum Timing {
     Fit,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum OverlapPolicy {
+    Reject,
+    Handoff,
+}
+
 #[derive(Clone, Copy)]
 struct Reservation {
     channel: u8,
@@ -45,6 +51,7 @@ pub fn render(
     placements: &[Placement],
     channels: &[u8],
     timing: Timing,
+    overlap: OverlapPolicy,
 ) -> Result<Vec<RealizedEvent>, &'static str> {
     if channels.is_empty()
         || channels.iter().any(|channel| *channel > 15)
@@ -66,7 +73,7 @@ pub fn render(
     }
     let mut reservations = Vec::<Reservation>::new();
     let mut events = Vec::<OrderedEvent>::new();
-    for placement in placements {
+    for (position, placement) in placements.iter().enumerate() {
         let note = phrase
             .notes
             .iter()
@@ -85,6 +92,14 @@ pub fn render(
         } else {
             Tick::from_integer(1)
         };
+        let next_onset = placements.get(position + 1).map(|next| next.onset);
+        let clipped = overlap == OverlapPolicy::Handoff
+            && next_onset.is_some_and(|next| next < placement.onset + output_gate);
+        let end = if clipped {
+            next_onset.expect("clipped placement has a successor")
+        } else {
+            placement.onset + output_gate
+        };
         let control_times: Vec<_> = note
             .expression_events
             .iter()
@@ -92,6 +107,7 @@ pub fn render(
                 placement.onset
                     + Tick::from_integer(phrase.events[*index].tick - note.onset_tick) * scale
             })
+            .filter(|at| *at < end)
             .collect();
         let channel = *channels
             .iter()
@@ -105,7 +121,7 @@ pub fn render(
             .ok_or("no MIDI channel is free for independent expression")?;
         reservations.push(Reservation {
             channel,
-            gate_end: placement.onset + output_gate,
+            gate_end: end,
             last_control: control_times
                 .iter()
                 .copied()
@@ -131,15 +147,19 @@ pub fn render(
             Some(note.onset_event),
             None,
         )?;
-        for (index, at) in note.expression_events.iter().zip(control_times) {
-            emitter.append(&mut events, at, 3, Some(*index), None)?;
+        for index in &note.expression_events {
+            let at = placement.onset
+                + Tick::from_integer(phrase.events[*index].tick - note.onset_tick) * scale;
+            if at < end {
+                emitter.append(&mut events, at, 3, Some(*index), None)?;
+            }
         }
         let release = [0x80 | channel, note.key, 0];
         emitter.append(
             &mut events,
-            placement.onset + output_gate,
+            end,
             0,
-            note.release_event,
+            if clipped { None } else { note.release_event },
             Some(&release),
         )?;
     }
@@ -167,7 +187,13 @@ pub fn reorder(
         });
         at += note.cell_end_tick - note.onset_tick;
     }
-    render(phrase, &placements, channels, Timing::Original)
+    render(
+        phrase,
+        &placements,
+        channels,
+        Timing::Original,
+        OverlapPolicy::Reject,
+    )
 }
 
 struct Emitter<'a> {

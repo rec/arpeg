@@ -1,5 +1,5 @@
 use arpeg_core::capture::{MidiCapture, MidiEvent, Overlap, Profile, Timebase};
-use arpeg_core::gesture::{self, Placement, Tick, Timing};
+use arpeg_core::gesture::{self, OverlapPolicy, Placement, Tick, Timing};
 use serde_json::Value;
 
 fn timebase() -> Timebase {
@@ -332,8 +332,24 @@ fn overlapping_gestures_require_separate_channels() {
             gate: None,
         },
     ];
-    assert!(gesture::render(&phrase, &placements, &[0], Timing::Original).is_err());
-    let events = gesture::render(&phrase, &placements, &[0, 1], Timing::Original).unwrap();
+    assert!(
+        gesture::render(
+            &phrase,
+            &placements,
+            &[0],
+            Timing::Original,
+            OverlapPolicy::Reject
+        )
+        .is_err()
+    );
+    let events = gesture::render(
+        &phrase,
+        &placements,
+        &[0, 1],
+        Timing::Original,
+        OverlapPolicy::Reject,
+    )
+    .unwrap();
     let onsets: Vec<_> = events
         .iter()
         .filter(|event| event.data[0] & 0xf0 == 0x90)
@@ -344,6 +360,51 @@ fn overlapping_gestures_require_separate_channels() {
         [
             (Tick::from_integer(0), vec![144, 60, 100]),
             (Tick::from_integer(50), vec![145, 64, 90]),
+        ]
+    );
+}
+
+#[test]
+fn monophonic_handoff_releases_the_old_note_before_new_state() {
+    let (_, phrase) = fixture(
+        "wind-breath",
+        Profile {
+            channel: 2,
+            ..Profile::default()
+        },
+    );
+    let placements = [
+        Placement {
+            note_id: "c".into(),
+            onset: Tick::from_integer(0),
+            gate: None,
+        },
+        Placement {
+            note_id: "e".into(),
+            onset: Tick::from_integer(50),
+            gate: None,
+        },
+    ];
+    let events = gesture::render(
+        &phrase,
+        &placements,
+        &[0],
+        Timing::Original,
+        OverlapPolicy::Handoff,
+    )
+    .unwrap();
+    let at_handoff: Vec<_> = events
+        .iter()
+        .filter(|event| event.at == Tick::from_integer(50))
+        .map(|event| (event.data.clone(), event.source_event))
+        .collect();
+    assert_eq!(
+        at_handoff,
+        [
+            (vec![128, 60, 0], None),
+            (vec![224, 64, 81], Some(4)),
+            (vec![176, 2, 13], Some(6)),
+            (vec![144, 64, 90], Some(7)),
         ]
     );
 }

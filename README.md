@@ -33,6 +33,8 @@ known controller entry values before each onset, retains note-local event times,
 and allocates a separate channel when gestures overlap. Unowned gap events remain
 in the captured phrase and are not sent into an unrelated output note. It can
 instead use live breath and bend, or replay the original MIDI ledger unchanged.
+For a single-channel destination, `overlap="handoff"` ends the old output note
+before initializing the new gesture on channel 1.
 
 [src/arpeg/bank.py](src/arpeg/bank.py) records history or phrase takes. Completed
 history notes wait for the declared capture tail, and replace, overdub, undo,

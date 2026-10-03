@@ -29,6 +29,7 @@ class MidiGestureRenderer(BaseModel, frozen=True):
     phrase: CapturedPhrase
     channels: list[int] = Field(min_length=1)
     timing: Literal["original", "fit"] = "original"
+    overlap: Literal["reject", "handoff"] = "reject"
     expression_source: Literal["recorded", "current"] = "recorded"
     live_profile: MidiCaptureProfile = MidiCaptureProfile()
     live_events: list[MidiEvent] = Field(default_factory=list)
@@ -58,7 +59,7 @@ class MidiGestureRenderer(BaseModel, frozen=True):
         reservations: list[_Reservation] = []
         events: list[tuple[Fraction, int, int, RealizedMidiEvent]] = []
         serial = 0
-        for placement in placements:
+        for position, placement in enumerate(placements):
             note = notes[placement.note_id]
             if note.key is None:
                 raise ValueError("MIDI gesture requires a source key")
@@ -67,11 +68,32 @@ class MidiGestureRenderer(BaseModel, frozen=True):
             if self.timing == "original" and output_gate != gate:
                 raise ValueError("original timing requires the source gate")
             scale = output_gate / gate if self.timing == "fit" and gate else Fraction(1)
-            control_times = (
+            next_onset = (
+                placements[position + 1].onset
+                if position + 1 < len(placements)
+                else None
+            )
+            clipped = (
+                self.overlap == "handoff"
+                and next_onset is not None
+                and next_onset < placement.onset + output_gate
+            )
+            end = (
+                next_onset
+                if clipped and next_onset is not None
+                else placement.onset + output_gate
+            )
+            control_events = (
                 [
-                    placement.onset
-                    + (self.phrase.events[i].tick - note.onset_tick) * scale
+                    (
+                        i,
+                        placement.onset
+                        + (self.phrase.events[i].tick - note.onset_tick) * scale,
+                    )
                     for i in note.expression_events
+                    if placement.onset
+                    + (self.phrase.events[i].tick - note.onset_tick) * scale
+                    < end
                 ]
                 if self.expression_source == "recorded"
                 else []
@@ -92,8 +114,10 @@ class MidiGestureRenderer(BaseModel, frozen=True):
             reservations.append(
                 _Reservation(
                     channel=channel,
-                    gate_end=placement.onset + output_gate,
-                    last_control=max(control_times, default=Fraction(-1)),
+                    gate_end=end,
+                    last_control=max(
+                        (at for _, at in control_events), default=Fraction(-1)
+                    ),
                 )
             )
 
@@ -148,22 +172,17 @@ class MidiGestureRenderer(BaseModel, frozen=True):
                 raise ValueError("MIDI gesture requires a source note-on")
             add(placement.onset, 2, self._midi(note.onset_event).data, note.onset_event)
             if self.expression_source == "recorded":
-                for index, at in zip(
-                    note.expression_events, control_times, strict=True
-                ):
+                for index, at in control_events:
                     add(at, 3, self._midi(index).data, index)
             else:
                 for event in self.live_events:
-                    if (
-                        placement.onset < event.tick < placement.onset + output_gate
-                        and self._live_lane(event)
-                    ):
+                    if placement.onset < event.tick < end and self._live_lane(event):
                         add(Fraction(event.tick), 3, event.data, None)
-            if note.release_event is None:
+            if clipped or note.release_event is None:
                 release = [0x80 | channel, note.key, 0]
             else:
                 release = self._midi(note.release_event).data
-            add(placement.onset + output_gate, 0, release, note.release_event)
+            add(end, 0, release, None if clipped else note.release_event)
         events.sort(key=lambda e: e[:3])
         return [event for _, _, _, event in events]
 

@@ -49,6 +49,23 @@ def test_overlap_requires_an_independent_output_channel() -> None:
     assert (65, [177, 2, 83]) in [(e.at, e.data) for e in events]
 
 
+def test_monophonic_channel_handoff_releases_before_new_expression() -> None:
+    renderer = MidiGestureRenderer(phrase=_wind(), channels=[0], overlap="handoff")
+    events = renderer.render(
+        [
+            MidiPlacement(note_id="c", onset=Fraction(0)),
+            MidiPlacement(note_id="e", onset=Fraction(50)),
+        ]
+    )
+    assert [(e.data, e.source_event) for e in events if e.at == 50] == [
+        ([128, 60, 0], None),
+        ([224, 64, 81], 4),
+        ([176, 2, 13], 6),
+        ([144, 64, 90], 7),
+    ]
+    assert all(e.source_event != 4 or e.source_note == "e" for e in events)
+
+
 def test_fit_scales_recorded_expression_with_gate() -> None:
     renderer = MidiGestureRenderer(phrase=_wind(), channels=[0], timing="fit")
     events = renderer.render(
