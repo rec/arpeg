@@ -1,4 +1,4 @@
-use arpeg_core::{Beat, HeldNote, Selection, render_held};
+use arpeg_core::{Bank, Beat, HeldNote, Selection, render_held};
 use serde_json::Value;
 
 fn ratio(text: &str) -> Beat {
@@ -34,6 +34,11 @@ fn held_chord_matches_shared_exact_trace() {
             Selection::ReversePlayed,
             "expected_reverse",
         ),
+        (
+            include_str!("../../../conformance/latched-toggle.json"),
+            Selection::Ascending,
+            "expected",
+        ),
     ] {
         let case: Value = serde_json::from_str(fixture).expect("shared fixture");
         let phrase = &case["phrase"];
@@ -64,8 +69,14 @@ fn held_chord_matches_shared_exact_trace() {
                 .expect("beat unit"),
         );
         let through = ratio(case["through"].as_str().expect("render horizon"));
+        let bank = match case["profile"]["body"]["bank"]["update"].as_str() {
+            Some("replace") => Bank::LatchedReplace,
+            Some("add") => Bank::LatchedAdd,
+            Some("toggle") => Bank::LatchedToggle,
+            _ => Bank::Held,
+        };
         let occurrences =
-            render_held(&notes, selection, step, Beat::new(4, 5), through).expect("held arp");
+            render_held(&notes, bank, selection, step, Beat::new(4, 5), through).expect("held arp");
         let actual: Vec<_> = occurrences
             .iter()
             .map(|occurrence| {
@@ -79,11 +90,57 @@ fn held_chord_matches_shared_exact_trace() {
         let expected: Vec<Vec<String>> =
             serde_json::from_value(case[expected_name].clone()).expect("expected occurrence trace");
         assert_eq!(actual, expected);
-        assert_eq!(occurrences.len(), 8);
+        assert_eq!(occurrences.len(), expected.len());
         assert!(
             occurrences
                 .windows(2)
                 .all(|window| window[0].trigger_id != window[1].trigger_id)
         );
+    }
+}
+
+#[test]
+fn latch_replace_and_add_keep_their_distinct_banks() {
+    let notes = [
+        HeldNote {
+            id: "c",
+            key: 60,
+            onset: Beat::from_integer(0),
+            release: Beat::from_integer(2),
+        },
+        HeldNote {
+            id: "g",
+            key: 67,
+            onset: Beat::new(1, 4),
+            release: Beat::from_integer(2),
+        },
+        HeldNote {
+            id: "e",
+            key: 64,
+            onset: Beat::new(1, 2),
+            release: Beat::from_integer(2),
+        },
+    ];
+    for (bank, expected) in [
+        (Bank::LatchedReplace, ["e", "e"]),
+        (Bank::LatchedAdd, ["e", "c"]),
+    ] {
+        let occurrences = render_held(
+            &notes,
+            bank,
+            Selection::Played,
+            Beat::new(1, 4),
+            Beat::new(4, 5),
+            Beat::new(5, 2),
+        )
+        .expect("latched arp");
+        let tail: Vec<_> = occurrences
+            .iter()
+            .rev()
+            .take(2)
+            .map(|o| o.source_id)
+            .rev()
+            .collect();
+        assert_eq!(tail, expected);
     }
 }

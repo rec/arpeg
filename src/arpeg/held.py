@@ -1,6 +1,7 @@
 """Deterministic held-note arpeggiation on an exact local beat grid."""
 
 from fractions import Fraction
+from itertools import groupby
 from math import ceil
 
 from ufor.arpeggiator import (
@@ -9,6 +10,7 @@ from ufor.arpeggiator import (
     Descending,
     Grid,
     HeldBank,
+    LatchedBank,
     Played,
 )
 from ufor.arpeggiator_capture import CapturedPhrase, Occurrence, SourceNote
@@ -25,8 +27,8 @@ def render_held(
 ) -> list[Occurrence]:
     """Render supported held/grid selections before ``through``."""
     body = profile.body
-    if not isinstance(body.bank, HeldBank):
-        raise ValueError("held rendering requires a held bank")
+    if not isinstance(body.bank, (HeldBank, LatchedBank)):
+        raise ValueError("held rendering requires a held or latched bank")
     selection = body.selection
     if not isinstance(selection, (Ascending, Descending, Played)):
         raise ValueError("held rendering requires a classic note selection")
@@ -69,7 +71,7 @@ def render_held(
     revision = 0
     for index in range(ceil(through / step)):
         at = index * step
-        active = [n for n, start, end in note_times if start <= at < end]
+        active = _bank_at(note_times, body.bank, at)
         bank = {n.note_id for n in active}
         if bank != previous_bank:
             revision += 1
@@ -96,7 +98,7 @@ def render_held(
                 if at < t < gate_end
             }
         ):
-            if not any(start <= boundary < end for _, start, end in note_times):
+            if not _bank_at(note_times, body.bank, boundary):
                 gate_end = boundary
                 break
         occurrences.append(
@@ -126,3 +128,31 @@ def _selection_key(
     assert note.key is not None
     pitch = Fraction(note.key)
     return (-pitch if isinstance(selection, Descending) else pitch), note.note_id
+
+
+def _bank_at(
+    note_times: list[tuple[SourceNote, Fraction, Fraction]],
+    bank: HeldBank | LatchedBank,
+    at: Fraction,
+) -> list[SourceNote]:
+    if isinstance(bank, HeldBank):
+        return [n for n, start, end in note_times if start <= at < end]
+    active: list[SourceNote] = []
+    entries = sorted(
+        ((start, n) for n, start, _ in note_times if start <= at), key=lambda p: p[0]
+    )
+    for _, group in groupby(entries, key=lambda p: p[0]):
+        notes = [n for _, n in group]
+        if bank.update == "replace":
+            active = notes
+        elif bank.update == "add":
+            active.extend(notes)
+        else:
+            for key, same_pitch in groupby(
+                sorted(notes, key=lambda n: n.key), key=lambda n: n.key
+            ):
+                if any(n.key == key for n in active):
+                    active = [n for n in active if n.key != key]
+                else:
+                    active.extend(same_pitch)
+    return active

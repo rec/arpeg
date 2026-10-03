@@ -105,3 +105,33 @@ def test_last_release_truncates_owned_output_gate() -> None:
     )
     assert len(occurrences) == 1
     assert occurrences[0].gate_end == Fraction(1, 8)
+
+
+def test_latch_toggle_by_pitch_matches_shared_trace() -> None:
+    case = json.loads(Path("conformance/latched-toggle.json").read_text())
+    occurrences = render_held(
+        ArpeggiatorScore.model_validate(case["profile"]),
+        CapturedPhrase.model_validate(case["phrase"]),
+        TempoMap.model_validate(case["tempo"]),
+        Fraction(case["through"]),
+        "synth",
+    )
+    assert [
+        [o.source_note, str(o.onset), str(o.gate_end)] for o in occurrences
+    ] == case["expected"]
+
+
+@pytest.mark.parametrize(
+    ("update", "expected"), [("replace", ["e", "e"]), ("add", ["e", "c"])]
+)
+def test_latch_survives_source_releases(update: str, expected: list[str]) -> None:
+    case = json.loads(Path("conformance/played-order.json").read_text())
+    case["profile"]["body"]["bank"] = {"kind": "latched", "update": update}
+    occurrences = render_held(
+        ArpeggiatorScore.model_validate(case["profile"]),
+        CapturedPhrase.model_validate(case["phrase"]),
+        TempoMap.model_validate(case["tempo"]),
+        Fraction(5, 2),
+        "synth",
+    )
+    assert [o.source_note for o in occurrences][-2:] == expected

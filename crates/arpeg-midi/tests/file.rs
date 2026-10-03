@@ -120,6 +120,48 @@ fn native_shell_accepts_the_canonical_ufor_profile() {
 
 #[test]
 fn velocity_zero_releases_keep_their_wire_encoding() {
+    let bytes = single_note_input(0);
+    let output = render_file(include_str!("../../../conformance/up.toml"), &bytes)
+        .expect("render MIDI file");
+    let output = Smf::parse(&output).expect("valid output MIDI file");
+    let mut releases = 0;
+    for event in &output.tracks[0] {
+        match event.kind {
+            TrackEventKind::Midi {
+                message: MidiMessage::NoteOn { vel, .. },
+                ..
+            } if vel.as_int() == 0 => releases += 1,
+            TrackEventKind::Midi {
+                message: MidiMessage::NoteOff { .. },
+                ..
+            } => panic!("release encoding changed"),
+            _ => {}
+        }
+    }
+    assert_eq!(releases, 4);
+}
+
+#[test]
+fn latched_file_keeps_playing_after_source_release() {
+    let profile = include_str!("../../../conformance/up.toml").replace(
+        "[body]",
+        "[body]\nbank = { kind = \"latched\", update = \"replace\" }",
+    );
+    let bytes = single_note_input(480);
+    let output = render_file(&profile, &bytes).expect("render latched MIDI file");
+    let output = Smf::parse(&output).expect("valid output MIDI file");
+    let onsets = output.tracks[0]
+        .iter()
+        .filter(|event| {
+            matches!(event.kind, TrackEventKind::Midi {
+                message: MidiMessage::NoteOn { vel, .. }, ..
+            } if vel.as_int() > 0)
+        })
+        .count();
+    assert_eq!(onsets, 8);
+}
+
+fn single_note_input(end_delay: u32) -> Vec<u8> {
     let channel = u4::from(0);
     let key = u7::from(60);
     let input = Smf {
@@ -146,29 +188,12 @@ fn velocity_zero_releases_keep_their_wire_encoding() {
                 },
             },
             TrackEvent {
-                delta: u28::from(0),
+                delta: u28::from(end_delay),
                 kind: TrackEventKind::Meta(MetaMessage::EndOfTrack),
             },
         ]],
     };
     let mut bytes = Vec::new();
     input.write_std(&mut bytes).expect("input MIDI file");
-    let output = render_file(include_str!("../../../conformance/up.toml"), &bytes)
-        .expect("render MIDI file");
-    let output = Smf::parse(&output).expect("valid output MIDI file");
-    let mut releases = 0;
-    for event in &output.tracks[0] {
-        match event.kind {
-            TrackEventKind::Midi {
-                message: MidiMessage::NoteOn { vel, .. },
-                ..
-            } if vel.as_int() == 0 => releases += 1,
-            TrackEventKind::Midi {
-                message: MidiMessage::NoteOff { .. },
-                ..
-            } => panic!("release encoding changed"),
-            _ => {}
-        }
-    }
-    assert_eq!(releases, 4);
+    bytes
 }

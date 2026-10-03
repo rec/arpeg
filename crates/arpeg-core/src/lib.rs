@@ -13,6 +13,14 @@ pub enum Selection {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Bank {
+    Held,
+    LatchedReplace,
+    LatchedAdd,
+    LatchedToggle,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct HeldNote<'a> {
     pub id: &'a str,
     pub key: i32,
@@ -32,6 +40,7 @@ pub struct Occurrence<'a> {
 
 pub fn render_held<'a>(
     notes: &'a [HeldNote<'a>],
+    bank_mode: Bank,
     selection: Selection,
     step: Beat,
     gate: Beat,
@@ -49,10 +58,7 @@ pub fn render_held<'a>(
     let mut revision = 0;
     let mut at = Beat::from_integer(0);
     while at < through {
-        let mut active: Vec<_> = notes
-            .iter()
-            .filter(|note| note.onset <= at && at < note.release)
-            .collect();
+        let mut active = bank_at(notes, bank_mode, at);
         let mut bank: Vec<_> = active.iter().map(|note| note.id).collect();
         bank.sort_unstable();
         if bank != previous_bank {
@@ -80,10 +86,7 @@ pub fn render_held<'a>(
         boundaries.sort_unstable();
         boundaries.dedup();
         for boundary in boundaries {
-            if !notes
-                .iter()
-                .any(|note| note.onset <= boundary && boundary < note.release)
-            {
+            if bank_at(notes, bank_mode, boundary).is_empty() {
                 gate_end = boundary;
                 break;
             }
@@ -110,4 +113,44 @@ fn selection_key<'a>(note: &HeldNote<'a>, selection: Selection) -> (Beat, &'a st
         Selection::ReversePlayed => -note.onset,
     };
     (position, note.id)
+}
+
+fn bank_at<'a>(notes: &'a [HeldNote<'a>], mode: Bank, at: Beat) -> Vec<&'a HeldNote<'a>> {
+    if mode == Bank::Held {
+        return notes
+            .iter()
+            .filter(|note| note.onset <= at && at < note.release)
+            .collect();
+    }
+    let mut entries: Vec<_> = notes.iter().filter(|note| note.onset <= at).collect();
+    entries.sort_unstable_by_key(|note| (note.onset, note.id));
+    let mut active: Vec<&HeldNote> = Vec::new();
+    let mut index = 0;
+    while index < entries.len() {
+        let start = entries[index].onset;
+        let end = entries[index..]
+            .iter()
+            .position(|note| note.onset != start)
+            .map_or(entries.len(), |offset| index + offset);
+        let group = &entries[index..end];
+        match mode {
+            Bank::Held => unreachable!(),
+            Bank::LatchedReplace => active = group.to_vec(),
+            Bank::LatchedAdd => active.extend_from_slice(group),
+            Bank::LatchedToggle => {
+                let mut pitches: Vec<_> = group.iter().map(|note| note.key).collect();
+                pitches.sort_unstable();
+                pitches.dedup();
+                for pitch in pitches {
+                    if active.iter().any(|note| note.key == pitch) {
+                        active.retain(|note| note.key != pitch);
+                    } else {
+                        active.extend(group.iter().copied().filter(|note| note.key == pitch));
+                    }
+                }
+            }
+        }
+        index = end;
+    }
+    active
 }

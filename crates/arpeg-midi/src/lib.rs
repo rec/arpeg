@@ -2,13 +2,14 @@
 
 use std::collections::{HashMap, VecDeque};
 
-use arpeg_core::{Beat, HeldNote, Selection, render_held};
+use arpeg_core::{Bank, Beat, HeldNote, Selection, render_held};
 use midly::{
     Format, Header, MetaMessage, MidiMessage, Smf, Timing, TrackEvent, TrackEventKind,
     num::{u4, u7, u28},
 };
 
 pub struct HeldProfile {
+    bank: Bank,
     selection: Selection,
     step: Beat,
     gate: Beat,
@@ -74,12 +75,29 @@ pub fn parse_profile(text: &str) -> Result<HeldProfile, String> {
     {
         return Err("profile contains an unsupported body field".into());
     }
-    if let Some(bank) = body.get("bank") {
-        let bank = bank.as_table().ok_or("bank must be a table")?;
-        if bank.len() != 1 || bank.get("kind").and_then(toml::Value::as_str) != Some("held") {
-            return Err("only held banks are supported".into());
+    let bank = match body.get("bank") {
+        None => Bank::Held,
+        Some(value) => {
+            let bank = value.as_table().ok_or("bank must be a table")?;
+            match bank.get("kind").and_then(toml::Value::as_str) {
+                Some("held") if bank.len() == 1 => Bank::Held,
+                Some("latched")
+                    if bank
+                        .keys()
+                        .all(|key| ["kind", "update"].contains(&key.as_str())) =>
+                {
+                    match bank.get("update") {
+                        None => Bank::LatchedReplace,
+                        Some(value) if value.as_str() == Some("replace") => Bank::LatchedReplace,
+                        Some(value) if value.as_str() == Some("add") => Bank::LatchedAdd,
+                        Some(value) if value.as_str() == Some("toggle") => Bank::LatchedToggle,
+                        _ => return Err("unsupported latch update".into()),
+                    }
+                }
+                _ => return Err("unsupported note bank".into()),
+            }
         }
-    }
+    };
     if let Some(expression) = body.get("expression") {
         let expression = expression.as_table().ok_or("expression must be a table")?;
         if expression
@@ -100,6 +118,7 @@ pub fn parse_profile(text: &str) -> Result<HeldProfile, String> {
     }
     let Some(selection) = body.get("selection") else {
         return Ok(HeldProfile {
+            bank,
             selection: Selection::Ascending,
             step: parse_grid_step(body)?,
             gate: parse_gate(body)?,
@@ -146,6 +165,7 @@ pub fn parse_profile(text: &str) -> Result<HeldProfile, String> {
         _ => return Err("unsupported note selection".into()),
     };
     Ok(HeldProfile {
+        bank,
         selection,
         step: parse_grid_step(body)?,
         gate: parse_gate(body)?,
@@ -263,6 +283,7 @@ pub fn render_file(profile: &str, input: &[u8]) -> Result<Vec<u8>, String> {
     let through = Beat::new(i64::from(end), i64::from(ticks_per_beat));
     let occurrences = render_held(
         &held,
+        profile.bank,
         profile.selection,
         profile.step,
         profile.gate,

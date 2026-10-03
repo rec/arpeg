@@ -1,0 +1,27 @@
+{
+  "profile": {
+    "kind": "arpeggiator",
+    "name": "toggle",
+    "title": "Toggle by pitch",
+    "body": {
+      "bank": {"kind": "latched", "update": "toggle"},
+      "selection": {"kind": "ascending"},
+      "rhythm": {"kind": "grid", "step": "1/4 beat"}
+    }
+  },
+  "phrase": {
+    "capture_id": "toggle",
+    "timebase": {"name": "ticks", "rate": {"numerator": 480}},
+    "end_tick": 480,
+    "notes": [
+      {"capture_id": "toggle", "note_id": "first", "onset_tick": 0, "gate_end_tick": 60, "cell_end_tick": 480, "key": 60},
+      {"capture_id": "toggle", "note_id": "second", "onset_tick": 120, "gate_end_tick": 180, "cell_end_tick": 480, "key": 60}
+    ]
+  },
+  "tempo": {"points": [{"at_seconds": "0", "beat": "0", "bpm": "120"}]},
+  "through": "1",
+  "expected": [
+    ["first", "0", "1/5"],
+    ["first", "1/4", "9/20"]
+  ]
+}
