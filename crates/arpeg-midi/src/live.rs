@@ -98,12 +98,16 @@ pub fn play(
         "Playing arpeggio at {bpm} BPM. Enter clear for a latch, or press Enter or Ctrl-C to stop."
     );
     let mut start = None;
-    let mut parser = MidiNotes::default();
+    let mut parser = MidiMessages::default();
     let mut last = Beat::from_integer(0);
     let result = (|| -> Result<(), String> {
         while !stopped.load(Ordering::SeqCst) {
             while let Ok((arrival, data)) = receiver.try_recv() {
-                let notes = parser.feed(&data);
+                let notes: Vec<_> = parser
+                    .feed(&data)
+                    .iter()
+                    .filter_map(|message| NoteInput::decode(message))
+                    .collect();
                 if notes.is_empty() {
                     continue;
                 }
@@ -184,76 +188,115 @@ enum NoteInput {
     Off(u8),
 }
 
-#[derive(Default)]
-struct MidiNotes {
-    status: u8,
-    first: Option<u8>,
-    sysex: bool,
+impl NoteInput {
+    fn decode(message: &[u8]) -> Option<Self> {
+        if message.len() != 3 || message[0] & 0x0f != 0 {
+            return None;
+        }
+        match message[0] & 0xf0 {
+            0x90 if message[2] > 0 => Some(Self::On(message[1], message[2])),
+            0x80 | 0x90 => Some(Self::Off(message[1])),
+            _ => None,
+        }
+    }
 }
 
-impl MidiNotes {
-    fn feed(&mut self, bytes: &[u8]) -> Vec<NoteInput> {
-        let mut notes = Vec::new();
+#[derive(Default)]
+struct MidiMessages {
+    status: u8,
+    data: Vec<u8>,
+    sysex: Option<Vec<u8>>,
+}
+
+impl MidiMessages {
+    fn feed(&mut self, bytes: &[u8]) -> Vec<Vec<u8>> {
+        let mut messages = Vec::new();
         for &byte in bytes {
             if byte >= 0xf8 {
+                messages.push(vec![byte]);
+                continue;
+            }
+            if let Some(sysex) = &mut self.sysex {
+                sysex.push(byte);
+                if byte == 0xf7 {
+                    messages.push(self.sysex.take().expect("active SysEx"));
+                }
                 continue;
             }
             if byte == 0xf0 {
-                self.sysex = true;
+                self.sysex = Some(vec![byte]);
                 self.status = 0;
-                self.first = None;
-                continue;
-            }
-            if byte == 0xf7 {
-                self.sysex = false;
-                continue;
-            }
-            if self.sysex {
+                self.data.clear();
                 continue;
             }
             if byte >= 0x80 {
-                self.status = if byte < 0xf0 { byte } else { 0 };
-                self.first = None;
+                self.status = match byte {
+                    0x80..=0xef | 0xf1..=0xf3 => byte,
+                    _ => 0,
+                };
+                self.data.clear();
+                if self.status == 0 {
+                    messages.push(vec![byte]);
+                }
                 continue;
             }
             if self.status == 0 {
                 continue;
             }
-            let kind = self.status & 0xf0;
-            if matches!(kind, 0xc0 | 0xd0) {
-                continue;
-            }
-            if let Some(first) = self.first.take() {
-                if self.status & 0x0f == 0 {
-                    match kind {
-                        0x90 if byte > 0 => notes.push(NoteInput::On(first, byte)),
-                        0x80 | 0x90 => notes.push(NoteInput::Off(first)),
-                        _ => {}
-                    }
+            self.data.push(byte);
+            let needed = match self.status {
+                0xc0..=0xdf | 0xf1 | 0xf3 => 1,
+                _ => 2,
+            };
+            if self.data.len() == needed {
+                messages.push([&[self.status], self.data.as_slice()].concat());
+                self.data.clear();
+                if self.status >= 0xf0 {
+                    self.status = 0;
                 }
-            } else {
-                self.first = Some(byte);
             }
         }
-        notes
+        messages
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{MidiNotes, NoteInput};
+    use super::{MidiMessages, NoteInput};
 
     #[test]
     fn decodes_running_status_and_velocity_zero_releases() {
-        let mut parser = MidiNotes::default();
-        assert_eq!(parser.feed(&[0x90, 60]), []);
+        let mut parser = MidiMessages::default();
+        assert!(parser.feed(&[0x90, 60]).is_empty());
+        let notes: Vec<_> = parser
+            .feed(&[100, 64, 90, 60, 0])
+            .iter()
+            .filter_map(|message| NoteInput::decode(message))
+            .collect();
         assert_eq!(
-            parser.feed(&[100, 64, 90, 60, 0]),
+            notes,
             [
                 NoteInput::On(60, 100),
                 NoteInput::On(64, 90),
                 NoteInput::Off(60)
             ]
+        );
+    }
+
+    #[test]
+    fn keeps_controller_bend_system_and_realtime_messages() {
+        let mut parser = MidiMessages::default();
+        assert_eq!(
+            parser.feed(&[0xb2, 2, 13, 0xe2, 64, 81]),
+            [vec![0xb2, 2, 13], vec![0xe2, 64, 81]]
+        );
+        assert_eq!(
+            parser.feed(&[0xf8, 0xc2, 7, 0xf0, 1]),
+            [vec![0xf8], vec![0xc2, 7]]
+        );
+        assert_eq!(
+            parser.feed(&[0xf8, 2, 0xf7]),
+            [vec![0xf8], vec![0xf0, 1, 2, 0xf7]]
         );
     }
 }
