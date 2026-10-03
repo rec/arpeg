@@ -113,9 +113,22 @@ fn unsupported_profile_modes_fail_explicitly() {
 }
 
 #[test]
+fn bank_edit_retrigger_is_live_only() {
+    let profile = include_str!("../../../conformance/up.toml")
+        .replace("[body]", "[body]\nretrigger = \"bank_edit\"");
+    parse_profile(&profile).expect("supported live profile");
+    assert_eq!(
+        render_file(&profile, &single_note_input(0)).unwrap_err(),
+        "file rendering does not support bank-edit retrigger"
+    );
+}
+
+#[test]
 fn native_shell_accepts_the_canonical_ufor_profile() {
     parse_profile(include_str!("../../../conformance/up-expanded.toml"))
         .expect("uFor-serialized profile");
+    parse_profile(include_str!("../../../conformance/live-latch.toml"))
+        .expect("live latch profile");
 }
 
 #[test]

@@ -41,9 +41,6 @@ pub fn play(
     destination_index: usize,
     bpm: u32,
 ) -> Result<(), String> {
-    if profile.bank != Bank::Held {
-        return Err("live mode currently supports held banks only".into());
-    }
     if bpm == 0 || bpm > 1000 {
         return Err("BPM must be between 1 and 1000".into());
     }
@@ -65,22 +62,41 @@ pub fn play(
     input_port
         .connect_source(&source)
         .map_err(|e| format!("connect MIDI source: {e}"))?;
-    let mut arp = LiveArpeggiator::new(profile.selection, profile.step, profile.gate)
-        .map_err(str::to_owned)?;
+    let mut arp = LiveArpeggiator::new(
+        profile.bank,
+        profile.selection,
+        profile.step,
+        profile.gate,
+        profile.retrigger,
+    )
+    .map_err(str::to_owned)?;
     let stopped = Arc::new(AtomicBool::new(false));
     let signal = Arc::clone(&stopped);
     ctrlc::set_handler(move || signal.store(true, Ordering::SeqCst)).map_err(|e| e.to_string())?;
     let keyboard = Arc::clone(&stopped);
+    let (command_sender, command_receiver) = mpsc::channel();
     thread::spawn(move || {
         let mut line = String::new();
-        if io::stdin()
-            .read_line(&mut line)
-            .is_ok_and(|bytes| bytes > 0)
-        {
-            keyboard.store(true, Ordering::SeqCst);
+        loop {
+            line.clear();
+            match io::stdin().read_line(&mut line) {
+                Ok(0) | Err(_) => break,
+                Ok(_) if line.trim() == "clear" => {
+                    if command_sender.send(()).is_err() {
+                        break;
+                    }
+                }
+                Ok(_) if line.trim().is_empty() || line.trim() == "quit" => {
+                    keyboard.store(true, Ordering::SeqCst);
+                    break;
+                }
+                Ok(_) => eprintln!("enter clear, quit, or an empty line"),
+            }
         }
     });
-    println!("Playing held arpeggio at {bpm} BPM. Press Enter or Ctrl-C to stop.");
+    println!(
+        "Playing arpeggio at {bpm} BPM. Enter clear for a latch, or press Enter or Ctrl-C to stop."
+    );
     let mut start = None;
     let mut parser = MidiNotes::default();
     let mut last = Beat::from_integer(0);
@@ -102,6 +118,21 @@ pub fn play(
                     .map_err(str::to_owned)?;
                     send_events(&output_port, &destination, &events)?;
                 }
+            }
+            while command_receiver.try_recv().is_ok() {
+                if profile.bank == Bank::Held {
+                    eprintln!("clear requires a latched bank");
+                    continue;
+                }
+                let at = start.map_or(last, |origin| {
+                    elapsed_beat(origin, Instant::now(), bpm).max(last)
+                });
+                last = at;
+                send_events(
+                    &output_port,
+                    &destination,
+                    &arp.clear(at).map_err(str::to_owned)?,
+                )?;
             }
             if let Some(origin) = start {
                 let now = elapsed_beat(origin, Instant::now(), bpm).max(last);

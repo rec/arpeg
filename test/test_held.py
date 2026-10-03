@@ -135,3 +135,16 @@ def test_latch_survives_source_releases(update: str, expected: list[str]) -> Non
         "synth",
     )
     assert [o.source_note for o in occurrences][-2:] == expected
+
+
+def test_file_renderer_rejects_live_retrigger_policy() -> None:
+    case = json.loads(Path("conformance/held-chord.json").read_text())
+    case["profile"]["body"]["retrigger"] = "bank_edit"
+    with pytest.raises(ValueError, match="bank-edit retrigger"):
+        render_held(
+            ArpeggiatorScore.model_validate(case["profile"]),
+            CapturedPhrase.model_validate(case["phrase"]),
+            TempoMap.model_validate(case["tempo"]),
+            Fraction(case["through"]),
+            "synth",
+        )

@@ -2,6 +2,7 @@
 
 use std::collections::{HashMap, VecDeque};
 
+use arpeg_core::live::Retrigger;
 use arpeg_core::{Bank, Beat, HeldNote, Selection, render_held};
 use midly::{
     Format, Header, MetaMessage, MidiMessage, Smf, Timing, TrackEvent, TrackEventKind,
@@ -16,6 +17,7 @@ pub struct HeldProfile {
     pub selection: Selection,
     pub step: Beat,
     pub gate: Beat,
+    pub retrigger: Retrigger,
 }
 
 pub fn parse_profile(text: &str) -> Result<HeldProfile, String> {
@@ -72,10 +74,17 @@ pub fn parse_profile(text: &str) -> Result<HeldProfile, String> {
         .get("body")
         .and_then(toml::Value::as_table)
         .ok_or("profile requires a body")?;
-    if body
-        .keys()
-        .any(|key| !["bank", "selection", "rhythm", "gate", "expression"].contains(&key.as_str()))
-    {
+    if body.keys().any(|key| {
+        ![
+            "bank",
+            "selection",
+            "rhythm",
+            "gate",
+            "retrigger",
+            "expression",
+        ]
+        .contains(&key.as_str())
+    }) {
         return Err("profile contains an unsupported body field".into());
     }
     let bank = match body.get("bank") {
@@ -101,6 +110,12 @@ pub fn parse_profile(text: &str) -> Result<HeldProfile, String> {
             }
         }
     };
+    let retrigger = match body.get("retrigger") {
+        None => Retrigger::OnEmpty,
+        Some(value) if value.as_str() == Some("on_empty") => Retrigger::OnEmpty,
+        Some(value) if value.as_str() == Some("bank_edit") => Retrigger::BankEdit,
+        _ => return Err("unsupported retrigger policy".into()),
+    };
     if let Some(expression) = body.get("expression") {
         let expression = expression.as_table().ok_or("expression must be a table")?;
         if expression
@@ -125,6 +140,7 @@ pub fn parse_profile(text: &str) -> Result<HeldProfile, String> {
             selection: Selection::Ascending,
             step: parse_grid_step(body)?,
             gate: parse_gate(body)?,
+            retrigger,
         });
     };
     let selection = selection.as_table().ok_or("selection must be a table")?;
@@ -172,6 +188,7 @@ pub fn parse_profile(text: &str) -> Result<HeldProfile, String> {
         selection,
         step: parse_grid_step(body)?,
         gate: parse_gate(body)?,
+        retrigger,
     })
 }
 
@@ -210,6 +227,9 @@ fn parse_gate(body: &toml::map::Map<String, toml::Value>) -> Result<Beat, String
 
 pub fn render_file(profile: &str, input: &[u8]) -> Result<Vec<u8>, String> {
     let profile = parse_profile(profile)?;
+    if profile.retrigger != Retrigger::OnEmpty {
+        return Err("file rendering does not support bank-edit retrigger".into());
+    }
     let file = Smf::parse(input).map_err(|e| e.to_string())?;
     if file.header.format != Format::SingleTrack || file.tracks.len() != 1 {
         return Err("only single-track MIDI files are supported".into());

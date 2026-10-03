@@ -38,6 +38,8 @@ def render_held(
         raise ValueError("held rendering does not support repeated selections")
     if not isinstance(body.rhythm, Grid):
         raise ValueError("held rendering requires grid rhythm")
+    if body.retrigger != "on_empty":
+        raise ValueError("held rendering does not support bank-edit retrigger")
     if through < 0:
         raise ValueError("render horizon must be nonnegative")
 

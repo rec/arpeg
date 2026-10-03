@@ -1,11 +1,26 @@
 //! Incremental decisions for a running, held-note arpeggiator.
 
-use crate::{Beat, Selection};
+use crate::{Bank, Beat, Selection};
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Retrigger {
+    OnEmpty,
+    BankEdit,
+}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum OutputKind {
-    NoteOn { id: u64, key: u8, velocity: u8 },
-    NoteOff { id: u64, key: u8 },
+    NoteOn {
+        id: u64,
+        source_id: u64,
+        key: u8,
+        velocity: u8,
+    },
+    NoteOff {
+        id: u64,
+        source_id: u64,
+        key: u8,
+    },
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -25,11 +40,14 @@ struct InputNote {
 #[derive(Clone, Copy, Debug)]
 struct SoundingNote {
     id: u64,
+    source_id: u64,
     key: u8,
     end: Beat,
 }
 
 pub struct LiveArpeggiator {
+    bank_mode: Bank,
+    retrigger: Retrigger,
     selection: Selection,
     step: Beat,
     gate: Beat,
@@ -39,15 +57,27 @@ pub struct LiveArpeggiator {
     next_output: u64,
     previous_key: Option<(Beat, u64)>,
     input: Vec<InputNote>,
+    bank: Vec<InputNote>,
+    toggle_at: Option<Beat>,
+    toggled_keys: Vec<u8>,
+    toggle_added_keys: Vec<u8>,
     sounding: Vec<SoundingNote>,
 }
 
 impl LiveArpeggiator {
-    pub fn new(selection: Selection, step: Beat, gate: Beat) -> Result<Self, &'static str> {
+    pub fn new(
+        bank: Bank,
+        selection: Selection,
+        step: Beat,
+        gate: Beat,
+        retrigger: Retrigger,
+    ) -> Result<Self, &'static str> {
         if step <= Beat::from_integer(0) || gate < Beat::from_integer(0) {
             return Err("step must be positive and gate nonnegative");
         }
         Ok(Self {
+            bank_mode: bank,
+            retrigger,
             selection,
             step,
             gate,
@@ -57,6 +87,10 @@ impl LiveArpeggiator {
             next_output: 0,
             previous_key: None,
             input: Vec::new(),
+            bank: Vec::new(),
+            toggle_at: None,
+            toggled_keys: Vec::new(),
+            toggle_added_keys: Vec::new(),
             sounding: Vec::new(),
         })
     }
@@ -68,27 +102,75 @@ impl LiveArpeggiator {
         velocity: u8,
     ) -> Result<Vec<OutputEvent>, &'static str> {
         self.check_time(at)?;
-        let output = self.process_until(at, false);
-        self.input.push(InputNote {
+        let mut output = self.process_until(at, false);
+        let new_chord = self.input.is_empty();
+        let note = InputNote {
             id: self.next_id,
             key,
             velocity,
             onset: at,
-        });
+        };
+        self.input.push(note);
+        let edited = match self.bank_mode {
+            Bank::Held => true,
+            Bank::LatchedReplace => {
+                if new_chord {
+                    self.bank.clear();
+                }
+                self.bank.push(note);
+                true
+            }
+            Bank::LatchedAdd => {
+                self.bank.push(note);
+                true
+            }
+            Bank::LatchedToggle => {
+                if self.toggle_at != Some(at) {
+                    self.toggle_at = Some(at);
+                    self.toggled_keys.clear();
+                    self.toggle_added_keys.clear();
+                }
+                if !self.toggled_keys.contains(&key) {
+                    self.toggled_keys.push(key);
+                    if self.bank.iter().any(|entry| entry.key == key) {
+                        self.bank.retain(|entry| entry.key != key);
+                    } else {
+                        self.bank.push(note);
+                        self.toggle_added_keys.push(key);
+                    }
+                    true
+                } else if self.toggle_added_keys.contains(&key) {
+                    self.bank.push(note);
+                    true
+                } else {
+                    false
+                }
+            }
+        };
+        if self.bank_mode != Bank::Held && self.bank.is_empty() {
+            self.previous_key = None;
+            output.extend(self.release_all(at));
+        }
+        if edited && self.retrigger == Retrigger::BankEdit {
+            self.previous_key = None;
+        }
         self.next_id += 1;
         Ok(output)
     }
 
     pub fn note_off(&mut self, at: Beat, key: u8) -> Result<Vec<OutputEvent>, &'static str> {
         self.check_time(at)?;
-        let mut output = self.process_until(at, false);
         let index = self
             .input
             .iter()
             .position(|note| note.key == key)
             .ok_or("release has no matching onset")?;
+        let mut output = self.process_until(at, false);
         self.input.remove(index);
-        if self.input.is_empty() {
+        if self.bank_mode == Bank::Held && self.retrigger == Retrigger::BankEdit {
+            self.previous_key = None;
+        }
+        if self.bank_mode == Bank::Held && self.input.is_empty() {
             self.previous_key = None;
             output.extend(self.release_all(at));
         }
@@ -105,8 +187,27 @@ impl LiveArpeggiator {
         let mut output = self.process_until(at, false);
         output.extend(self.release_all(at));
         self.input.clear();
+        self.bank.clear();
+        self.toggle_at = None;
+        self.toggled_keys.clear();
+        self.toggle_added_keys.clear();
         self.previous_key = None;
         self.now = at;
+        Ok(output)
+    }
+
+    pub fn clear(&mut self, at: Beat) -> Result<Vec<OutputEvent>, &'static str> {
+        self.check_time(at)?;
+        if self.bank_mode == Bank::Held {
+            return Err("clear requires a latched bank");
+        }
+        let mut output = self.process_until(at, false);
+        self.bank.clear();
+        self.toggle_at = None;
+        self.toggled_keys.clear();
+        self.toggle_added_keys.clear();
+        self.previous_key = None;
+        output.extend(self.release_all(at));
         Ok(output)
     }
 
@@ -151,6 +252,7 @@ impl LiveArpeggiator {
                     at: note.end,
                     kind: OutputKind::NoteOff {
                         id: note.id,
+                        source_id: note.source_id,
                         key: note.key,
                     },
                 });
@@ -168,6 +270,7 @@ impl LiveArpeggiator {
                 at,
                 kind: OutputKind::NoteOff {
                     id: note.id,
+                    source_id: note.source_id,
                     key: note.key,
                 },
             })
@@ -175,39 +278,26 @@ impl LiveArpeggiator {
     }
 
     fn play_step(&mut self, at: Beat, output: &mut Vec<OutputEvent>) {
-        if self.input.is_empty() {
+        let active = if self.bank_mode == Bank::Held {
+            &self.input
+        } else {
+            &self.bank
+        };
+        if active.is_empty() {
             self.previous_key = None;
             return;
         }
         let selection = self.selection;
-        self.input.sort_unstable_by_key(|note| match selection {
-            Selection::Ascending => (Beat::from_integer(i64::from(note.key)), note.id),
-            Selection::Descending => (-Beat::from_integer(i64::from(note.key)), note.id),
-            Selection::Played => (note.onset, note.id),
-            Selection::ReversePlayed => (-note.onset, note.id),
-        });
-        let selected = self
-            .input
+        let mut ordered = active.clone();
+        ordered.sort_unstable_by_key(|note| selection_key(note, selection));
+        let selected = ordered
             .iter()
             .find(|note| {
-                self.previous_key.is_none_or(|previous| {
-                    let key = match selection {
-                        Selection::Ascending => Beat::from_integer(i64::from(note.key)),
-                        Selection::Descending => -Beat::from_integer(i64::from(note.key)),
-                        Selection::Played => note.onset,
-                        Selection::ReversePlayed => -note.onset,
-                    };
-                    (key, note.id) > previous
-                })
+                self.previous_key
+                    .is_none_or(|previous| selection_key(note, selection) > previous)
             })
-            .unwrap_or(&self.input[0]);
-        let key = match selection {
-            Selection::Ascending => Beat::from_integer(i64::from(selected.key)),
-            Selection::Descending => -Beat::from_integer(i64::from(selected.key)),
-            Selection::Played => selected.onset,
-            Selection::ReversePlayed => -selected.onset,
-        };
-        self.previous_key = Some((key, selected.id));
+            .unwrap_or(&ordered[0]);
+        self.previous_key = Some(selection_key(selected, selection));
         let end = at + self.step * self.gate;
         for note in self
             .sounding
@@ -218,6 +308,7 @@ impl LiveArpeggiator {
                 at,
                 kind: OutputKind::NoteOff {
                     id: note.id,
+                    source_id: note.source_id,
                     key: note.key,
                 },
             });
@@ -230,6 +321,7 @@ impl LiveArpeggiator {
             at,
             kind: OutputKind::NoteOn {
                 id,
+                source_id: selected.id,
                 key: selected.key,
                 velocity: selected.velocity,
             },
@@ -239,15 +331,27 @@ impl LiveArpeggiator {
                 at,
                 kind: OutputKind::NoteOff {
                     id,
+                    source_id: selected.id,
                     key: selected.key,
                 },
             });
         } else {
             self.sounding.push(SoundingNote {
                 id,
+                source_id: selected.id,
                 key: selected.key,
                 end,
             });
         }
     }
+}
+
+fn selection_key(note: &InputNote, selection: Selection) -> (Beat, u64) {
+    let position = match selection {
+        Selection::Ascending => Beat::from_integer(i64::from(note.key)),
+        Selection::Descending => -Beat::from_integer(i64::from(note.key)),
+        Selection::Played => note.onset,
+        Selection::ReversePlayed => -note.onset,
+    };
+    (position, note.id)
 }

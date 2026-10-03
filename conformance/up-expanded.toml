@@ -7,6 +7,7 @@ kind = "arpeggiator"
 
 [body]
 gate = "4/5"
+retrigger = "on_empty"
 
 [body.bank]
 kind = "held"
