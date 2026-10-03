@@ -12,6 +12,12 @@ The Python package uses uFor's portable profile and capture contracts. The Rust
 crate in `crates/arpeg-core` contains event decisions only; it has no dependency
 on Python, MIDI device libraries, or audio processing.
 
+The readable Python live engine is [src/arpeg/live.py](src/arpeg/live.py).
+`LiveArpeggiator` accepts a uFor profile and provides `note_on`, `note_off`,
+`advance`, and `stop` methods with exact beat times. Its behavior is covered in
+[test/test_live.py](test/test_live.py). The CoreMIDI executable uses the Rust
+engine, so Python is not required when playing from MIDI ports.
+
 The standalone `arpeg` executable validates supported profiles, renders
 single-track metrical MIDI files containing note and tempo events, and plays
 held-note arpeggios through CoreMIDI on macOS. Live mode reads MIDI channel 1,
