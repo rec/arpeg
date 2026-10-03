@@ -1,0 +1,3 @@
+[workspace]
+members = ["crates/arpeg-core"]
+resolver = "3"
