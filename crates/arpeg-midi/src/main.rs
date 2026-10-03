@@ -2,6 +2,9 @@ use std::{env, fs, process};
 
 use arpeg_midi::{parse_profile, render_file};
 
+#[cfg(target_os = "macos")]
+use arpeg_midi::live::{list_ports, play};
+
 fn main() {
     if let Err(error) = run() {
         eprintln!("{error}");
@@ -23,9 +26,24 @@ fn run() -> Result<(), String> {
             let rendered = render_file(&text, &input)?;
             fs::write(output, rendered).map_err(|e| e.to_string())?;
         }
+        #[cfg(target_os = "macos")]
+        [_, command] if command == "list-ports" => list_ports(),
+        #[cfg(target_os = "macos")]
+        [_, command, profile, source, destination, bpm] if command == "play" => {
+            let text = fs::read_to_string(profile).map_err(|e| e.to_string())?;
+            let profile = parse_profile(&text)?;
+            let source = source
+                .parse()
+                .map_err(|_| "source index must be an integer")?;
+            let destination = destination
+                .parse()
+                .map_err(|_| "destination index must be an integer")?;
+            let bpm = bpm.parse().map_err(|_| "BPM must be a positive integer")?;
+            play(profile, source, destination, bpm)?;
+        }
         _ => {
             return Err(
-                "usage: arpeg validate PROFILE | arpeg render-file PROFILE INPUT.mid OUTPUT.mid"
+                "usage: arpeg validate PROFILE | arpeg render-file PROFILE INPUT.mid OUTPUT.mid | arpeg list-ports | arpeg play PROFILE SOURCE_INDEX DESTINATION_INDEX BPM"
                     .into(),
             );
         }

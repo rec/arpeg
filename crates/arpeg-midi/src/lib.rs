@@ -8,11 +8,14 @@ use midly::{
     num::{u4, u7, u28},
 };
 
+#[cfg(target_os = "macos")]
+pub mod live;
+
 pub struct HeldProfile {
-    bank: Bank,
-    selection: Selection,
-    step: Beat,
-    gate: Beat,
+    pub bank: Bank,
+    pub selection: Selection,
+    pub step: Beat,
+    pub gate: Beat,
 }
 
 pub fn parse_profile(text: &str) -> Result<HeldProfile, String> {
