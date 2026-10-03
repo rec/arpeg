@@ -1,0 +1,33 @@
+{
+  "profile": {
+    "kind": "arpeggiator",
+    "name": "up",
+    "title": "Up",
+    "body": {
+      "selection": {"kind": "ascending"},
+      "rhythm": {"kind": "grid", "step": "1/4 beat"}
+    }
+  },
+  "phrase": {
+    "capture_id": "chord",
+    "timebase": {"name": "ticks", "rate": {"numerator": 480}},
+    "end_tick": 480,
+    "notes": [
+      {"capture_id": "chord", "note_id": "c", "onset_tick": 0, "gate_end_tick": 480, "cell_end_tick": 480, "key": 60},
+      {"capture_id": "chord", "note_id": "e", "onset_tick": 0, "gate_end_tick": 480, "cell_end_tick": 480, "key": 64},
+      {"capture_id": "chord", "note_id": "g", "onset_tick": 0, "gate_end_tick": 480, "cell_end_tick": 480, "key": 67}
+    ]
+  },
+  "tempo": {"points": [{"at_seconds": "0", "beat": "0", "bpm": "120"}]},
+  "through": "2",
+  "expected": [
+    ["c", "0", "1/5"],
+    ["e", "1/4", "9/20"],
+    ["g", "1/2", "7/10"],
+    ["c", "3/4", "19/20"],
+    ["e", "1", "6/5"],
+    ["g", "5/4", "29/20"],
+    ["c", "3/2", "17/10"],
+    ["e", "7/4", "39/20"]
+  ]
+}
