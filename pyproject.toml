@@ -9,6 +9,7 @@ authors = [
 requires-python = ">=3.13"
 dependencies = [
     "pydantic>=2.13.5",
+    "ufor",
 ]
 
 [build-system]
@@ -22,3 +23,6 @@ dev = [
     "ruff>=0.16.9",
     "ty>=0.0.84",
 ]
+
+[tool.uv.sources]
+ufor = { git = "ssh://git@github.com/rec/ufor.git", rev = "main" }
