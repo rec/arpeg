@@ -23,6 +23,8 @@ class CaptureBank(BaseModel):
     mode: Literal["history", "phrase"]
     history_size: int = Field(default=8, ge=1)
     selection: Literal["ascending", "descending", "played"] = "ascending"
+    direction: Literal["forward", "reverse"] = "forward"
+    retrigger_on_edit: bool = True
     recording: MidiCapture | None = None
     live_snapshot: CapturedPhrase | None = None
     takes: list[_Take] = Field(default_factory=list)
@@ -30,6 +32,7 @@ class CaptureBank(BaseModel):
     revision: int = 0
     last_selected: BankNote | None = None
     selected_revision: int = -1
+    history_floor: int = 0
 
     def record(
         self, capture_id: str, timebase: Timebase, profile: MidiCaptureProfile
@@ -42,6 +45,7 @@ class CaptureBank(BaseModel):
             capture_id=capture_id, timebase=timebase, profile=profile
         )
         self.live_snapshot = None
+        self.history_floor = 0
 
     def accept(self, event: MidiEvent, note_id: str | None = None) -> None:
         if self.recording is None:
@@ -75,6 +79,16 @@ class CaptureBank(BaseModel):
         self.live_snapshot = None
         self.takes.clear()
 
+    def clear_history(self) -> None:
+        """Forget selected history while preserving the live controller capture."""
+        if self.mode != "history" or self.recording is None:
+            raise ValueError("clear_history requires an active history capture")
+        self.takes.clear()
+        self.history_floor = len(self.recording.segments)
+        self.published.clear()
+        self.last_selected = None
+        self.revision += 1
+
     def publish_step(self) -> list[BankNote]:
         """Apply pending edits once at the next rhythm opportunity."""
         notes: list[BankNote] = []
@@ -91,7 +105,7 @@ class CaptureBank(BaseModel):
                     BankNote(
                         capture_id=self.live_snapshot.capture_id, note_id=n.note_id
                     )
-                    for n in self.live_snapshot.notes
+                    for n in self.live_snapshot.notes[self.history_floor :]
                 )
             notes = notes[-self.history_size :]
         if notes != self.published:
@@ -106,10 +120,11 @@ class CaptureBank(BaseModel):
             self.last_selected = None
             return None
         if self.selected_revision != self.revision:
-            self.last_selected = None
+            if self.retrigger_on_edit:
+                self.last_selected = None
             self.selected_revision = self.revision
         if self.selection == "played":
-            ordered = bank
+            ordered = bank if self.direction == "forward" else list(reversed(bank))
         else:
 
             def order(ref: BankNote) -> tuple[int, str, str]:

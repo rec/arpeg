@@ -1,0 +1,150 @@
+"""Live history selection and owned MIDI output in exact source ticks."""
+
+from fractions import Fraction
+from math import floor
+from typing import Self
+
+from pydantic import BaseModel, Field, model_validator
+from ufor.events import MidiEvent
+from ufor.time import Timebase
+
+from .bank import CaptureBank
+from .capture import MidiCaptureProfile
+from .gesture import MidiGestureRenderer, MidiPlacement, RealizedMidiEvent
+
+
+class LiveHistoryArpeggiator(BaseModel):
+    """Publish completed notes at steps and fit their recorded gestures."""
+
+    step: Fraction
+    gate: Fraction = Fraction(4, 5)
+    bank: CaptureBank = Field(default_factory=lambda: CaptureBank(mode="history"))
+    capture_profile: MidiCaptureProfile = Field(default_factory=MidiCaptureProfile)
+    next_step: Fraction = Fraction(0)
+    queue: list[RealizedMidiEvent] = Field(default_factory=list)
+    sounding_key: int | None = None
+    sounding_source: str | None = None
+    processed_to: Fraction = Fraction(0)
+    inclusive: bool = False
+    input_events: int = 0
+
+    @model_validator(mode="after")
+    def valid_history(self) -> Self:
+        if self.step <= 0 or self.gate < 0 or self.bank.mode != "history":
+            raise ValueError("history requires positive step and nonnegative gate")
+        if self.bank.recording is None:
+            self.bank.record(
+                "live",
+                Timebase.model_validate(
+                    {"name": "microseconds", "rate": {"numerator": 1_000_000}}
+                ),
+                self.capture_profile,
+            )
+        return self
+
+    def accept(self, event: MidiEvent) -> None:
+        if self.input_events >= 1_000_000:
+            raise ValueError("live capture reached its event limit")
+        if event.tick < self.processed_to or (
+            event.tick == self.processed_to and self.inclusive
+        ):
+            raise ValueError("MIDI input arrived after its live output time")
+        self.bank.accept(event)
+        self.input_events += 1
+
+    def before(self, tick: int) -> list[RealizedMidiEvent]:
+        return self._process(Fraction(tick), inclusive=False)
+
+    def advance(self, tick: int) -> list[RealizedMidiEvent]:
+        return self._process(Fraction(tick), inclusive=True)
+
+    def clear(self, tick: int) -> list[RealizedMidiEvent]:
+        events = (
+            []
+            if Fraction(tick) == self.processed_to and self.inclusive
+            else self.before(tick)
+        )
+        self.queue.clear()
+        if self.sounding_key is not None and self.sounding_source is not None:
+            events.append(
+                RealizedMidiEvent(
+                    at=Fraction(tick),
+                    data=[128, self.sounding_key, 0],
+                    source_note=self.sounding_source,
+                    source_event=None,
+                )
+            )
+        self.sounding_key = None
+        self.sounding_source = None
+        self.bank.clear_history()
+        return events
+
+    def stop(self, tick: int) -> list[RealizedMidiEvent]:
+        events = self.clear(tick)
+        self.bank.clear()
+        return events
+
+    def _process(
+        self, through: Fraction, *, inclusive: bool
+    ) -> list[RealizedMidiEvent]:
+        if through < self.processed_to or (
+            through == self.processed_to and self.inclusive and not inclusive
+        ):
+            raise ValueError("live time must not go backwards")
+        output: list[RealizedMidiEvent] = []
+        while True:
+            deadline = (
+                min(self.next_step, self.queue[0].at) if self.queue else self.next_step
+            )
+            if deadline > through or (deadline == through and not inclusive):
+                break
+            if self.next_step == deadline:
+                output.extend(self._play_step(deadline))
+                self.next_step += self.step
+            else:
+                event = self.queue.pop(0)
+                kind = event.data[0] & 0xF0
+                if kind == 0x90 and event.data[2] > 0:
+                    self.sounding_key = event.data[1]
+                    self.sounding_source = event.source_note
+                elif kind == 0x80 or kind == 0x90 and event.data[2] == 0:
+                    self.sounding_key = None
+                    self.sounding_source = None
+                output.append(event)
+        self.processed_to = through
+        self.inclusive = inclusive
+        return output
+
+    def _play_step(self, at: Fraction) -> list[RealizedMidiEvent]:
+        self.bank.advance(floor(at))
+        selected = self.bank.select_step()
+        if selected is None:
+            return []
+        self.queue.clear()
+        output: list[RealizedMidiEvent] = []
+        if self.sounding_key is not None and self.sounding_source is not None:
+            output.append(
+                RealizedMidiEvent(
+                    at=at,
+                    data=[128, self.sounding_key, 0],
+                    source_note=self.sounding_source,
+                    source_event=None,
+                )
+            )
+            self.sounding_key = None
+            self.sounding_source = None
+        self.queue.extend(
+            MidiGestureRenderer(
+                phrase=self.bank.source(selected.capture_id),
+                channels=[0],
+                timing="fit",
+                overlap="handoff",
+            ).render(
+                [
+                    MidiPlacement(
+                        note_id=selected.note_id, onset=at, gate=self.step * self.gate
+                    )
+                ]
+            )
+        )
+        return output

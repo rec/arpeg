@@ -250,6 +250,23 @@ impl MidiCapture {
         Ok(ready)
     }
 
+    pub fn snapshot(&mut self, through_tick: i64) -> Result<CapturedPhrase, &'static str> {
+        self.advance(through_tick)?;
+        Ok(CapturedPhrase {
+            capture_id: self.capture_id.clone(),
+            timebase: self.timebase.clone(),
+            end_tick: through_tick,
+            events: self.events.clone(),
+            notes: self
+                .segments
+                .iter()
+                .filter(|segment| self.reported_notes.contains(&segment.note_id))
+                .map(|segment| source_note(segment, &self.capture_id))
+                .collect(),
+            prefix_events: self.prefix_events.clone(),
+        })
+    }
+
     pub fn finish(mut self, end_tick: i64) -> Result<CapturedPhrase, &'static str> {
         if end_tick < self.events.last().map_or(0, |event| event.tick)
             || self.advanced_through.is_some_and(|tick| end_tick < tick)

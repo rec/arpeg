@@ -42,15 +42,18 @@ and clear changes become visible at `publish_step`. `select_step` chooses a
 source note from the published revision; callers can place it through the
 gesture renderer at an output onset.
 
-The Rust event core also captures MIDI note cells and controller state, and
-renders recorded gestures with channel allocation. Its tests compare the same
-wind and gap fixtures. The CoreMIDI live host still plays classic held and
-latched notes.
+[src/arpeg/history.py](src/arpeg/history.py) is the Python reference for live
+recorded history. `LiveHistoryArpeggiator` captures channel 1 MIDI, selects
+completed notes at exact grid steps, and fits their recorded breath and bend
+gestures to each output gate. It owns one sounding output note at a time:
+each new step ends the old note before starting the next gesture. `clear`
+forgets the history and releases the output note while continuing to capture
+new input. The Rust event core implements the same step and handoff rules.
 
 The standalone `arpeg` executable validates supported profiles, renders
 single-track metrical MIDI files containing note and tempo events, and plays
-held or latched note arpeggios through CoreMIDI on macOS. Live mode reads MIDI channel 1,
-outputs on channel 1, and uses an internal BPM clock. It polls every millisecond
+classic or recorded-history arpeggios through CoreMIDI on macOS. Live mode reads MIDI
+channel 1, outputs on channel 1, and uses an internal BPM clock. It polls every millisecond
 and sends events immediately when due; input packet timestamps and future
 CoreMIDI output timestamps are not used yet. Hardware timing and device behavior
 have not been verified.
@@ -61,14 +64,19 @@ cargo run -p arpeg-midi -- render-file conformance/up.toml input.mid output.mid
 cargo run -p arpeg-midi -- list-ports
 cargo run -p arpeg-midi -- play conformance/up.toml SOURCE_INDEX DESTINATION_INDEX 120
 cargo run -p arpeg-midi -- play conformance/live-latch.toml SOURCE_INDEX DESTINATION_INDEX 120
+cargo run -p arpeg-midi -- play conformance/history-wind.toml SOURCE_INDEX DESTINATION_INDEX 120
 ```
 
-Enter `clear` to empty a latched bank and release its owned output notes. Press
+Enter `clear` to empty a latched or history bank and release its owned output notes. Press
 Enter or Ctrl-C to stop live playback. The default `retrigger = "on_empty"`
 continues selection through chord edits; `retrigger = "bank_edit"` restarts
 selection at the first note on the next grid step without moving the grid.
 File rendering rejects `bank_edit` until it can reproduce the same live
-decisions from a complete input trace.
+decisions from a complete input trace. Recorded history is live only; file
+rendering rejects its profile. The current history preset captures CC2 breath
+and pitch bend from channel 1 and fits their recorded note gestures to each
+step. Channel 1 handoff ends overlapping gestures rather than assigning them
+independent MIDI channels.
 
 ## Development
 

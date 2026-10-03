@@ -1,4 +1,4 @@
-//! A small CoreMIDI host for the held-note preset.
+//! A small CoreMIDI host for classic and recorded-history presets.
 
 use std::{
     io,
@@ -13,11 +13,14 @@ use std::{
 
 use arpeg_core::{
     Bank, Beat,
+    capture::{MidiEvent, Profile as CaptureProfile},
+    gesture::{RealizedEvent, Tick},
+    history::HistoryArpeggiator,
     live::{LiveArpeggiator, OutputEvent, OutputKind},
 };
 use coremidi::{Client, Destination, Destinations, PacketBuffer, Source, Sources};
 
-use crate::HeldProfile;
+use crate::{HeldProfile, HistoryProfile, Profile};
 
 pub fn list_ports() {
     println!("Sources:");
@@ -36,7 +39,7 @@ pub fn list_ports() {
 }
 
 pub fn play(
-    profile: HeldProfile,
+    profile: Profile,
     source_index: usize,
     destination_index: usize,
     bpm: u32,
@@ -62,14 +65,6 @@ pub fn play(
     input_port
         .connect_source(&source)
         .map_err(|e| format!("connect MIDI source: {e}"))?;
-    let mut arp = LiveArpeggiator::new(
-        profile.bank,
-        profile.selection,
-        profile.step,
-        profile.gate,
-        profile.retrigger,
-    )
-    .map_err(str::to_owned)?;
     let stopped = Arc::new(AtomicBool::new(false));
     let signal = Arc::clone(&stopped);
     ctrlc::set_handler(move || signal.store(true, Ordering::SeqCst)).map_err(|e| e.to_string())?;
@@ -94,6 +89,45 @@ pub fn play(
             }
         }
     });
+    match profile {
+        Profile::Classic(profile) => run_classic(
+            profile,
+            bpm,
+            &receiver,
+            &command_receiver,
+            &output_port,
+            &destination,
+            &stopped,
+        ),
+        Profile::History(profile) => run_history(
+            profile,
+            bpm,
+            &receiver,
+            &command_receiver,
+            &output_port,
+            &destination,
+            &stopped,
+        ),
+    }
+}
+
+fn run_classic(
+    profile: HeldProfile,
+    bpm: u32,
+    receiver: &mpsc::Receiver<(Instant, Vec<u8>)>,
+    commands: &mpsc::Receiver<()>,
+    output_port: &coremidi::OutputPort,
+    destination: &Destination,
+    stopped: &AtomicBool,
+) -> Result<(), String> {
+    let mut arp = LiveArpeggiator::new(
+        profile.bank,
+        profile.selection,
+        profile.step,
+        profile.gate,
+        profile.retrigger,
+    )
+    .map_err(str::to_owned)?;
     println!(
         "Playing arpeggio at {bpm} BPM. Enter clear for a latch, or press Enter or Ctrl-C to stop."
     );
@@ -120,10 +154,10 @@ pub fn play(
                         NoteInput::Off(key) => arp.note_off(at, key),
                     }
                     .map_err(str::to_owned)?;
-                    send_events(&output_port, &destination, &events)?;
+                    send_events(output_port, destination, &events)?;
                 }
             }
-            while command_receiver.try_recv().is_ok() {
+            while commands.try_recv().is_ok() {
                 if profile.bank == Bank::Held {
                     eprintln!("clear requires a latched bank");
                     continue;
@@ -133,8 +167,8 @@ pub fn play(
                 });
                 last = at;
                 send_events(
-                    &output_port,
-                    &destination,
+                    output_port,
+                    destination,
                     &arp.clear(at).map_err(str::to_owned)?,
                 )?;
             }
@@ -142,8 +176,8 @@ pub fn play(
                 let now = elapsed_beat(origin, Instant::now(), bpm).max(last);
                 last = now;
                 send_events(
-                    &output_port,
-                    &destination,
+                    output_port,
+                    destination,
                     &arp.advance(now).map_err(str::to_owned)?,
                 )?;
             }
@@ -155,9 +189,110 @@ pub fn play(
         elapsed_beat(origin, Instant::now(), bpm).max(last)
     });
     if let Ok(events) = arp.stop(at) {
-        let _ = send_events(&output_port, &destination, &events);
+        let _ = send_events(output_port, destination, &events);
     }
     result
+}
+
+fn run_history(
+    profile: HistoryProfile,
+    bpm: u32,
+    receiver: &mpsc::Receiver<(Instant, Vec<u8>)>,
+    commands: &mpsc::Receiver<()>,
+    output_port: &coremidi::OutputPort,
+    destination: &Destination,
+    stopped: &AtomicBool,
+) -> Result<(), String> {
+    let step = profile.step * Tick::new(60_000_000, i64::from(bpm));
+    let mut arp = HistoryArpeggiator::new(
+        profile.notes,
+        profile.selection,
+        profile.retrigger == arpeg_core::live::Retrigger::BankEdit,
+        step,
+        profile.gate,
+        CaptureProfile::default(),
+    )
+    .map_err(str::to_owned)?;
+    println!(
+        "Playing recorded note history on MIDI channel 1 at {bpm} BPM. Enter clear, or press Enter or Ctrl-C to stop."
+    );
+    let mut start = None;
+    let mut parser = MidiMessages::default();
+    let mut last_published = -1i64;
+    let mut last_input = -1i64;
+    let mut ordinal = 0u32;
+    let mut reported_late = false;
+    let result = (|| -> Result<(), String> {
+        while !stopped.load(Ordering::SeqCst) {
+            while let Ok((arrival, data)) = receiver.try_recv() {
+                let messages = parser.feed(&data);
+                if messages.is_empty() {
+                    continue;
+                }
+                let origin = *start.get_or_insert(arrival);
+                let source_tick = elapsed_micros(origin, arrival);
+                let tick = source_tick
+                    .max(last_published.saturating_add(1))
+                    .max(last_input);
+                if tick != source_tick && !reported_late {
+                    eprintln!("late MIDI input moved to the next capture tick");
+                    reported_late = true;
+                }
+                send_realized(
+                    output_port,
+                    destination,
+                    &arp.before(tick).map_err(str::to_owned)?,
+                )?;
+                if tick != last_input {
+                    ordinal = 0;
+                    last_input = tick;
+                }
+                for data in messages {
+                    arp.accept(MidiEvent {
+                        tick,
+                        ordinal,
+                        data,
+                    })
+                    .map_err(str::to_owned)?;
+                    ordinal = ordinal
+                        .checked_add(1)
+                        .ok_or("too many simultaneous MIDI messages")?;
+                }
+            }
+            while commands.try_recv().is_ok() {
+                let tick = start
+                    .map_or(0, |origin| elapsed_micros(origin, Instant::now()))
+                    .max(last_published);
+                send_realized(
+                    output_port,
+                    destination,
+                    &arp.clear(tick).map_err(str::to_owned)?,
+                )?;
+            }
+            if let Some(origin) = start {
+                let now = elapsed_micros(origin, Instant::now()).max(last_published);
+                send_realized(
+                    output_port,
+                    destination,
+                    &arp.advance(now).map_err(str::to_owned)?,
+                )?;
+                last_published = now;
+            }
+            thread::sleep(Duration::from_millis(1));
+        }
+        Ok(())
+    })();
+    let at = start
+        .map_or(0, |origin| elapsed_micros(origin, Instant::now()))
+        .max(last_published);
+    if let Ok(events) = arp.clear(at) {
+        let _ = send_realized(output_port, destination, &events);
+    }
+    result
+}
+
+fn elapsed_micros(start: Instant, now: Instant) -> i64 {
+    i64::try_from(now.saturating_duration_since(start).as_micros()).unwrap_or(i64::MAX)
 }
 
 fn elapsed_beat(start: Instant, now: Instant, bpm: u32) -> Beat {
@@ -178,6 +313,18 @@ fn send_events(
         };
         port.send(destination, &PacketBuffer::new(0, &bytes))
             .map_err(|e| format!("CoreMIDI send: {e}"))?;
+    }
+    Ok(())
+}
+
+fn send_realized(
+    port: &coremidi::OutputPort,
+    destination: &Destination,
+    events: &[RealizedEvent],
+) -> Result<(), String> {
+    for event in events {
+        port.send(destination, &PacketBuffer::new(0, &event.data))
+            .map_err(|error| format!("CoreMIDI send: {error}"))?;
     }
     Ok(())
 }
