@@ -1,0 +1,26 @@
+format = "recs"
+version = 4
+name = "up"
+title = "Up"
+tags = []
+kind = "arpeggiator"
+
+[body]
+gate = "4/5"
+
+[body.bank]
+kind = "held"
+
+[body.selection]
+kind = "ascending"
+key = "pitch"
+repeats = 1
+
+[body.rhythm]
+kind = "grid"
+step = "1/4 beat"
+
+[body.expression]
+source = "current"
+timing = "original"
+gaps = "omit"

@@ -1,0 +1,15 @@
+[package]
+name = "arpeg-midi"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+
+[[bin]]
+name = "arpeg"
+path = "src/main.rs"
+
+[dependencies]
+arpeg-core = { path = "../arpeg-core" }
+midly = { version = "0.5.3", default-features = false, features = ["std"] }
+num-rational = "0.4"
+toml = "1.1"

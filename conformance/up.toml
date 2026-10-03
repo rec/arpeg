@@ -1,0 +1,7 @@
+kind = "arpeggiator"
+name = "up"
+title = "Up"
+
+[body]
+selection = { kind = "ascending" }
+rhythm = { kind = "grid", step = "1/4 beat" }

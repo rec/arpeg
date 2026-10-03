@@ -1,0 +1,395 @@
+//! File and profile adapters for the portable arpeggiator core.
+
+use std::collections::{HashMap, VecDeque};
+
+use arpeg_core::{Beat, HeldNote, Selection, render_held};
+use midly::{
+    Format, Header, MetaMessage, MidiMessage, Smf, Timing, TrackEvent, TrackEventKind,
+    num::{u4, u7, u28},
+};
+
+pub struct HeldProfile {
+    selection: Selection,
+    step: Beat,
+    gate: Beat,
+}
+
+pub fn parse_profile(text: &str) -> Result<HeldProfile, String> {
+    let score: toml::Value = toml::from_str(text).map_err(|e| e.to_string())?;
+    let score = score.as_table().ok_or("profile must be a TOML table")?;
+    if score.keys().any(|key| {
+        !["format", "version", "name", "title", "tags", "kind", "body"].contains(&key.as_str())
+    }) || score
+        .get("format")
+        .is_some_and(|value| value.as_str() != Some("recs"))
+        || score
+            .get("version")
+            .is_some_and(|value| value.as_integer() != Some(4))
+    {
+        return Err("unsupported arpeggiator document header".into());
+    }
+    if score.get("kind").and_then(toml::Value::as_str) != Some("arpeggiator") {
+        return Err("profile kind must be arpeggiator".into());
+    }
+    let name = score
+        .get("name")
+        .and_then(toml::Value::as_str)
+        .ok_or("profile requires name")?;
+    if name.is_empty()
+        || name != name.trim()
+        || name.contains([':', '#', '/'])
+        || name.contains(".*")
+    {
+        return Err("invalid profile name".into());
+    }
+    if score
+        .get("title")
+        .and_then(toml::Value::as_str)
+        .is_none_or(str::is_empty)
+    {
+        return Err("profile requires a nonempty title".into());
+    }
+    if score.get("tags").is_some_and(|value| {
+        value.as_array().is_none_or(|tags| {
+            tags.iter().any(|tag| {
+                tag.as_str().is_none_or(|tag| {
+                    !tag.starts_with('#')
+                        || tag.len() == 1
+                        || tag[1..]
+                            .chars()
+                            .any(|c| c.is_whitespace() || ":#/".contains(c))
+                })
+            })
+        })
+    }) {
+        return Err("invalid profile tags".into());
+    }
+    let body = score
+        .get("body")
+        .and_then(toml::Value::as_table)
+        .ok_or("profile requires a body")?;
+    if body
+        .keys()
+        .any(|key| !["bank", "selection", "rhythm", "gate", "expression"].contains(&key.as_str()))
+    {
+        return Err("profile contains an unsupported body field".into());
+    }
+    if let Some(bank) = body.get("bank") {
+        let bank = bank.as_table().ok_or("bank must be a table")?;
+        if bank.len() != 1 || bank.get("kind").and_then(toml::Value::as_str) != Some("held") {
+            return Err("only held banks are supported".into());
+        }
+    }
+    if let Some(expression) = body.get("expression") {
+        let expression = expression.as_table().ok_or("expression must be a table")?;
+        if expression
+            .keys()
+            .any(|key| !["source", "timing", "gaps"].contains(&key.as_str()))
+            || expression
+                .get("source")
+                .is_some_and(|value| value.as_str() != Some("current"))
+            || expression
+                .get("timing")
+                .is_some_and(|value| value.as_str() != Some("original"))
+            || expression
+                .get("gaps")
+                .is_some_and(|value| value.as_str() != Some("omit"))
+        {
+            return Err("unsupported expression policy".into());
+        }
+    }
+    let Some(selection) = body.get("selection") else {
+        return Ok(HeldProfile {
+            selection: Selection::Ascending,
+            step: parse_grid_step(body)?,
+            gate: parse_gate(body)?,
+        });
+    };
+    let selection = selection.as_table().ok_or("selection must be a table")?;
+    let selection = match selection.get("kind").and_then(toml::Value::as_str) {
+        Some("ascending" | "descending") => {
+            if selection
+                .get("key")
+                .is_some_and(|value| value.as_str() != Some("pitch"))
+                || selection
+                    .get("repeats")
+                    .is_some_and(|value| value.as_integer() != Some(1))
+                || selection
+                    .keys()
+                    .any(|key| !["kind", "key", "repeats"].contains(&key.as_str()))
+            {
+                return Err("unsupported pitch selection option".into());
+            }
+            if selection.get("kind").and_then(toml::Value::as_str) == Some("ascending") {
+                Selection::Ascending
+            } else {
+                if selection.contains_key("repeats") {
+                    return Err("descending selection has no repeats option".into());
+                }
+                Selection::Descending
+            }
+        }
+        Some("played") => {
+            if selection
+                .keys()
+                .any(|key| !["kind", "direction"].contains(&key.as_str()))
+            {
+                return Err("unsupported played selection option".into());
+            }
+            match selection.get("direction") {
+                None => Selection::Played,
+                Some(value) if value.as_str() == Some("forward") => Selection::Played,
+                Some(value) if value.as_str() == Some("reverse") => Selection::ReversePlayed,
+                _ => return Err("unsupported played direction".into()),
+            }
+        }
+        _ => return Err("unsupported note selection".into()),
+    };
+    Ok(HeldProfile {
+        selection,
+        step: parse_grid_step(body)?,
+        gate: parse_gate(body)?,
+    })
+}
+
+fn parse_grid_step(body: &toml::map::Map<String, toml::Value>) -> Result<Beat, String> {
+    let rhythm = body
+        .get("rhythm")
+        .and_then(toml::Value::as_table)
+        .ok_or("profile requires rhythm")?;
+    if rhythm.len() != 2 || rhythm.get("kind").and_then(toml::Value::as_str) != Some("grid") {
+        return Err("only grid rhythm is supported".into());
+    }
+    let step = rhythm
+        .get("step")
+        .and_then(toml::Value::as_str)
+        .and_then(|value| value.strip_suffix(" beat"))
+        .ok_or("grid step must be a rational beat duration")?;
+    let step = parse_ratio(step)?;
+    if step <= Beat::from_integer(0) {
+        return Err("grid step must be positive".into());
+    }
+    Ok(step)
+}
+
+fn parse_gate(body: &toml::map::Map<String, toml::Value>) -> Result<Beat, String> {
+    let gate = match body.get("gate") {
+        Some(toml::Value::String(value)) => parse_ratio(value)?,
+        Some(toml::Value::Integer(value)) => Beat::from_integer(*value),
+        None => Beat::new(4, 5),
+        _ => return Err("gate must be an exact rational".into()),
+    };
+    if gate < Beat::from_integer(0) {
+        return Err("gate must be nonnegative".into());
+    }
+    Ok(gate)
+}
+
+pub fn render_file(profile: &str, input: &[u8]) -> Result<Vec<u8>, String> {
+    let profile = parse_profile(profile)?;
+    let file = Smf::parse(input).map_err(|e| e.to_string())?;
+    if file.header.format != Format::SingleTrack || file.tracks.len() != 1 {
+        return Err("only single-track MIDI files are supported".into());
+    }
+    let Timing::Metrical(ticks_per_beat) = file.header.timing else {
+        return Err("only metrical MIDI timing is supported".into());
+    };
+    let ticks_per_beat = ticks_per_beat.as_int();
+    let mut notes = Vec::new();
+    let mut active: HashMap<(u8, u8), VecDeque<usize>> = HashMap::new();
+    let mut tempo = Vec::new();
+    let mut at = 0u32;
+    let mut end = None;
+    for event in &file.tracks[0] {
+        if end.is_some() {
+            return Err("MIDI events occur after end-of-track".into());
+        }
+        at = at
+            .checked_add(event.delta.as_int())
+            .ok_or("MIDI time overflow")?;
+        match event.kind {
+            TrackEventKind::Midi {
+                channel,
+                message: MidiMessage::NoteOn { key, vel },
+            } if vel.as_int() != 0 => {
+                let index = notes.len();
+                notes.push(InputNote {
+                    id: format!("n{index}"),
+                    key,
+                    channel,
+                    velocity: vel,
+                    onset: at,
+                    release: None,
+                    release_message: None,
+                });
+                active
+                    .entry((channel.as_int(), key.as_int()))
+                    .or_default()
+                    .push_back(index);
+            }
+            TrackEventKind::Midi {
+                channel,
+                message:
+                    message @ (MidiMessage::NoteOff { key, .. } | MidiMessage::NoteOn { key, vel: _ }),
+            } => {
+                let index = active
+                    .get_mut(&(channel.as_int(), key.as_int()))
+                    .and_then(VecDeque::pop_front)
+                    .ok_or("MIDI release has no matching onset")?;
+                notes[index].release = Some(at);
+                notes[index].release_message = Some(message);
+            }
+            TrackEventKind::Meta(MetaMessage::Tempo(value)) => tempo.push((at, value)),
+            TrackEventKind::Meta(MetaMessage::EndOfTrack) => end = Some(at),
+            _ => return Err("unsupported MIDI event in held-note input".into()),
+        }
+    }
+    let end = end.ok_or("MIDI file has no end-of-track event")?;
+    if notes.iter().any(|note| note.release.is_none()) {
+        return Err("MIDI input has unreleased notes".into());
+    }
+    let held: Vec<_> = notes
+        .iter()
+        .map(|note| HeldNote {
+            id: &note.id,
+            key: i32::from(note.key.as_int()),
+            onset: Beat::new(i64::from(note.onset), i64::from(ticks_per_beat)),
+            release: Beat::new(
+                i64::from(note.release.expect("checked release")),
+                i64::from(ticks_per_beat),
+            ),
+        })
+        .collect();
+    let through = Beat::new(i64::from(end), i64::from(ticks_per_beat));
+    let occurrences = render_held(
+        &held,
+        profile.selection,
+        profile.step,
+        profile.gate,
+        through,
+    )
+    .map_err(str::to_owned)?;
+    let mut events: Vec<TimedEvent> = tempo
+        .into_iter()
+        .map(|(tick, value)| TimedEvent {
+            tick,
+            priority: 0,
+            decision: 0,
+            phase: 0,
+            kind: TrackEventKind::Meta(MetaMessage::Tempo(value)),
+        })
+        .collect();
+    let mut owned_end = HashMap::new();
+    for occurrence in &occurrences {
+        let note = notes
+            .iter()
+            .find(|note| note.id == occurrence.source_id)
+            .expect("source note");
+        let key = (note.channel.as_int(), note.key.as_int());
+        if owned_end
+            .get(&key)
+            .is_some_and(|end| *end > occurrence.onset)
+        {
+            return Err("overlapping same-key output requires an allocation policy".into());
+        }
+        owned_end.insert(key, occurrence.gate_end);
+        let onset = round_tick(occurrence.onset, ticks_per_beat)?;
+        let gate_end = round_tick(occurrence.gate_end, ticks_per_beat)?;
+        events.push(TimedEvent {
+            tick: onset,
+            priority: 1,
+            decision: occurrence.decision,
+            phase: 0,
+            kind: TrackEventKind::Midi {
+                channel: note.channel,
+                message: MidiMessage::NoteOn {
+                    key: note.key,
+                    vel: note.velocity,
+                },
+            },
+        });
+        events.push(TimedEvent {
+            tick: gate_end,
+            priority: if gate_end == onset { 1 } else { 0 },
+            decision: occurrence.decision,
+            phase: if gate_end == onset { 1 } else { 0 },
+            kind: TrackEventKind::Midi {
+                channel: note.channel,
+                message: note.release_message.expect("checked release"),
+            },
+        });
+    }
+    events.sort_by_key(|event| (event.tick, event.priority, event.decision, event.phase));
+    let final_tick = events.last().map_or(end, |event| end.max(event.tick));
+    events.push(TimedEvent {
+        tick: final_tick,
+        priority: 3,
+        decision: occurrences.len(),
+        phase: 0,
+        kind: TrackEventKind::Meta(MetaMessage::EndOfTrack),
+    });
+    let mut previous = 0;
+    let track: Vec<_> = events
+        .into_iter()
+        .map(|event| {
+            let delta = event.tick - previous;
+            previous = event.tick;
+            Ok(TrackEvent {
+                delta: u28::try_from(delta).ok_or("MIDI delta exceeds 28 bits")?,
+                kind: event.kind,
+            })
+        })
+        .collect::<Result<_, String>>()?;
+    let output = Smf {
+        header: Header::new(Format::SingleTrack, Timing::Metrical(ticks_per_beat.into())),
+        tracks: vec![track],
+    };
+    let mut bytes = Vec::new();
+    output.write_std(&mut bytes).map_err(|e| e.to_string())?;
+    Ok(bytes)
+}
+
+struct InputNote {
+    id: String,
+    key: u7,
+    channel: u4,
+    velocity: u7,
+    onset: u32,
+    release: Option<u32>,
+    release_message: Option<MidiMessage>,
+}
+
+struct TimedEvent<'a> {
+    tick: u32,
+    priority: u8,
+    decision: usize,
+    phase: u8,
+    kind: TrackEventKind<'a>,
+}
+
+fn parse_ratio(text: &str) -> Result<Beat, String> {
+    let (numerator, denominator) = text.split_once('/').unwrap_or((text, "1"));
+    let numerator = numerator
+        .parse::<i64>()
+        .map_err(|_| "invalid rational numerator")?;
+    let denominator = denominator
+        .parse::<i64>()
+        .map_err(|_| "invalid rational denominator")?;
+    if denominator == 0 {
+        return Err("rational denominator must not be zero".into());
+    }
+    Ok(Beat::new(numerator, denominator))
+}
+
+fn round_tick(beat: Beat, ticks_per_beat: u16) -> Result<u32, String> {
+    let scaled = beat * i64::from(ticks_per_beat);
+    let numerator = *scaled.numer();
+    let denominator = *scaled.denom();
+    let whole = numerator / denominator;
+    let remainder = numerator % denominator;
+    let rounded = whole
+        + i64::from(
+            remainder * 2 > denominator || (remainder * 2 == denominator && whole % 2 != 0),
+        );
+    u32::try_from(rounded).map_err(|_| "output MIDI tick is out of range".into())
+}
