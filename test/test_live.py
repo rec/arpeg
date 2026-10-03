@@ -3,7 +3,7 @@ from fractions import Fraction
 from pathlib import Path
 
 import pytest
-from ufor.arpeggiator import ArpeggiatorScore, LatchedBank
+from ufor.arpeggiator import ArpeggiatorScore, HistoryBank, LatchedBank
 
 from arpeg.live import LiveArpeggiator
 
@@ -55,8 +55,67 @@ def test_late_input_and_unsupported_bank_fail_explicitly() -> None:
     with pytest.raises(ValueError, match="backwards"):
         arp.note_on(Fraction(0), 60, 100)
     profile = _profile()
-    latched = profile.model_copy(
+    history = profile.model_copy(
+        update={"body": profile.body.model_copy(update={"bank": HistoryBank()})}
+    )
+    with pytest.raises(ValueError, match="held or latched"):
+        LiveArpeggiator(history)
+
+
+def test_latched_replace_groups_overlapping_keys_and_preserves_current_gate() -> None:
+    profile = _profile()
+    profile = profile.model_copy(
         update={"body": profile.body.model_copy(update={"bank": LatchedBank()})}
     )
-    with pytest.raises(ValueError, match="held banks"):
-        LiveArpeggiator(latched)
+    arp = LiveArpeggiator(profile)
+    arp.note_on(Fraction(0), 60, 100)
+    arp.note_on(Fraction(0), 64, 90)
+    assert [(e.kind, e.key) for e in arp.advance(Fraction(0))] == [("on", 60)]
+    arp.note_off(Fraction(1, 8), 60)
+    arp.note_off(Fraction(1, 8), 64)
+    assert [(e.kind, e.key) for e in arp.advance(Fraction(1, 4))] == [
+        ("off", 60),
+        ("on", 64),
+    ]
+    assert arp.note_on(Fraction(3, 8), 67, 80) == []
+    assert [(e.kind, e.key) for e in arp.advance(Fraction(1, 2))] == [
+        ("off", 64),
+        ("on", 67),
+    ]
+
+
+def test_latched_add_retains_released_notes() -> None:
+    profile = _profile()
+    profile = profile.model_copy(
+        update={
+            "body": profile.body.model_copy(update={"bank": LatchedBank(update="add")})
+        }
+    )
+    arp = LiveArpeggiator(profile)
+    arp.note_on(Fraction(0), 60, 100)
+    arp.advance(Fraction(0))
+    arp.note_off(Fraction(1, 8), 60)
+    arp.note_on(Fraction(3, 16), 64, 90)
+    assert [(e.kind, e.key) for e in arp.advance(Fraction(1, 4))] == [
+        ("off", 60),
+        ("on", 64),
+    ]
+
+
+def test_latched_toggle_clears_bank_and_releases_its_output() -> None:
+    profile = _profile()
+    profile = profile.model_copy(
+        update={
+            "body": profile.body.model_copy(
+                update={"bank": LatchedBank(update="toggle")}
+            )
+        }
+    )
+    arp = LiveArpeggiator(profile)
+    arp.note_on(Fraction(0), 60, 100)
+    arp.advance(Fraction(0))
+    arp.note_off(Fraction(1, 8), 60)
+    assert [(e.kind, e.key, e.at) for e in arp.note_on(Fraction(3, 16), 60, 100)] == [
+        ("off", 60, Fraction(3, 16))
+    ]
+    assert arp.advance(Fraction(1, 4)) == []

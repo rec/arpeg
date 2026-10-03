@@ -1,4 +1,4 @@
-"""Incremental held-note arpeggiation without MIDI or audio devices.
+"""Incremental note arpeggiation without MIDI or audio devices.
 
 Feed note changes in beat order, then call ``advance`` to play through a beat.
 Changes at the same beat are applied before that beat's arpeggio step.
@@ -14,6 +14,7 @@ from ufor.arpeggiator import (
     Descending,
     Grid,
     HeldBank,
+    LatchedBank,
     Played,
 )
 
@@ -27,12 +28,12 @@ class LiveEvent(BaseModel, frozen=True):
 
 
 class LiveArpeggiator:
-    """Turn a changing held-note bank into ordered note events."""
+    """Turn changing input notes into ordered note events."""
 
     def __init__(self, profile: ArpeggiatorScore) -> None:
         body = profile.body
-        if not isinstance(body.bank, HeldBank):
-            raise ValueError("live mode currently supports held banks only")
+        if not isinstance(body.bank, (HeldBank, LatchedBank)):
+            raise ValueError("live mode requires a held or latched bank")
         if not isinstance(body.selection, (Ascending, Descending, Played)):
             raise ValueError("live mode requires a classic note selection")
         if (
@@ -45,6 +46,7 @@ class LiveArpeggiator:
         if not isinstance(body.rhythm, Grid):
             raise ValueError("live mode requires grid rhythm")
 
+        self.bank_mode = body.bank
         self.selection = body.selection
         self.step = Fraction(body.rhythm.step.removesuffix(" beat"))
         self.gate = body.gate
@@ -54,6 +56,9 @@ class LiveArpeggiator:
         self.next_output_id = 0
         self.previous_key: tuple[Fraction, int] | None = None
         self.input: list[_InputNote] = []
+        self.bank: list[_InputNote] = []
+        self.toggle_at: Fraction | None = None
+        self.toggled_keys: list[int] = []
         self.sounding: list[_SoundingNote] = []
 
     def note_on(self, at: Fraction, key: int, velocity: int) -> list[LiveEvent]:
@@ -61,7 +66,28 @@ class LiveArpeggiator:
         self._check_time(at)
         note = _InputNote(id=self.next_input_id, key=key, velocity=velocity, onset=at)
         events = self._process_until(at, inclusive=False)
+        new_chord = not self.input
         self.input.append(note)
+        if isinstance(self.bank_mode, LatchedBank):
+            if self.bank_mode.update == "replace":
+                if new_chord:
+                    self.bank.clear()
+                self.bank.append(note)
+            elif self.bank_mode.update == "add":
+                self.bank.append(note)
+            elif self.bank_mode.update == "toggle":
+                if self.toggle_at != at:
+                    self.toggle_at = at
+                    self.toggled_keys.clear()
+                if key not in self.toggled_keys:
+                    self.toggled_keys.append(key)
+                    if any(n.key == key for n in self.bank):
+                        self.bank = [n for n in self.bank if n.key != key]
+                    else:
+                        self.bank.append(note)
+            if not self.bank:
+                self.previous_key = None
+                events.extend(self._release_all(at))
         self.next_input_id += 1
         return events
 
@@ -72,7 +98,7 @@ class LiveArpeggiator:
             raise ValueError("release has no matching onset")
         events = self._process_until(at, inclusive=False)
         self.input.pop(next(i for i, n in enumerate(self.input) if n.key == key))
-        if not self.input:
+        if not self.input and isinstance(self.bank_mode, HeldBank):
             self.previous_key = None
             events.extend(self._release_all(at))
         return events
@@ -88,8 +114,20 @@ class LiveArpeggiator:
         events = self._process_until(at, inclusive=False)
         events.extend(self._release_all(at))
         self.input.clear()
+        self.bank.clear()
         self.previous_key = None
         self.now = at
+        return events
+
+    def clear(self, at: Fraction) -> list[LiveEvent]:
+        """Clear a latched bank and release its owned output notes."""
+        self._check_time(at)
+        if isinstance(self.bank_mode, HeldBank):
+            raise ValueError("clear requires a latched bank")
+        events = self._process_until(at, inclusive=False)
+        self.bank.clear()
+        self.previous_key = None
+        events.extend(self._release_all(at))
         return events
 
     def next_deadline(self) -> Fraction:
@@ -125,10 +163,11 @@ class LiveArpeggiator:
         return events
 
     def _play_step(self, at: Fraction) -> list[LiveEvent]:
-        if not self.input:
+        active = self.input if isinstance(self.bank_mode, HeldBank) else self.bank
+        if not active:
             self.previous_key = None
             return []
-        ordered = sorted(self.input, key=self._selection_key)
+        ordered = sorted(active, key=self._selection_key)
         note = next(
             (
                 n
