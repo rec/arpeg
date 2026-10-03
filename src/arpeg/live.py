@@ -23,6 +23,7 @@ class LiveEvent(BaseModel, frozen=True):
     at: Fraction
     kind: Literal["on", "off"]
     id: int
+    source_id: int
     key: int = Field(ge=0, le=127)
     velocity: int = Field(ge=0, le=127)
 
@@ -47,6 +48,7 @@ class LiveArpeggiator:
             raise ValueError("live mode requires grid rhythm")
 
         self.bank_mode = body.bank
+        self.retrigger = body.retrigger
         self.selection = body.selection
         self.step = Fraction(body.rhythm.step.removesuffix(" beat"))
         self.gate = body.gate
@@ -59,6 +61,7 @@ class LiveArpeggiator:
         self.bank: list[_InputNote] = []
         self.toggle_at: Fraction | None = None
         self.toggled_keys: list[int] = []
+        self.toggle_added_keys: list[int] = []
         self.sounding: list[_SoundingNote] = []
 
     def note_on(self, at: Fraction, key: int, velocity: int) -> list[LiveEvent]:
@@ -68,26 +71,37 @@ class LiveArpeggiator:
         events = self._process_until(at, inclusive=False)
         new_chord = not self.input
         self.input.append(note)
+        edited = isinstance(self.bank_mode, HeldBank)
         if isinstance(self.bank_mode, LatchedBank):
             if self.bank_mode.update == "replace":
                 if new_chord:
                     self.bank.clear()
                 self.bank.append(note)
+                edited = True
             elif self.bank_mode.update == "add":
                 self.bank.append(note)
+                edited = True
             elif self.bank_mode.update == "toggle":
                 if self.toggle_at != at:
                     self.toggle_at = at
                     self.toggled_keys.clear()
+                    self.toggle_added_keys.clear()
                 if key not in self.toggled_keys:
+                    edited = True
                     self.toggled_keys.append(key)
                     if any(n.key == key for n in self.bank):
                         self.bank = [n for n in self.bank if n.key != key]
                     else:
                         self.bank.append(note)
+                        self.toggle_added_keys.append(key)
+                elif key in self.toggle_added_keys:
+                    self.bank.append(note)
+                    edited = True
             if not self.bank:
                 self.previous_key = None
                 events.extend(self._release_all(at))
+        if edited and self.retrigger == "bank_edit":
+            self.previous_key = None
         self.next_input_id += 1
         return events
 
@@ -98,6 +112,8 @@ class LiveArpeggiator:
             raise ValueError("release has no matching onset")
         events = self._process_until(at, inclusive=False)
         self.input.pop(next(i for i, n in enumerate(self.input) if n.key == key))
+        if isinstance(self.bank_mode, HeldBank) and self.retrigger == "bank_edit":
+            self.previous_key = None
         if not self.input and isinstance(self.bank_mode, HeldBank):
             self.previous_key = None
             events.extend(self._release_all(at))
@@ -115,6 +131,9 @@ class LiveArpeggiator:
         events.extend(self._release_all(at))
         self.input.clear()
         self.bank.clear()
+        self.toggle_at = None
+        self.toggled_keys.clear()
+        self.toggle_added_keys.clear()
         self.previous_key = None
         self.now = at
         return events
@@ -126,6 +145,9 @@ class LiveArpeggiator:
             raise ValueError("clear requires a latched bank")
         events = self._process_until(at, inclusive=False)
         self.bank.clear()
+        self.toggle_at = None
+        self.toggled_keys.clear()
+        self.toggle_added_keys.clear()
         self.previous_key = None
         events.extend(self._release_all(at))
         return events
@@ -149,6 +171,7 @@ class LiveArpeggiator:
                             at=note.end,
                             kind="off",
                             id=note.id,
+                            source_id=note.source_id,
                             key=note.key,
                             velocity=0,
                         )
@@ -184,7 +207,12 @@ class LiveArpeggiator:
             if sounding.key == note.key:
                 events.append(
                     LiveEvent(
-                        at=at, kind="off", id=sounding.id, key=sounding.key, velocity=0
+                        at=at,
+                        kind="off",
+                        id=sounding.id,
+                        source_id=sounding.source_id,
+                        key=sounding.key,
+                        velocity=0,
                     )
                 )
             else:
@@ -194,20 +222,36 @@ class LiveArpeggiator:
         self.next_output_id += 1
         events.append(
             LiveEvent(
-                at=at, kind="on", id=output_id, key=note.key, velocity=note.velocity
+                at=at,
+                kind="on",
+                id=output_id,
+                source_id=note.id,
+                key=note.key,
+                velocity=note.velocity,
             )
         )
         if (end := at + self.step * self.gate) == at:
             events.append(
-                LiveEvent(at=at, kind="off", id=output_id, key=note.key, velocity=0)
+                LiveEvent(
+                    at=at,
+                    kind="off",
+                    id=output_id,
+                    source_id=note.id,
+                    key=note.key,
+                    velocity=0,
+                )
             )
         else:
-            self.sounding.append(_SoundingNote(id=output_id, key=note.key, end=end))
+            self.sounding.append(
+                _SoundingNote(id=output_id, source_id=note.id, key=note.key, end=end)
+            )
         return events
 
     def _release_all(self, at: Fraction) -> list[LiveEvent]:
         events = [
-            LiveEvent(at=at, kind="off", id=n.id, key=n.key, velocity=0)
+            LiveEvent(
+                at=at, kind="off", id=n.id, source_id=n.source_id, key=n.key, velocity=0
+            )
             for n in self.sounding
         ]
         self.sounding.clear()
@@ -233,5 +277,6 @@ class _InputNote(BaseModel, frozen=True):
 
 class _SoundingNote(BaseModel, frozen=True):
     id: int
+    source_id: int
     key: int
     end: Fraction

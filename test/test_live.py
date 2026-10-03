@@ -119,3 +119,88 @@ def test_latched_toggle_clears_bank_and_releases_its_output() -> None:
         ("off", 60, Fraction(3, 16))
     ]
     assert arp.advance(Fraction(1, 4)) == []
+
+
+@pytest.mark.parametrize(
+    ("retrigger", "expected"),
+    [("on_empty", 67), ("bank_edit", 60)],
+)
+def test_bank_edit_retrigger_restarts_selection_without_moving_grid(
+    retrigger: str, expected: int
+) -> None:
+    profile = _profile()
+    profile = ArpeggiatorScore.model_validate(
+        {
+            **profile.model_dump(),
+            "body": {**profile.body.model_dump(), "retrigger": retrigger},
+        }
+    )
+    arp = LiveArpeggiator(profile)
+    for key in (60, 64, 67):
+        arp.note_on(Fraction(0), key, 100)
+    arp.advance(Fraction(1, 4))
+    arp.note_on(Fraction(3, 8), 72, 100)
+    assert [(e.kind, e.key) for e in arp.advance(Fraction(1, 2))][-1] == (
+        "on",
+        expected,
+    )
+
+
+def test_latched_add_retriggers_on_bank_edit_but_not_key_release() -> None:
+    profile = _profile()
+    profile = ArpeggiatorScore.model_validate(
+        {
+            **profile.model_dump(),
+            "body": {
+                **profile.body.model_dump(),
+                "bank": {"kind": "latched", "update": "add"},
+                "retrigger": "bank_edit",
+            },
+        }
+    )
+    arp = LiveArpeggiator(profile)
+    for key in (60, 64, 67):
+        arp.note_on(Fraction(0), key, 100)
+    arp.advance(Fraction(1, 4))
+    for key in (60, 64, 67):
+        arp.note_off(Fraction(3, 8), key)
+    assert [(e.kind, e.key) for e in arp.advance(Fraction(1, 2))][-1] == (
+        "on",
+        67,
+    )
+
+
+def test_toggle_keeps_same_time_duplicate_pitches_distinct() -> None:
+    profile = _profile()
+    profile = profile.model_copy(
+        update={
+            "body": profile.body.model_copy(
+                update={"bank": LatchedBank(update="toggle")}
+            )
+        }
+    )
+    arp = LiveArpeggiator(profile)
+    arp.note_on(Fraction(0), 60, 90)
+    arp.note_on(Fraction(0), 60, 100)
+    assert [(e.kind, e.source_id, e.velocity) for e in arp.advance(Fraction(0))] == [
+        ("on", 0, 90)
+    ]
+    assert [(e.kind, e.source_id, e.velocity) for e in arp.advance(Fraction(1, 4))] == [
+        ("off", 0, 0),
+        ("on", 1, 100),
+    ]
+
+
+def test_clear_releases_latched_output_without_losing_input_pairing() -> None:
+    profile = _profile()
+    profile = profile.model_copy(
+        update={"body": profile.body.model_copy(update={"bank": LatchedBank()})}
+    )
+    arp = LiveArpeggiator(profile)
+    arp.note_on(Fraction(0), 60, 100)
+    arp.advance(Fraction(0))
+    assert [(e.kind, e.at) for e in arp.clear(Fraction(1, 8))] == [
+        ("off", Fraction(1, 8))
+    ]
+    assert arp.note_off(Fraction(3, 16), 60) == []
+    assert arp.advance(Fraction(1, 4)) == []
