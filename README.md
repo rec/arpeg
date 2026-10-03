@@ -3,8 +3,9 @@
 🧬 An expressive arpeggiator 🧬
 
 The project design is in [plan/arpeggiator.md](plan/arpeggiator.md). The Python
-package and the Rust event core currently render held, ascending note patterns
-against an exact beat grid. MIDI ports, expressive capture, and audio realization
+package and the Rust event core currently render held notes in ascending,
+descending, and played order against an exact beat grid. MIDI ports, expressive
+capture, and audio realization
 are not implemented yet.
 
 The Python package uses uFor's portable profile and capture contracts. The Rust

@@ -5,6 +5,14 @@ use num_rational::Ratio;
 pub type Beat = Ratio<i64>;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Selection {
+    Ascending,
+    Descending,
+    Played,
+    ReversePlayed,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct HeldNote<'a> {
     pub id: &'a str,
     pub key: i32,
@@ -24,6 +32,7 @@ pub struct Occurrence<'a> {
 
 pub fn render_held<'a>(
     notes: &'a [HeldNote<'a>],
+    selection: Selection,
     step: Beat,
     gate: Beat,
     through: Beat,
@@ -36,7 +45,7 @@ pub fn render_held<'a>(
     }
     let mut occurrences = Vec::new();
     let mut previous_bank = Vec::new();
-    let mut previous_key: Option<(i32, &str)> = None;
+    let mut previous_key: Option<(Beat, &str)> = None;
     let mut revision = 0;
     let mut at = Beat::from_integer(0);
     while at < through {
@@ -55,12 +64,12 @@ pub fn render_held<'a>(
             at += step;
             continue;
         }
-        active.sort_unstable_by_key(|note| (note.key, note.id));
+        active.sort_unstable_by_key(|note| selection_key(note, selection));
         let note = active
             .iter()
-            .find(|note| previous_key.is_none_or(|key| (note.key, note.id) > key))
+            .find(|note| previous_key.is_none_or(|key| selection_key(note, selection) > key))
             .unwrap_or(&active[0]);
-        previous_key = Some((note.key, note.id));
+        previous_key = Some(selection_key(note, selection));
 
         let mut gate_end = at + step * gate;
         let mut boundaries: Vec<_> = notes
@@ -91,4 +100,14 @@ pub fn render_held<'a>(
         at += step;
     }
     Ok(occurrences)
+}
+
+fn selection_key<'a>(note: &HeldNote<'a>, selection: Selection) -> (Beat, &'a str) {
+    let position = match selection {
+        Selection::Ascending => Beat::from_integer(note.key.into()),
+        Selection::Descending => -Beat::from_integer(note.key.into()),
+        Selection::Played => note.onset,
+        Selection::ReversePlayed => -note.onset,
+    };
+    (position, note.id)
 }

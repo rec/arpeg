@@ -3,7 +3,14 @@
 from fractions import Fraction
 from math import ceil
 
-from ufor.arpeggiator import ArpeggiatorScore, Ascending, Grid, HeldBank
+from ufor.arpeggiator import (
+    ArpeggiatorScore,
+    Ascending,
+    Descending,
+    Grid,
+    HeldBank,
+    Played,
+)
 from ufor.arpeggiator_capture import CapturedPhrase, Occurrence, SourceNote
 from ufor.base import Identifier
 from ufor.control import Clock, TempoMap
@@ -16,13 +23,16 @@ def render_held(
     through: Fraction,
     destination: Identifier,
 ) -> list[Occurrence]:
-    """Render the supported held/ascending/grid profile before ``through``."""
+    """Render supported held/grid selections before ``through``."""
     body = profile.body
     if not isinstance(body.bank, HeldBank):
         raise ValueError("held rendering requires a held bank")
-    if not isinstance(body.selection, Ascending) or body.selection.key != "pitch":
-        raise ValueError("held rendering requires ascending pitch selection")
-    if body.selection.repeats != 1:
+    selection = body.selection
+    if not isinstance(selection, (Ascending, Descending, Played)):
+        raise ValueError("held rendering requires a classic note selection")
+    if isinstance(selection, (Ascending, Descending)) and selection.key != "pitch":
+        raise ValueError("held rendering requires pitch selection")
+    if isinstance(selection, Ascending) and selection.repeats != 1:
         raise ValueError("held rendering does not support repeated selections")
     if not isinstance(body.rhythm, Grid):
         raise ValueError("held rendering requires grid rhythm")
@@ -55,7 +65,7 @@ def render_held(
 
     occurrences: list[Occurrence] = []
     previous_bank: set[str] = set()
-    previous_key: tuple[int, str] | None = None
+    previous_key: tuple[Fraction, str] | None = None
     revision = 0
     for index in range(ceil(through / step)):
         at = index * step
@@ -67,16 +77,16 @@ def render_held(
         if not active:
             previous_key = None
             continue
-        ordered = sorted(active, key=_selection_key)
+        ordered = sorted(active, key=lambda n: _selection_key(n, selection))
         note = next(
             (
                 n
                 for n in ordered
-                if previous_key is None or _selection_key(n) > previous_key
+                if previous_key is None or _selection_key(n, selection) > previous_key
             ),
             ordered[0],
         )
-        previous_key = _selection_key(note)
+        previous_key = _selection_key(note, selection)
         gate_end = at + step * body.gate
         for boundary in sorted(
             {
@@ -105,6 +115,14 @@ def render_held(
     return occurrences
 
 
-def _selection_key(note: SourceNote) -> tuple[int, str]:
+def _selection_key(
+    note: SourceNote, selection: Ascending | Descending | Played
+) -> tuple[Fraction, str]:
+    if isinstance(selection, Played):
+        position = Fraction(note.onset_tick)
+        return (
+            -position if selection.direction == "reverse" else position
+        ), note.note_id
     assert note.key is not None
-    return note.key, note.note_id
+    pitch = Fraction(note.key)
+    return (-pitch if isinstance(selection, Descending) else pitch), note.note_id

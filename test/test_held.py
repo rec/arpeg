@@ -2,6 +2,7 @@ import json
 from fractions import Fraction
 from pathlib import Path
 
+import pytest
 from ufor.arpeggiator import ArpeggiatorScore
 from ufor.arpeggiator_capture import CapturedPhrase, SourceNote
 from ufor.control import TempoMap
@@ -23,6 +24,35 @@ def test_held_chord_matches_shared_exact_trace() -> None:
     ] == case["expected"]
     assert len({o.trigger_id for o in occurrences}) == len(occurrences)
     assert all(o.destination == "synth" for o in occurrences)
+
+
+@pytest.mark.parametrize(
+    ("name", "selection", "expected"),
+    [
+        ("held-chord", "descending", "expected_descending"),
+        ("played-order", "played", "expected"),
+        ("played-order", "reverse", "expected_reverse"),
+    ],
+)
+def test_classic_orders_match_shared_traces(
+    name: str, selection: str, expected: str
+) -> None:
+    case = json.loads(Path(f"conformance/{name}.json").read_text())
+    case["profile"]["body"]["selection"] = (
+        {"kind": "played", "direction": "reverse"}
+        if selection == "reverse"
+        else {"kind": selection}
+    )
+    occurrences = render_held(
+        ArpeggiatorScore.model_validate(case["profile"]),
+        CapturedPhrase.model_validate(case["phrase"]),
+        TempoMap.model_validate(case["tempo"]),
+        Fraction(case["through"]),
+        "synth",
+    )
+    assert [
+        [o.source_note, str(o.onset), str(o.gate_end)] for o in occurrences
+    ] == case[expected]
 
 
 def test_empty_bank_emits_nothing() -> None:
