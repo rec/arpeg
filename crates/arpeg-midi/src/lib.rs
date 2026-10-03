@@ -20,7 +20,20 @@ pub struct HeldProfile {
     pub retrigger: Retrigger,
 }
 
-pub fn parse_profile(text: &str) -> Result<HeldProfile, String> {
+pub struct HistoryProfile {
+    pub notes: usize,
+    pub selection: Selection,
+    pub step: Beat,
+    pub gate: Beat,
+    pub retrigger: Retrigger,
+}
+
+pub enum Profile {
+    Classic(HeldProfile),
+    History(HistoryProfile),
+}
+
+pub fn parse_profile(text: &str) -> Result<Profile, String> {
     let score: toml::Value = toml::from_str(text).map_err(|e| e.to_string())?;
     let score = score.as_table().ok_or("profile must be a TOML table")?;
     if score.keys().any(|key| {
@@ -87,24 +100,56 @@ pub fn parse_profile(text: &str) -> Result<HeldProfile, String> {
     }) {
         return Err("profile contains an unsupported body field".into());
     }
+    enum ParsedBank {
+        Classic(Bank),
+        History(usize),
+    }
     let bank = match body.get("bank") {
-        None => Bank::Held,
+        None => ParsedBank::Classic(Bank::Held),
         Some(value) => {
             let bank = value.as_table().ok_or("bank must be a table")?;
             match bank.get("kind").and_then(toml::Value::as_str) {
-                Some("held") if bank.len() == 1 => Bank::Held,
+                Some("held") if bank.len() == 1 => ParsedBank::Classic(Bank::Held),
                 Some("latched")
                     if bank
                         .keys()
                         .all(|key| ["kind", "update"].contains(&key.as_str())) =>
                 {
                     match bank.get("update") {
-                        None => Bank::LatchedReplace,
-                        Some(value) if value.as_str() == Some("replace") => Bank::LatchedReplace,
-                        Some(value) if value.as_str() == Some("add") => Bank::LatchedAdd,
-                        Some(value) if value.as_str() == Some("toggle") => Bank::LatchedToggle,
+                        None => ParsedBank::Classic(Bank::LatchedReplace),
+                        Some(value) if value.as_str() == Some("replace") => {
+                            ParsedBank::Classic(Bank::LatchedReplace)
+                        }
+                        Some(value) if value.as_str() == Some("add") => {
+                            ParsedBank::Classic(Bank::LatchedAdd)
+                        }
+                        Some(value) if value.as_str() == Some("toggle") => {
+                            ParsedBank::Classic(Bank::LatchedToggle)
+                        }
                         _ => return Err("unsupported latch update".into()),
                     }
+                }
+                Some("history")
+                    if bank
+                        .keys()
+                        .all(|key| ["kind", "notes", "publish"].contains(&key.as_str())) =>
+                {
+                    if bank
+                        .get("publish")
+                        .is_some_and(|value| value.as_str() != Some("step"))
+                    {
+                        return Err("history bank must publish at steps".into());
+                    }
+                    let notes = bank
+                        .get("notes")
+                        .map_or(Some(8), toml::Value::as_integer)
+                        .ok_or("history notes must be a positive integer")?;
+                    if notes <= 0 {
+                        return Err("history notes must be a positive integer".into());
+                    }
+                    ParsedBank::History(
+                        usize::try_from(notes).map_err(|_| "history notes are too large")?,
+                    )
                 }
                 _ => return Err("unsupported note bank".into()),
             }
@@ -116,36 +161,55 @@ pub fn parse_profile(text: &str) -> Result<HeldProfile, String> {
         Some(value) if value.as_str() == Some("bank_edit") => Retrigger::BankEdit,
         _ => return Err("unsupported retrigger policy".into()),
     };
-    if let Some(expression) = body.get("expression") {
-        let expression = expression.as_table().ok_or("expression must be a table")?;
-        if expression
-            .keys()
-            .any(|key| !["source", "timing", "gaps"].contains(&key.as_str()))
-            || expression
-                .get("source")
-                .is_some_and(|value| value.as_str() != Some("current"))
-            || expression
-                .get("timing")
-                .is_some_and(|value| value.as_str() != Some("original"))
-            || expression
-                .get("gaps")
-                .is_some_and(|value| value.as_str() != Some("omit"))
-        {
-            return Err("unsupported expression policy".into());
+    let expression = match body.get("expression") {
+        Some(value) => Some(value.as_table().ok_or("expression must be a table")?),
+        None => None,
+    };
+    match &bank {
+        ParsedBank::Classic(_) => {
+            if let Some(expression) = expression {
+                if expression
+                    .keys()
+                    .any(|key| !["source", "timing", "gaps"].contains(&key.as_str()))
+                    || expression
+                        .get("source")
+                        .is_some_and(|value| value.as_str() != Some("current"))
+                    || expression
+                        .get("timing")
+                        .is_some_and(|value| value.as_str() != Some("original"))
+                    || expression
+                        .get("gaps")
+                        .is_some_and(|value| value.as_str() != Some("omit"))
+                {
+                    return Err("unsupported expression policy".into());
+                }
+            }
+        }
+        ParsedBank::History(_) => {
+            let expression =
+                expression.ok_or("history playback requires recorded, fit, carry expression")?;
+            if expression
+                .keys()
+                .any(|key| !["source", "timing", "gaps"].contains(&key.as_str()))
+                || expression.get("source").and_then(toml::Value::as_str) != Some("recorded")
+                || expression.get("timing").and_then(toml::Value::as_str) != Some("fit")
+                || expression.get("gaps").and_then(toml::Value::as_str) != Some("carry")
+            {
+                return Err("history playback requires recorded, fit, carry expression".into());
+            }
         }
     }
-    let Some(selection) = body.get("selection") else {
-        return Ok(HeldProfile {
-            bank,
-            selection: Selection::Ascending,
-            step: parse_grid_step(body)?,
-            gate: parse_gate(body)?,
-            retrigger,
-        });
+    let selection = match body.get("selection") {
+        Some(value) => Some(value.as_table().ok_or("selection must be a table")?),
+        None => None,
     };
-    let selection = selection.as_table().ok_or("selection must be a table")?;
-    let selection = match selection.get("kind").and_then(toml::Value::as_str) {
+    let selection = match selection
+        .and_then(|selection| selection.get("kind"))
+        .and_then(toml::Value::as_str)
+    {
+        None if selection.is_none() => Selection::Ascending,
         Some("ascending" | "descending") => {
+            let selection = selection.expect("selection table");
             if selection
                 .get("key")
                 .is_some_and(|value| value.as_str() != Some("pitch"))
@@ -168,6 +232,7 @@ pub fn parse_profile(text: &str) -> Result<HeldProfile, String> {
             }
         }
         Some("played") => {
+            let selection = selection.expect("selection table");
             if selection
                 .keys()
                 .any(|key| !["kind", "direction"].contains(&key.as_str()))
@@ -183,12 +248,23 @@ pub fn parse_profile(text: &str) -> Result<HeldProfile, String> {
         }
         _ => return Err("unsupported note selection".into()),
     };
-    Ok(HeldProfile {
-        bank,
-        selection,
-        step: parse_grid_step(body)?,
-        gate: parse_gate(body)?,
-        retrigger,
+    let step = parse_grid_step(body)?;
+    let gate = parse_gate(body)?;
+    Ok(match bank {
+        ParsedBank::Classic(bank) => Profile::Classic(HeldProfile {
+            bank,
+            selection,
+            step,
+            gate,
+            retrigger,
+        }),
+        ParsedBank::History(notes) => Profile::History(HistoryProfile {
+            notes,
+            selection,
+            step,
+            gate,
+            retrigger,
+        }),
     })
 }
 
@@ -226,7 +302,9 @@ fn parse_gate(body: &toml::map::Map<String, toml::Value>) -> Result<Beat, String
 }
 
 pub fn render_file(profile: &str, input: &[u8]) -> Result<Vec<u8>, String> {
-    let profile = parse_profile(profile)?;
+    let Profile::Classic(profile) = parse_profile(profile)? else {
+        return Err("history profiles require live MIDI input".into());
+    };
     if profile.retrigger != Retrigger::OnEmpty {
         return Err("file rendering does not support bank-edit retrigger".into());
     }

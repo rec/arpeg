@@ -1,4 +1,4 @@
-use arpeg_midi::{parse_profile, render_file};
+use arpeg_midi::{Profile, parse_profile, render_file};
 use midly::{
     Format, Header, MetaMessage, MidiMessage, Smf, Timing, TrackEvent, TrackEventKind,
     num::{u4, u7, u15, u24, u28},
@@ -129,6 +129,22 @@ fn native_shell_accepts_the_canonical_ufor_profile() {
         .expect("uFor-serialized profile");
     parse_profile(include_str!("../../../conformance/live-latch.toml"))
         .expect("live latch profile");
+}
+
+#[test]
+fn history_profile_is_explicit_and_live_only() {
+    let profile = include_str!("../../../conformance/history-wind.toml");
+    let Profile::History(history) = parse_profile(profile).unwrap() else {
+        panic!("history profile was parsed as classic");
+    };
+    assert_eq!(history.notes, 8);
+    assert_eq!(history.selection, arpeg_core::Selection::Ascending);
+    assert_eq!(
+        render_file(profile, &single_note_input(0)).unwrap_err(),
+        "history profiles require live MIDI input"
+    );
+    let unsupported = profile.replace("source = \"recorded\"", "source = \"current\"");
+    assert!(parse_profile(&unsupported).is_err());
 }
 
 #[test]

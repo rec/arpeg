@@ -1,6 +1,6 @@
 use std::{env, fs, process};
 
-use arpeg_midi::{parse_profile, render_file};
+use arpeg_midi::{Profile, parse_profile, render_file};
 
 #[cfg(target_os = "macos")]
 use arpeg_midi::live::{list_ports, play};
@@ -39,7 +39,10 @@ fn run() -> Result<(), String> {
                 .parse()
                 .map_err(|_| "destination index must be an integer")?;
             let bpm = bpm.parse().map_err(|_| "BPM must be a positive integer")?;
-            play(profile, source, destination, bpm)?;
+            match profile {
+                Profile::Classic(profile) => play(profile, source, destination, bpm)?,
+                Profile::History(_) => return Err("history live playback is not wired yet".into()),
+            }
         }
         _ => {
             return Err(

@@ -1,0 +1,11 @@
+kind = "arpeggiator"
+name = "history-wind"
+title = "Recorded wind gestures from recent notes"
+
+[body]
+bank = { kind = "history", notes = 8, publish = "step" }
+selection = { kind = "ascending", key = "pitch" }
+rhythm = { kind = "grid", step = "1/4 beat" }
+gate = "4/5"
+retrigger = "bank_edit"
+expression = { source = "recorded", timing = "fit", gaps = "carry" }
