@@ -54,7 +54,10 @@ pub fn render_held<'a>(
     through: Beat,
 ) -> Result<Vec<Occurrence<'a>>, &'static str> {
     rhythm.validate()?;
-    let step = rhythm.step();
+    if matches!(rhythm, rhythm::Rhythm::Pattern { .. }) {
+        return Err("pattern rhythm currently requires live input");
+    }
+    let step = rhythm.decide_step(0, gate).duration;
     if gate < Beat::from_integer(0) {
         return Err("gate must be nonnegative");
     }

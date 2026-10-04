@@ -1,4 +1,4 @@
-use arpeg_core::rhythm::Rhythm;
+use arpeg_core::rhythm::{PatternStep, Rhythm};
 use arpeg_core::{
     Bank, Beat, Selection,
     live::{LiveArpeggiator, OutputEvent, OutputKind, Retrigger},
@@ -131,6 +131,7 @@ fn live_classic_matches_shared_python_rust_traces() {
     for text in [
         include_str!("../../../conformance/live-classic.json"),
         include_str!("../../../conformance/euclidean.json"),
+        include_str!("../../../conformance/custom-steps.json"),
     ] {
         let fixture: Value = serde_json::from_str(text).unwrap();
         for case in fixture["cases"].as_array().unwrap() {
@@ -147,6 +148,33 @@ fn live_classic_matches_shared_python_rust_traces() {
                 _ => panic!("unsupported fixture retrigger"),
             };
             let rhythm = match case.get("rhythm") {
+                Some(rhythm) if rhythm["kind"] == "pattern" => Rhythm::Pattern {
+                    steps: rhythm["steps"]
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .map(|step| {
+                            let duration = ratio(
+                                step["duration"]
+                                    .as_str()
+                                    .unwrap()
+                                    .strip_suffix(" beat")
+                                    .unwrap(),
+                            );
+                            match step["kind"].as_str().unwrap() {
+                                "hit" => PatternStep::Hit {
+                                    duration,
+                                    repeats: step
+                                        .get("repeats")
+                                        .map_or(1, |v| v.as_u64().unwrap() as usize),
+                                },
+                                "rest" => PatternStep::Rest { duration },
+                                "tie" => PatternStep::Tie { duration },
+                                _ => panic!("unsupported step"),
+                            }
+                        })
+                        .collect(),
+                },
                 Some(rhythm) => Rhythm::Euclidean {
                     step: ratio(
                         rhythm["step"]
@@ -165,7 +193,7 @@ fn live_classic_matches_shared_python_rust_traces() {
                 let mut arp = LiveArpeggiator::new(
                     bank,
                     Selection::Ascending,
-                    rhythm,
+                    rhythm.clone(),
                     case.get("gate")
                         .map_or(beat(4, 5), |v| ratio(v.as_str().unwrap())),
                     retrigger,
@@ -191,6 +219,7 @@ fn live_classic_matches_shared_python_rust_traces() {
                         "off" => arp.note_off(at, action[2].as_u64().unwrap() as u8),
                         "advance" => arp.advance(at),
                         "clear" => arp.clear(at),
+                        "stop" => arp.stop(at),
                         _ => panic!("unsupported fixture action"),
                     };
                     events.extend(result.unwrap());

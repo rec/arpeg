@@ -19,10 +19,11 @@ from ufor.arpeggiator import (
     Grid,
     HeldBank,
     LatchedBank,
+    Pattern,
     Played,
 )
 
-from .rhythm import allows_step
+from .rhythm import RhythmDecision, decide_step
 
 
 class LiveEvent(BaseModel, frozen=True):
@@ -39,6 +40,8 @@ class LiveArpeggiator(BaseModel):
 
     profile: ArpeggiatorScore = Field(frozen=True)
     next_step: Fraction = Fraction(0)
+    step_index: int = 0
+    pending: list[_Attack] = Field(default_factory=list)
     now: Fraction = Fraction(0)
     next_input_id: int = 0
     next_output_id: int = 0
@@ -64,8 +67,8 @@ class LiveArpeggiator(BaseModel):
             raise ValueError("live mode requires pitch selection")
         if isinstance(body.selection, Ascending) and body.selection.repeats != 1:
             raise ValueError("live mode does not support repeated selections")
-        if not isinstance(body.rhythm, (Grid, Euclidean)):
-            raise ValueError("live mode requires grid or Euclidean rhythm")
+        if not isinstance(body.rhythm, (Grid, Euclidean, Pattern)):
+            raise ValueError("live mode requires grid, Euclidean, or pattern rhythm")
         return self
 
     @cached_property
@@ -79,12 +82,6 @@ class LiveArpeggiator(BaseModel):
         selection = self.profile.body.selection
         assert isinstance(selection, (Ascending, Descending, Played))
         return selection
-
-    @cached_property
-    def step(self) -> Fraction:
-        rhythm = self.profile.body.rhythm
-        assert isinstance(rhythm, (Grid, Euclidean))
-        return Fraction(rhythm.step.removesuffix(" beat"))
 
     def note_on(self, at: Fraction, key: int, velocity: int) -> list[LiveEvent]:
         """Add a note, leaving the step at ``at`` for ``advance``."""
@@ -178,8 +175,14 @@ class LiveArpeggiator(BaseModel):
         return events
 
     def next_deadline(self) -> Fraction:
-        """Return the next step or owned release beat."""
-        return min([self.next_step, *(n.end for n in self.sounding)])
+        """Return the next step, pending attack, or owned release beat."""
+        return min(
+            [
+                self.next_step,
+                *(n.end for n in self.sounding),
+                *(n.at for n in self.pending),
+            ]
+        )
 
     def _check_time(self, at: Fraction) -> None:
         if at < self.now:
@@ -205,20 +208,24 @@ class LiveArpeggiator(BaseModel):
                     remaining.append(note)
             self.sounding = remaining
             if self.next_step == at:
-                events.extend(self._play_step(at))
-                self.next_step += self.step
+                rhythm = self.profile.body.rhythm
+                assert isinstance(rhythm, (Grid, Euclidean, Pattern))
+                decision = decide_step(rhythm, self.step_index, self.profile.body.gate)
+                self._schedule_step(at, decision)
+                self.next_step += decision.duration
+                self.step_index += 1
+            while self.pending and self.pending[0].at == at:
+                events.extend(self._attack(self.pending.pop(0)))
         self.now = through
         return events
 
-    def _play_step(self, at: Fraction) -> list[LiveEvent]:
+    def _schedule_step(self, at: Fraction, decision: RhythmDecision) -> None:
         active = self.input if isinstance(self.bank_mode, HeldBank) else self.bank
         if not active:
             self.previous_note = None
-            return []
-        rhythm = self.profile.body.rhythm
-        assert isinstance(rhythm, (Grid, Euclidean))
-        if not allows_step(rhythm, int(at / self.step)):
-            return []
+            return
+        if not decision.repeats:
+            return
         ordered = sorted(active, key=self._selection_key)
         note = next(
             (
@@ -230,6 +237,20 @@ class LiveArpeggiator(BaseModel):
             ordered[0],
         )
         self.previous_note = note
+        interval = decision.duration / decision.repeats
+        self.pending.extend(
+            _Attack(
+                at=at + i * interval,
+                note=note,
+                gate=decision.final_gate
+                if i == decision.repeats - 1
+                else decision.gate,
+            )
+            for i in range(decision.repeats)
+        )
+
+    def _attack(self, attack: _Attack) -> list[LiveEvent]:
+        at, note = attack.at, attack.note
         events: list[LiveEvent] = []
         remaining: list[_SoundingNote] = []
         for sounding in self.sounding:
@@ -259,7 +280,7 @@ class LiveArpeggiator(BaseModel):
                 velocity=note.velocity,
             )
         )
-        if (end := at + self.step * self.profile.body.gate) == at:
+        if (end := at + attack.gate) == at:
             events.append(
                 LiveEvent(
                     at=at,
@@ -284,6 +305,7 @@ class LiveArpeggiator(BaseModel):
             for n in self.sounding
         ]
         self.sounding.clear()
+        self.pending.clear()
         return events
 
     def _selection_key(self, note: _InputNote) -> tuple[Fraction, int]:
@@ -309,3 +331,9 @@ class _SoundingNote(BaseModel, frozen=True):
     source_id: int
     key: int
     end: Fraction
+
+
+class _Attack(BaseModel, frozen=True):
+    at: Fraction
+    note: _InputNote
+    gate: Fraction

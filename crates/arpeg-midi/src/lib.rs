@@ -3,7 +3,7 @@
 use std::collections::{HashMap, VecDeque};
 
 use arpeg_core::live::Retrigger;
-use arpeg_core::rhythm::Rhythm;
+use arpeg_core::rhythm::{PatternStep, Rhythm};
 use arpeg_core::{Bank, Beat, HeldNote, Selection, render_held};
 use midly::{
     Format, Header, MetaMessage, MidiMessage, Smf, Timing, TrackEvent, TrackEventKind,
@@ -260,13 +260,13 @@ pub fn parse_profile(text: &str) -> Result<Profile, String> {
             retrigger,
         }),
         ParsedBank::History(notes) => {
-            if !matches!(rhythm, Rhythm::Grid { .. }) {
+            let Rhythm::Grid { step } = rhythm else {
                 return Err("history playback currently requires grid rhythm".into());
-            }
+            };
             Profile::History(HistoryProfile {
                 notes,
                 selection,
-                step: rhythm.step(),
+                step,
                 gate,
                 retrigger,
             })
@@ -279,14 +279,10 @@ fn parse_rhythm(body: &toml::map::Map<String, toml::Value>) -> Result<Rhythm, St
         .get("rhythm")
         .and_then(toml::Value::as_table)
         .ok_or("profile requires rhythm")?;
-    let step = rhythm
-        .get("step")
-        .and_then(toml::Value::as_str)
-        .and_then(|value| value.strip_suffix(" beat"))
-        .ok_or("rhythm step must be a rational beat duration")?;
-    let step = parse_ratio(step)?;
     let parsed = match rhythm.get("kind").and_then(toml::Value::as_str) {
-        Some("grid") if rhythm.len() == 2 => Rhythm::Grid { step },
+        Some("grid") if rhythm.len() == 2 => Rhythm::Grid {
+            step: parse_beat_duration(rhythm.get("step"))?,
+        },
         Some("euclidean")
             if rhythm.keys().all(|key| {
                 ["kind", "step", "steps", "pulses", "rotation"].contains(&key.as_str())
@@ -305,16 +301,60 @@ fn parse_rhythm(body: &toml::map::Map<String, toml::Value>) -> Result<Rhythm, St
                 .map_or(Some(0), toml::Value::as_integer)
                 .ok_or("Euclidean rotation must be an integer")?;
             Rhythm::Euclidean {
-                step,
+                step: parse_beat_duration(rhythm.get("step"))?,
                 steps,
                 pulses,
                 rotation,
             }
         }
-        _ => return Err("only grid or Euclidean rhythm is supported".into()),
+        Some("pattern") if rhythm.len() == 2 => {
+            let steps = rhythm
+                .get("steps")
+                .and_then(toml::Value::as_array)
+                .ok_or("pattern requires a steps array")?;
+            let mut parsed = Vec::new();
+            for value in steps {
+                let entry = value.as_table().ok_or("pattern step must be a table")?;
+                let duration = parse_beat_duration(entry.get("duration"))?;
+                let step = match entry.get("kind").and_then(toml::Value::as_str) {
+                    Some("hit")
+                        if entry
+                            .keys()
+                            .all(|key| ["kind", "duration", "repeats"].contains(&key.as_str())) =>
+                    {
+                        let repeats = entry
+                            .get("repeats")
+                            .map_or(Some(1), toml::Value::as_integer)
+                            .ok_or("repeats must be a positive integer")?;
+                        if repeats <= 0 {
+                            return Err("repeats must be a positive integer".into());
+                        }
+                        PatternStep::Hit {
+                            duration,
+                            repeats: usize::try_from(repeats)
+                                .map_err(|_| "repeat count is too large")?,
+                        }
+                    }
+                    Some("rest") if entry.len() == 2 => PatternStep::Rest { duration },
+                    Some("tie") if entry.len() == 2 => PatternStep::Tie { duration },
+                    _ => return Err("unsupported pattern step".into()),
+                };
+                parsed.push(step);
+            }
+            Rhythm::Pattern { steps: parsed }
+        }
+        _ => return Err("only grid, Euclidean, or pattern rhythm is supported".into()),
     };
     parsed.validate().map_err(str::to_owned)?;
     Ok(parsed)
+}
+
+fn parse_beat_duration(value: Option<&toml::Value>) -> Result<Beat, String> {
+    let text = value
+        .and_then(toml::Value::as_str)
+        .and_then(|value| value.strip_suffix(" beat"))
+        .ok_or("duration must be a rational beat duration")?;
+    parse_ratio(text)
 }
 
 fn parse_gate(body: &toml::map::Map<String, toml::Value>) -> Result<Beat, String> {

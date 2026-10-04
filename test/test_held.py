@@ -29,6 +29,21 @@ def test_euclidean_renderer_matches_shared_exact_trace() -> None:
     ] == expected
 
 
+def test_custom_steps_require_live_input() -> None:
+    chord = json.loads(Path("conformance/held-chord.json").read_text())
+    profile = ArpeggiatorScore.model_validate(
+        parse_score(Path("conformance/custom-steps.toml").read_text())
+    )
+    with pytest.raises(ValueError, match="grid or Euclidean"):
+        render_held(
+            profile,
+            CapturedPhrase.model_validate(chord["phrase"]),
+            TempoMap.model_validate(chord["tempo"]),
+            Fraction(2),
+            "synth",
+        )
+
+
 def test_held_chord_matches_shared_exact_trace() -> None:
     case = json.loads(Path("conformance/held-chord.json").read_text())
     occurrences = render_held(

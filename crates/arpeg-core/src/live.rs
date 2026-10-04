@@ -1,6 +1,9 @@
 //! Incremental decisions for a running, held-note arpeggiator.
 
-use crate::{Bank, Beat, Selection, rhythm::Rhythm};
+use crate::{
+    Bank, Beat, Selection,
+    rhythm::{Rhythm, RhythmDecision},
+};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Retrigger {
@@ -45,6 +48,13 @@ struct SoundingNote {
     end: Beat,
 }
 
+#[derive(Clone, Copy, Debug)]
+struct Attack {
+    at: Beat,
+    note: InputNote,
+    gate: Beat,
+}
+
 pub struct LiveArpeggiator {
     bank_mode: Bank,
     retrigger: Retrigger,
@@ -52,6 +62,8 @@ pub struct LiveArpeggiator {
     rhythm: Rhythm,
     gate: Beat,
     next_step: Beat,
+    step_index: i64,
+    pending: Vec<Attack>,
     now: Beat,
     next_id: u64,
     next_output: u64,
@@ -83,6 +95,8 @@ impl LiveArpeggiator {
             rhythm,
             gate,
             next_step: Beat::from_integer(0),
+            step_index: 0,
+            pending: Vec::new(),
             now: Beat::from_integer(0),
             next_id: 0,
             next_output: 0,
@@ -216,6 +230,7 @@ impl LiveArpeggiator {
         self.sounding
             .iter()
             .map(|note| note.end)
+            .chain(self.pending.iter().map(|attack| attack.at))
             .min()
             .map_or(self.next_step, |end| end.min(self.next_step))
     }
@@ -231,15 +246,20 @@ impl LiveArpeggiator {
     fn process_until(&mut self, through: Beat, inclusive: bool) -> Vec<OutputEvent> {
         let mut output = Vec::new();
         loop {
-            let release = self.sounding.iter().map(|note| note.end).min();
-            let next = release.map_or(self.next_step, |end| end.min(self.next_step));
+            let next = self.next_deadline();
             if next > through || (!inclusive && next == through) {
                 break;
             }
             self.release_due(next, &mut output);
             if self.next_step == next {
-                self.play_step(next, &mut output);
-                self.next_step += self.rhythm.step();
+                let decision = self.rhythm.decide_step(self.step_index, self.gate);
+                self.schedule_step(next, decision);
+                self.next_step += decision.duration;
+                self.step_index += 1;
+            }
+            while self.pending.first().is_some_and(|attack| attack.at == next) {
+                let attack = self.pending.remove(0);
+                self.attack(attack, &mut output);
             }
         }
         self.now = through;
@@ -265,6 +285,7 @@ impl LiveArpeggiator {
     }
 
     fn release_all(&mut self, at: Beat) -> Vec<OutputEvent> {
+        self.pending.clear();
         self.sounding
             .drain(..)
             .map(|note| OutputEvent {
@@ -278,7 +299,7 @@ impl LiveArpeggiator {
             .collect()
     }
 
-    fn play_step(&mut self, at: Beat, output: &mut Vec<OutputEvent>) {
+    fn schedule_step(&mut self, at: Beat, decision: RhythmDecision) {
         let active = if self.bank_mode == Bank::Held {
             &self.input
         } else {
@@ -288,24 +309,36 @@ impl LiveArpeggiator {
             self.previous_key = None;
             return;
         }
-        if !self
-            .rhythm
-            .allows_step((at / self.rhythm.step()).to_integer())
-        {
+        if decision.repeats == 0 {
             return;
         }
         let selection = self.selection;
         let mut ordered = active.clone();
         ordered.sort_unstable_by_key(|note| selection_key(note, selection));
-        let selected = ordered
+        let selected = *ordered
             .iter()
             .find(|note| {
                 self.previous_key
                     .is_none_or(|previous| selection_key(note, selection) > previous)
             })
             .unwrap_or(&ordered[0]);
-        self.previous_key = Some(selection_key(selected, selection));
-        let end = at + self.rhythm.step() * self.gate;
+        self.previous_key = Some(selection_key(&selected, selection));
+        let interval = decision.duration / decision.repeats as i64;
+        self.pending.extend((0..decision.repeats).map(|i| Attack {
+            at: at + interval * i as i64,
+            note: selected,
+            gate: if i == decision.repeats - 1 {
+                decision.final_gate
+            } else {
+                decision.gate
+            },
+        }));
+    }
+
+    fn attack(&mut self, attack: Attack, output: &mut Vec<OutputEvent>) {
+        let at = attack.at;
+        let selected = attack.note;
+        let end = at + attack.gate;
         for note in self
             .sounding
             .iter_mut()

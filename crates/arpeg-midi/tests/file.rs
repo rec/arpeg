@@ -168,6 +168,35 @@ fn euclidean_profile_rejects_invalid_masks_and_history_use() {
 }
 
 #[test]
+fn custom_pattern_profile_is_live_only_and_validates_steps() {
+    let profile = include_str!("../../../conformance/custom-steps.toml");
+    let Profile::Classic(parsed) = parse_profile(profile).unwrap() else {
+        panic!("expected classic profile");
+    };
+    let decision = parsed.rhythm.decide_step(0, parsed.gate);
+    assert_eq!(decision.duration, arpeg_core::Beat::new(1, 4));
+    assert_eq!(decision.final_gate, arpeg_core::Beat::new(9, 20));
+    assert_eq!(
+        render_file(profile, &single_note_input(0)).unwrap_err(),
+        "pattern rhythm currently requires live input"
+    );
+    for (original, replacement) in [
+        ("1/4 beat", "0 beat"),
+        ("repeats = 3", "repeats = 0"),
+        ("repeats = 3", "repeats = 1.5"),
+        (
+            "kind = \"tie\", duration = \"1/4 beat\"",
+            "kind = \"tie\", duration = \"1/4 beat\", repeats = 2",
+        ),
+        ("kind = \"rest\"", "kind = \"unknown\""),
+    ] {
+        assert!(parse_profile(&profile.replace(original, replacement)).is_err());
+    }
+    let empty = "kind = 'arpeggiator'\nname = 'empty'\ntitle = 'Empty'\n[body]\nrhythm = { kind = 'pattern', steps = [] }";
+    assert!(parse_profile(empty).is_err());
+}
+
+#[test]
 fn bank_edit_retrigger_is_live_only() {
     let profile = include_str!("../../../conformance/up.toml")
         .replace("[body]", "[body]\nretrigger = \"bank_edit\"");

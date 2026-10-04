@@ -393,9 +393,10 @@ execution inside an event or audio callback.
 ### Rhythm vocabulary
 
 Support regular divisions, tuplets, rests, ties, explicit duration patterns,
-Euclidean gates, swing/groove templates, ratchets, bursts, accents, conditional
-steps, probability, finite repeats, and independent pattern lengths. Polyphony,
-strums, and several independently clocked lanes use the same scheduling model.
+Euclidean gates, swing/groove templates, note repeats, bursts, accents,
+conditional steps, probability, finite pattern repeats, and independent pattern
+lengths. Polyphony, strums, and several independently clocked lanes use the same
+scheduling model.
 
 Specify Euclidean phase exactly. For `n > 0`, `0 <= k <= n`, and step `i`, the
 canonical unrotated gate is `(i * k) mod n < k`. Positive rotation moves hits
@@ -405,9 +406,9 @@ convention and test all rotations instead of depending on a library's default.
 
 Pitch selection advances on emitted hits by default. Advancing on every grid
 step is an explicit alternative. State whether probability-rejected hits advance
-the selector, whether ratchets repeat one choice or select again, and whether
+the selector, whether repeats reuse one choice or select again, and whether
 ties extend a particular active occurrence or become rests when none exists.
-Default: rejected hits do not advance, ratchets repeat one choice, and a tie
+Default: rejected hits do not advance, repeats reuse one choice, and a tie
 without a preceding occurrence is a rest.
 
 ### Deterministic operation order
@@ -418,7 +419,7 @@ At each rhythm opportunity:
 2. Evaluate the rhythm mask and conditions, then seeded chance.
 3. Select identified source notes from that bank revision.
 4. Apply pitch/voicing transforms and choose the expression sources.
-5. Expand ratchets/strums; compute exact onsets, gates, and gesture mappings.
+5. Expand repeats/strums; compute exact onsets, gates, and gesture mappings.
 6. Admit output occurrences against destination and resource limits.
 7. Emit ordered lifecycle/control events and trace the decision.
 
@@ -664,7 +665,7 @@ channel allocations, and accepted clock observations. Reference immutable audio
 assets and captured event pages by identity rather than copying them every step.
 
 Bound bank size, open notes, captured events/bytes, phrase length, queued output,
-polyphony, ratchet expansion, feedback depth, and pending channel reservations.
+polyphony, repeat expansion, feedback depth, and pending channel reservations.
 Retain data until no active occurrence references it. On capacity exhaustion,
 reject new admission with a clear diagnostic and execute already-owned release
 obligations. Do not evict a still-needed breath stream to make room for a note.
@@ -699,7 +700,7 @@ offline execution and live execution consume the same decisions and clocks.
    Prove exact source-order reconstruction, then explicit reordered playback,
    seams, tail policies, and optional pitch/time processing.
 5. **Rhythmic and algorithmic range.** Euclidean masks, custom steps, ties,
-   ratchets, probability, deterministic selectors, phrase substitution, voicing,
+   repeats, probability, deterministic selectors, phrase substitution, voicing,
    polymetric lanes, and multi-arp composition. Cover each reference family with
    an authored profile and an exact decision trace.
 6. **Motions and clock integration.** Share signal/event ports and snapshots;
@@ -725,7 +726,7 @@ silently fold unrelated unfinished Motion features into an arp change.
 | Between notes | Prefix, gap, suffix, pedal, and unknown events survive capture; each playback policy has exact emitted and retained-event traces. Unowned post-release breath updates the next source note's entry state without affecting an unrelated output note. Original-phrase replay preserves source semantic ordering. |
 | Discrete Motions | Repeated equal-valued MIDI messages preserve their timestamps and order; the held-value view creates no extra messages or implicit interpolation and remains independent of note ownership. |
 | MIDI allocation | Independent gestures on overlapping notes never collide silently on one channel; exhaustion, repeated keys, stop, bypass, disconnect, and snapshot reconciliation release exactly the owned notes. |
-| Euclidean/algorithmic | Exact canonical masks and rotations, pulse counts, deterministic random choices, rest/tie/ratchet semantics, and polymetric cycle behavior. |
+| Euclidean/algorithmic | Exact canonical masks and rotations, pulse counts, deterministic random choices, rest/tie/repeat semantics, and polymetric cycle behavior. |
 | Timing | Tempo changes, fractional divisions, stop/resume, seek cancellation, incoming pulses, and equal-time ordering agree across whole runs, irregular blocks, and restored snapshots. |
 | Samples | Exhaustive marked regions reconstruct the decoded source exactly under identity settings; shuffled/repeated regions and seam policies have listenable regressions. |
 | Motion integration | A Motion can change density or expression and receive a hit event without duplicate clock ownership or unbounded feedback. |

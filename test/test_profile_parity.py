@@ -13,3 +13,8 @@ def test_live_latch_profile_loads_in_python() -> None:
     profile = parse_score(Path("conformance/live-latch.toml").read_text())
     assert profile.kind == "arpeggiator"
     assert profile.body.retrigger == "bank_edit"
+
+
+def test_custom_steps_profile_round_trips() -> None:
+    profile = parse_score(Path("conformance/custom-steps.toml").read_text())
+    assert parse_score(score_toml(profile)) == profile

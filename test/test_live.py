@@ -206,7 +206,7 @@ def test_clear_releases_latched_output_without_losing_input_pairing() -> None:
     assert arp.advance(Fraction(1, 4)) == []
 
 
-@pytest.mark.parametrize("fixture", ["live-classic", "euclidean"])
+@pytest.mark.parametrize("fixture", ["live-classic", "euclidean", "custom-steps"])
 def test_live_classic_matches_shared_python_rust_traces(fixture: str) -> None:
     cases = json.loads(Path(f"conformance/{fixture}.json").read_text())["cases"]
     for case in cases:
@@ -242,6 +242,8 @@ def test_live_classic_matches_shared_python_rust_traces(fixture: str) -> None:
                     events.extend(arp.note_off(at, action[2]))
                 elif action[0] == "advance":
                     events.extend(arp.advance(at))
+                elif action[0] == "stop":
+                    events.extend(arp.stop(at))
                 else:
                     events.extend(arp.clear(at))
             actual = [

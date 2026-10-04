@@ -1,0 +1,11 @@
+kind = "arpeggiator"
+name = "custom-steps"
+title = "Hit, tie, rest, and three repeated attacks"
+
+[body]
+rhythm = { kind = "pattern", steps = [
+    { kind = "hit", duration = "1/4 beat" },
+    { kind = "tie", duration = "1/4 beat" },
+    { kind = "rest", duration = "1/8 beat" },
+    { kind = "hit", duration = "1/2 beat", repeats = 3 },
+] }

@@ -30,6 +30,20 @@ edits. Zero pulses is silence and full pulses is the ordinary grid. Exact masks,
 rotations, and event traces are shared in [the fixture](conformance/euclidean.json).
 Recorded-history playback currently requires grid rhythm.
 
+[Custom step patterns](conformance/custom-steps.toml) repeat a list of `hit`,
+`rest`, and `tie` steps, each with an exact beat `duration`. A hit can specify
+`repeats` to divide its duration into evenly spaced attacks of one selected
+note. Selection advances once per hit; rests and ties do not select a new note.
+Gates use each attack's subdivision duration. Consecutive ties sustain the
+final attack through the chain, with the gate fraction applied to the final
+tie; an already longer gate is preserved. Ties can cross the cycle boundary,
+and leading ties without an occurrence are silent. Stop, clear, or an empty
+bank cancels pending attacks and releases owned notes. Chord edits preserve an
+already selected repeat group. The [shared traces](conformance/custom-steps.json)
+check the Python and Rust schedulers with irregular polling.
+Custom patterns currently support live held and latched banks; file rendering
+and recorded history reject them.
+
 [src/arpeg/capture.py](src/arpeg/capture.py) records a MIDI phrase through
 `MidiCapture.accept` and closes it with `finish`. Its profile declares whether
 overlapping onsets hand off a monophonic segment or remain independent notes.
@@ -84,6 +98,7 @@ cargo run -p arpeg-midi -- list-ports
 cargo run -p arpeg-midi -- play conformance/up.toml SOURCE_INDEX DESTINATION_INDEX 120
 cargo run -p arpeg-midi -- play conformance/live-latch.toml SOURCE_INDEX DESTINATION_INDEX 120
 cargo run -p arpeg-midi -- play conformance/euclidean.toml SOURCE_INDEX DESTINATION_INDEX 120
+cargo run -p arpeg-midi -- play conformance/custom-steps.toml SOURCE_INDEX DESTINATION_INDEX 120
 cargo run -p arpeg-midi -- play conformance/history-wind.toml SOURCE_INDEX DESTINATION_INDEX 120
 ```
 
