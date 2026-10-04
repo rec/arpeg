@@ -30,6 +30,7 @@ def test_markers_lower_to_exhaustive_regions_without_inventing_pitch() -> None:
     ]
     assert phrase.events == []
     assert phrase.end_tick == 48_000
+    assert [n.gate_end_tick for n in phrase.notes] == [12_000, 27_000, 48_000]
     case = json.loads(Path("conformance/marked-sample.json").read_text())
     for order in ("ascending", "descending"):
         assert [
@@ -55,3 +56,10 @@ def test_exhaustive_bank_requires_an_explicit_prefix_marker() -> None:
                 "markers": [{"note_id": "late", "selection_key": 60, "at_frame": 1}],
             }
         )
+
+
+def test_gate_cannot_extend_into_the_next_region() -> None:
+    case = json.loads(Path("conformance/marked-sample.json").read_text())
+    case["markers"][1]["gate_end_frame"] = 33_000
+    with pytest.raises(ValueError, match="gate must end within its region"):
+        MarkedSample.model_validate(case)

@@ -6,9 +6,10 @@
   "channels": [0],
   "markers": [
     {"note_id": "a", "selection_key": 60, "at_frame": 0},
-    {"note_id": "b", "selection_key": 62, "at_frame": 12000},
+    {"note_id": "b", "selection_key": 62, "at_frame": 12000, "gate_end_frame": 27000},
     {"note_id": "c", "selection_key": 64, "at_frame": 32000}
   ],
   "ascending": [["a", 0, 12000], ["b", 12000, 32000], ["c", 32000, 48000]],
-  "descending": [["c", 32000, 48000], ["b", 12000, 32000], ["a", 0, 12000]]
+  "descending": [["c", 32000, 48000], ["b", 12000, 32000], ["a", 0, 12000]],
+  "gates": [12000, 27000, 48000]
 }

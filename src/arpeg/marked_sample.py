@@ -13,6 +13,7 @@ class SampleMarker(BaseModel, frozen=True):
     note_id: Identifier
     selection_key: int = Field(strict=True)
     at_frame: int = Field(strict=True, ge=0)
+    gate_end_frame: int | None = Field(default=None, strict=True, ge=0)
 
 
 class MarkedSample(BaseModel, frozen=True):
@@ -38,6 +39,15 @@ class MarkedSample(BaseModel, frozen=True):
             raise ValueError("sample markers must increase within the asset")
         if len({m.note_id for m in self.markers}) != len(self.markers):
             raise ValueError("sample marker note IDs must be unique")
+        if any(
+            m.gate_end_frame is not None and not m.at_frame < m.gate_end_frame <= end
+            for m, end in zip(
+                self.markers,
+                [*(n.at_frame for n in self.markers[1:]), self.frames],
+                strict=True,
+            )
+        ):
+            raise ValueError("sample gate must end within its region")
         if len(set(self.channels)) != len(self.channels) or any(
             c < 0 for c in self.channels
         ):
@@ -51,7 +61,7 @@ class MarkedSample(BaseModel, frozen=True):
                 capture_id=self.capture_id,
                 note_id=marker.note_id,
                 onset_tick=marker.at_frame,
-                gate_end_tick=end,
+                gate_end_tick=marker.gate_end_frame or end,
                 cell_end_tick=end,
                 selection_key=marker.selection_key,
                 region=Slice(

@@ -7,6 +7,7 @@ pub struct Marker {
     pub note_id: String,
     pub selection_key: i32,
     pub at_frame: i64,
+    pub gate_end_frame: Option<i64>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -26,6 +27,7 @@ pub struct RegionNote {
     pub selection_key: i32,
     pub asset: String,
     pub start_frame: i64,
+    pub gate_end_frame: i64,
     pub end_frame: i64,
 }
 
@@ -63,6 +65,17 @@ impl MarkedSample {
         }) {
             return Err("sample marker note IDs must be unique");
         }
+        if self.markers.iter().enumerate().any(|(index, marker)| {
+            let end = self
+                .markers
+                .get(index + 1)
+                .map_or(self.frames, |next| next.at_frame);
+            marker
+                .gate_end_frame
+                .is_some_and(|gate| gate <= marker.at_frame || gate > end)
+        }) {
+            return Err("sample gate must end within its region");
+        }
         Ok(self
             .markers
             .iter()
@@ -73,6 +86,11 @@ impl MarkedSample {
                 selection_key: marker.selection_key,
                 asset: self.asset.clone(),
                 start_frame: marker.at_frame,
+                gate_end_frame: marker.gate_end_frame.unwrap_or_else(|| {
+                    self.markers
+                        .get(index + 1)
+                        .map_or(self.frames, |next| next.at_frame)
+                }),
                 end_frame: self
                     .markers
                     .get(index + 1)

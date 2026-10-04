@@ -27,6 +27,7 @@ fn marked_regions_match_the_python_source_frame_trace() {
                 note_id: marker["note_id"].as_str().unwrap().into(),
                 selection_key: marker["selection_key"].as_i64().unwrap() as i32,
                 at_frame: marker["at_frame"].as_i64().unwrap(),
+                gate_end_frame: marker["gate_end_frame"].as_i64(),
             })
             .collect(),
     };
@@ -43,6 +44,13 @@ fn marked_regions_match_the_python_source_frame_trace() {
         assert_eq!(actual, case[expected].as_array().unwrap().clone());
     }
     assert_eq!(sample.select(Selection::ReversePlayed, 2).unwrap().len(), 6);
+    let gates: Vec<_> = sample
+        .notes()
+        .unwrap()
+        .iter()
+        .map(|note| note.gate_end_frame)
+        .collect();
+    assert_eq!(gates, [12_000, 27_000, 48_000]);
 }
 
 #[test]
@@ -57,10 +65,40 @@ fn an_exhaustive_region_bank_requires_a_frame_zero_marker() {
             note_id: "late".into(),
             selection_key: 60,
             at_frame: 1,
+            gate_end_frame: None,
         }],
     };
     assert_eq!(
         sample.notes(),
         Err("an exhaustive sample bank requires a marker at frame zero")
+    );
+}
+
+#[test]
+fn a_gate_cannot_extend_into_the_next_region() {
+    let sample = MarkedSample {
+        capture_id: "spoken".into(),
+        asset: "voice".into(),
+        sample_rate: 48_000,
+        frames: 48_000,
+        channels: vec![0],
+        markers: vec![
+            Marker {
+                note_id: "a".into(),
+                selection_key: 60,
+                at_frame: 0,
+                gate_end_frame: Some(32_000),
+            },
+            Marker {
+                note_id: "b".into(),
+                selection_key: 62,
+                at_frame: 12_000,
+                gate_end_frame: None,
+            },
+        ],
+    };
+    assert_eq!(
+        sample.notes(),
+        Err("sample gate must end within its region")
     );
 }
