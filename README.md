@@ -21,6 +21,15 @@ covered in [test/test_live.py](test/test_live.py) and the shared
 [live traces](conformance/live-classic.json). The CoreMIDI executable uses the Rust
 engine, so Python is not required when playing from MIDI ports.
 
+Held and latched banks also accept [Euclidean rhythm](conformance/euclidean.toml)
+in Python and Rust, for live playing or file rendering. Three pulses in eight
+steps gives `10010010`; positive rotation moves hits later. Rests leave note
+selection unchanged, while gates still release at their scheduled times. The
+mask repeats on the local step clock, including through empty banks and bank
+edits. Zero pulses is silence and full pulses is the ordinary grid. Exact masks,
+rotations, and event traces are shared in [the fixture](conformance/euclidean.json).
+Recorded-history playback currently requires grid rhythm.
+
 [src/arpeg/capture.py](src/arpeg/capture.py) records a MIDI phrase through
 `MidiCapture.accept` and closes it with `finish`. Its profile declares whether
 overlapping onsets hand off a monophonic segment or remain independent notes.
@@ -74,6 +83,7 @@ cargo run -p arpeg-midi -- render-file conformance/up.toml input.mid output.mid
 cargo run -p arpeg-midi -- list-ports
 cargo run -p arpeg-midi -- play conformance/up.toml SOURCE_INDEX DESTINATION_INDEX 120
 cargo run -p arpeg-midi -- play conformance/live-latch.toml SOURCE_INDEX DESTINATION_INDEX 120
+cargo run -p arpeg-midi -- play conformance/euclidean.toml SOURCE_INDEX DESTINATION_INDEX 120
 cargo run -p arpeg-midi -- play conformance/history-wind.toml SOURCE_INDEX DESTINATION_INDEX 120
 ```
 

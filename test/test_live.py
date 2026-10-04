@@ -206,8 +206,9 @@ def test_clear_releases_latched_output_without_losing_input_pairing() -> None:
     assert arp.advance(Fraction(1, 4)) == []
 
 
-def test_live_classic_matches_shared_python_rust_traces() -> None:
-    cases = json.loads(Path("conformance/live-classic.json").read_text())["cases"]
+@pytest.mark.parametrize("fixture", ["live-classic", "euclidean"])
+def test_live_classic_matches_shared_python_rust_traces(fixture: str) -> None:
+    cases = json.loads(Path(f"conformance/{fixture}.json").read_text())["cases"]
     for case in cases:
         bank = (
             {"kind": "held"}
@@ -222,22 +223,29 @@ def test_live_classic_matches_shared_python_rust_traces() -> None:
                     **profile.body.model_dump(),
                     "bank": bank,
                     "retrigger": case["retrigger"],
+                    "rhythm": case.get("rhythm", profile.body.rhythm.model_dump()),
+                    "gate": case.get("gate", profile.body.gate),
                 },
             }
         )
-        arp = LiveArpeggiator(profile=profile)
-        events = []
-        for action in case["actions"]:
-            at = Fraction(action[1])
-            if action[0] == "on":
-                events.extend(arp.note_on(at, action[2], action[3]))
-            elif action[0] == "off":
-                events.extend(arp.note_off(at, action[2]))
-            elif action[0] == "advance":
-                events.extend(arp.advance(at))
-            else:
-                events.extend(arp.clear(at))
-        actual = [
-            [str(e.at), e.kind, e.id, e.source_id, e.key, e.velocity] for e in events
-        ]
-        assert actual == case["expected"], case["name"]
+        for polling in (False, True):
+            arp = LiveArpeggiator(profile=profile)
+            events = []
+            for action in case["actions"]:
+                at = Fraction(action[1])
+                if polling:
+                    while arp.now + Fraction(1, 17) < at:
+                        events.extend(arp.advance(arp.now + Fraction(1, 17)))
+                if action[0] == "on":
+                    events.extend(arp.note_on(at, action[2], action[3]))
+                elif action[0] == "off":
+                    events.extend(arp.note_off(at, action[2]))
+                elif action[0] == "advance":
+                    events.extend(arp.advance(at))
+                else:
+                    events.extend(arp.clear(at))
+            actual = [
+                [str(e.at), e.kind, e.id, e.source_id, e.key, e.velocity]
+                for e in events
+            ]
+            assert actual == case["expected"], case["name"]

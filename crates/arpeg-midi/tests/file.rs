@@ -113,6 +113,61 @@ fn unsupported_profile_modes_fail_explicitly() {
 }
 
 #[test]
+fn euclidean_profile_renders_hits_with_independent_releases() {
+    let profile = include_str!("../../../conformance/euclidean.toml");
+    let output = render_file(profile, &single_note_input(0)).unwrap();
+    let output = Smf::parse(&output).unwrap();
+    let mut tick = 0;
+    let mut notes = Vec::new();
+    for event in &output.tracks[0] {
+        tick += event.delta.as_int();
+        if let TrackEventKind::Midi {
+            message: MidiMessage::NoteOn { vel, .. },
+            ..
+        } = event.kind
+        {
+            notes.push((tick, vel.as_int() > 0));
+        }
+    }
+    assert_eq!(notes, [(0, true), (96, false), (360, true), (456, false)]);
+}
+
+#[test]
+fn euclidean_profile_rejects_invalid_masks_and_history_use() {
+    let profile = include_str!("../../../conformance/euclidean.toml");
+    for (original, replacement) in [
+        ("steps = 8", "steps = 0"),
+        ("pulses = 3", "pulses = -1"),
+        ("pulses = 3", "pulses = 9"),
+        ("rotation = 0", "rotation = 0.5"),
+        ("1/4 beat", "0 beat"),
+    ] {
+        assert!(parse_profile(&profile.replace(original, replacement)).is_err());
+    }
+    let Profile::Classic(parsed) = parse_profile(&profile.replace(", rotation = 0", "")).unwrap()
+    else {
+        panic!("expected classic profile");
+    };
+    assert_eq!(
+        parsed.rhythm,
+        arpeg_core::rhythm::Rhythm::Euclidean {
+            step: arpeg_core::Beat::new(1, 4),
+            steps: 8,
+            pulses: 3,
+            rotation: 0,
+        }
+    );
+    let history = include_str!("../../../conformance/history-wind.toml").replace(
+        "kind = \"grid\", step = \"1/4 beat\"",
+        "kind = \"euclidean\", step = \"1/4 beat\", steps = 8, pulses = 3",
+    );
+    assert_eq!(
+        parse_profile(&history).err().unwrap(),
+        "history playback currently requires grid rhythm"
+    );
+}
+
+#[test]
 fn bank_edit_retrigger_is_live_only() {
     let profile = include_str!("../../../conformance/up.toml")
         .replace("[body]", "[body]\nretrigger = \"bank_edit\"");

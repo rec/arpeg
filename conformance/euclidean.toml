@@ -1,0 +1,8 @@
+kind = "arpeggiator"
+name = "euclidean"
+title = "Three hits in eight steps"
+
+[body]
+bank = { kind = "held" }
+selection = { kind = "ascending" }
+rhythm = { kind = "euclidean", steps = 8, pulses = 3, rotation = 0, step = "1/4 beat" }

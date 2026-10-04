@@ -1,0 +1,59 @@
+{
+  "masks": ["10010010", "01001001", "10100100", "01010010", "00101001", "10010100", "01001010", "00100101"],
+  "rendered": [["c", "0", "1/5"], ["e", "3/4", "19/20"], ["g", "3/2", "17/10"]],
+  "cases": [
+    {
+      "name": "long gates survive masked rests",
+      "bank": "held",
+      "retrigger": "on_empty",
+      "gate": "3",
+      "rhythm": {"kind": "euclidean", "steps": 4, "pulses": 2, "rotation": 0, "step": "1/4 beat"},
+      "actions": [["on", "0", 60, 100], ["on", "0", 64, 90], ["advance", "7/8"]],
+      "expected": [["0", "on", 0, 0, 60, 100], ["1/2", "on", 1, 1, 64, 90], ["3/4", "off", 0, 0, 60, 0]]
+    },
+    {
+      "name": "rests preserve selection and gates",
+      "bank": "held",
+      "retrigger": "on_empty",
+      "rhythm": {"kind": "euclidean", "steps": 8, "pulses": 3, "rotation": 0, "step": "1/4 beat"},
+      "actions": [["on", "0", 60, 100], ["on", "0", 64, 90], ["on", "0", 67, 80], ["advance", "2"]],
+      "expected": [
+        ["0", "on", 0, 0, 60, 100], ["1/5", "off", 0, 0, 60, 0],
+        ["3/4", "on", 1, 1, 64, 90], ["19/20", "off", 1, 1, 64, 0],
+        ["3/2", "on", 2, 2, 67, 80], ["17/10", "off", 2, 2, 67, 0],
+        ["2", "on", 3, 0, 60, 100]
+      ]
+    },
+    {
+      "name": "rotated latch retriggers pitch while rhythm runs through silence",
+      "bank": "add",
+      "retrigger": "bank_edit",
+      "rhythm": {"kind": "euclidean", "steps": 8, "pulses": 3, "rotation": 1, "step": "1/4 beat"},
+      "actions": [["advance", "1/2"], ["on", "5/8", 60, 100], ["on", "5/8", 64, 90], ["advance", "1"], ["on", "9/8", 67, 80], ["advance", "7/4"], ["clear", "15/8"], ["advance", "2"]],
+      "expected": [
+        ["1", "on", 0, 0, 60, 100], ["6/5", "off", 0, 0, 60, 0],
+        ["7/4", "on", 1, 0, 60, 100], ["15/8", "off", 1, 0, 60, 0]
+      ]
+    },
+    {
+      "name": "zero pulses stay silent",
+      "bank": "held",
+      "retrigger": "on_empty",
+      "rhythm": {"kind": "euclidean", "steps": 8, "pulses": 0, "rotation": -1, "step": "1/3 beat"},
+      "actions": [["on", "0", 60, 100], ["advance", "4"]],
+      "expected": []
+    },
+    {
+      "name": "full pulses play a fractional grid",
+      "bank": "held",
+      "retrigger": "on_empty",
+      "rhythm": {"kind": "euclidean", "steps": 2, "pulses": 2, "rotation": 5, "step": "1/3 beat"},
+      "actions": [["on", "0", 60, 100], ["advance", "2/3"]],
+      "expected": [
+        ["0", "on", 0, 0, 60, 100], ["4/15", "off", 0, 0, 60, 0],
+        ["1/3", "on", 1, 0, 60, 100], ["3/5", "off", 1, 0, 60, 0],
+        ["2/3", "on", 2, 0, 60, 100]
+      ]
+    }
+  ]
+}

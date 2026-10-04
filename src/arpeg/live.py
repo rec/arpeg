@@ -15,11 +15,14 @@ from ufor.arpeggiator import (
     ArpeggiatorScore,
     Ascending,
     Descending,
+    Euclidean,
     Grid,
     HeldBank,
     LatchedBank,
     Played,
 )
+
+from .rhythm import allows_step
 
 
 class LiveEvent(BaseModel, frozen=True):
@@ -61,8 +64,8 @@ class LiveArpeggiator(BaseModel):
             raise ValueError("live mode requires pitch selection")
         if isinstance(body.selection, Ascending) and body.selection.repeats != 1:
             raise ValueError("live mode does not support repeated selections")
-        if not isinstance(body.rhythm, Grid):
-            raise ValueError("live mode requires grid rhythm")
+        if not isinstance(body.rhythm, (Grid, Euclidean)):
+            raise ValueError("live mode requires grid or Euclidean rhythm")
         return self
 
     @cached_property
@@ -80,7 +83,7 @@ class LiveArpeggiator(BaseModel):
     @cached_property
     def step(self) -> Fraction:
         rhythm = self.profile.body.rhythm
-        assert isinstance(rhythm, Grid)
+        assert isinstance(rhythm, (Grid, Euclidean))
         return Fraction(rhythm.step.removesuffix(" beat"))
 
     def note_on(self, at: Fraction, key: int, velocity: int) -> list[LiveEvent]:
@@ -211,6 +214,10 @@ class LiveArpeggiator(BaseModel):
         active = self.input if isinstance(self.bank_mode, HeldBank) else self.bank
         if not active:
             self.previous_note = None
+            return []
+        rhythm = self.profile.body.rhythm
+        assert isinstance(rhythm, (Grid, Euclidean))
+        if not allows_step(rhythm, int(at / self.step)):
             return []
         ordered = sorted(active, key=self._selection_key)
         note = next(

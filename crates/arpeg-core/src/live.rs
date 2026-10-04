@@ -1,6 +1,6 @@
 //! Incremental decisions for a running, held-note arpeggiator.
 
-use crate::{Bank, Beat, Selection};
+use crate::{Bank, Beat, Selection, rhythm::Rhythm};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Retrigger {
@@ -49,7 +49,7 @@ pub struct LiveArpeggiator {
     bank_mode: Bank,
     retrigger: Retrigger,
     selection: Selection,
-    step: Beat,
+    rhythm: Rhythm,
     gate: Beat,
     next_step: Beat,
     now: Beat,
@@ -68,18 +68,19 @@ impl LiveArpeggiator {
     pub fn new(
         bank: Bank,
         selection: Selection,
-        step: Beat,
+        rhythm: Rhythm,
         gate: Beat,
         retrigger: Retrigger,
     ) -> Result<Self, &'static str> {
-        if step <= Beat::from_integer(0) || gate < Beat::from_integer(0) {
-            return Err("step must be positive and gate nonnegative");
+        rhythm.validate()?;
+        if gate < Beat::from_integer(0) {
+            return Err("gate must be nonnegative");
         }
         Ok(Self {
             bank_mode: bank,
             retrigger,
             selection,
-            step,
+            rhythm,
             gate,
             next_step: Beat::from_integer(0),
             now: Beat::from_integer(0),
@@ -238,7 +239,7 @@ impl LiveArpeggiator {
             self.release_due(next, &mut output);
             if self.next_step == next {
                 self.play_step(next, &mut output);
-                self.next_step += self.step;
+                self.next_step += self.rhythm.step();
             }
         }
         self.now = through;
@@ -287,6 +288,12 @@ impl LiveArpeggiator {
             self.previous_key = None;
             return;
         }
+        if !self
+            .rhythm
+            .allows_step((at / self.rhythm.step()).to_integer())
+        {
+            return;
+        }
         let selection = self.selection;
         let mut ordered = active.clone();
         ordered.sort_unstable_by_key(|note| selection_key(note, selection));
@@ -298,7 +305,7 @@ impl LiveArpeggiator {
             })
             .unwrap_or(&ordered[0]);
         self.previous_key = Some(selection_key(selected, selection));
-        let end = at + self.step * self.gate;
+        let end = at + self.rhythm.step() * self.gate;
         for note in self
             .sounding
             .iter_mut()

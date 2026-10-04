@@ -1,3 +1,4 @@
+use arpeg_core::rhythm::Rhythm;
 use arpeg_core::{Bank, Beat, HeldNote, Selection, render_held};
 use serde_json::Value;
 
@@ -9,6 +10,48 @@ fn ratio(text: &str) -> Beat {
         ),
         None => Beat::from_integer(text.parse().expect("rational integer")),
     }
+}
+
+#[test]
+fn euclidean_renderer_matches_shared_exact_trace() {
+    let notes = ["c", "e", "g"]
+        .into_iter()
+        .zip([60, 64, 67])
+        .map(|(id, key)| HeldNote {
+            id,
+            key,
+            onset: Beat::from_integer(0),
+            release: Beat::from_integer(2),
+        })
+        .collect::<Vec<_>>();
+    let occurrences = render_held(
+        &notes,
+        Bank::Held,
+        Selection::Ascending,
+        Rhythm::Euclidean {
+            step: Beat::new(1, 4),
+            steps: 8,
+            pulses: 3,
+            rotation: 0,
+        },
+        Beat::new(4, 5),
+        Beat::from_integer(2),
+    )
+    .unwrap();
+    let actual: Vec<_> = occurrences
+        .iter()
+        .map(|o| {
+            vec![
+                o.source_id.to_owned(),
+                o.onset.to_string(),
+                o.gate_end.to_string(),
+            ]
+        })
+        .collect();
+    let fixture: Value =
+        serde_json::from_str(include_str!("../../../conformance/euclidean.json")).unwrap();
+    let expected: Vec<Vec<String>> = serde_json::from_value(fixture["rendered"].clone()).unwrap();
+    assert_eq!(actual, expected);
 }
 
 #[test]
@@ -75,8 +118,15 @@ fn held_chord_matches_shared_exact_trace() {
             Some("toggle") => Bank::LatchedToggle,
             _ => Bank::Held,
         };
-        let occurrences =
-            render_held(&notes, bank, selection, step, Beat::new(4, 5), through).expect("held arp");
+        let occurrences = render_held(
+            &notes,
+            bank,
+            selection,
+            Rhythm::Grid { step },
+            Beat::new(4, 5),
+            through,
+        )
+        .expect("held arp");
         let actual: Vec<_> = occurrences
             .iter()
             .map(|occurrence| {
@@ -129,7 +179,9 @@ fn latch_replace_and_add_keep_their_distinct_banks() {
             &notes,
             bank,
             Selection::Played,
-            Beat::new(1, 4),
+            Rhythm::Grid {
+                step: Beat::new(1, 4),
+            },
             Beat::new(4, 5),
             Beat::new(5, 2),
         )

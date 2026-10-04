@@ -5,9 +5,28 @@ from pathlib import Path
 import pytest
 from ufor.arpeggiator import ArpeggiatorScore
 from ufor.arpeggiator_capture import CapturedPhrase, SourceNote
+from ufor.codec import parse_score
 from ufor.control import TempoMap
 
 from arpeg.held import render_held
+
+
+def test_euclidean_renderer_matches_shared_exact_trace() -> None:
+    chord = json.loads(Path("conformance/held-chord.json").read_text())
+    profile = ArpeggiatorScore.model_validate(
+        parse_score(Path("conformance/euclidean.toml").read_text())
+    )
+    occurrences = render_held(
+        profile,
+        CapturedPhrase.model_validate(chord["phrase"]),
+        TempoMap.model_validate(chord["tempo"]),
+        Fraction(2),
+        "synth",
+    )
+    expected = json.loads(Path("conformance/euclidean.json").read_text())["rendered"]
+    assert [
+        [o.source_note, str(o.onset), str(o.gate_end)] for o in occurrences
+    ] == expected
 
 
 def test_held_chord_matches_shared_exact_trace() -> None:

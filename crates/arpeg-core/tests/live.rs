@@ -1,3 +1,4 @@
+use arpeg_core::rhythm::Rhythm;
 use arpeg_core::{
     Bank, Beat, Selection,
     live::{LiveArpeggiator, OutputEvent, OutputKind, Retrigger},
@@ -13,7 +14,7 @@ fn live_notes_follow_input_and_release_when_bank_empties() {
     let mut arp = LiveArpeggiator::new(
         Bank::Held,
         Selection::Ascending,
-        beat(1, 4),
+        Rhythm::Grid { step: beat(1, 4) },
         beat(4, 5),
         Retrigger::OnEmpty,
     )
@@ -74,7 +75,7 @@ fn live_step_order_is_independent_of_poll_intervals() {
     let mut a = LiveArpeggiator::new(
         Bank::Held,
         Selection::Ascending,
-        beat(1, 4),
+        Rhythm::Grid { step: beat(1, 4) },
         beat(1, 1),
         Retrigger::OnEmpty,
     )
@@ -82,7 +83,7 @@ fn live_step_order_is_independent_of_poll_intervals() {
     let mut b = LiveArpeggiator::new(
         Bank::Held,
         Selection::Ascending,
-        beat(1, 4),
+        Rhythm::Grid { step: beat(1, 4) },
         beat(1, 1),
         Retrigger::OnEmpty,
     )
@@ -104,7 +105,7 @@ fn simultaneous_note_ons_join_the_first_step() {
     let mut arp = LiveArpeggiator::new(
         Bank::Held,
         Selection::Ascending,
-        beat(1, 4),
+        Rhythm::Grid { step: beat(1, 4) },
         beat(1, 1),
         Retrigger::OnEmpty,
     )
@@ -127,66 +128,98 @@ fn simultaneous_note_ons_join_the_first_step() {
 
 #[test]
 fn live_classic_matches_shared_python_rust_traces() {
-    let fixture: Value =
-        serde_json::from_str(include_str!("../../../conformance/live-classic.json")).unwrap();
-    for case in fixture["cases"].as_array().unwrap() {
-        let bank = match case["bank"].as_str().unwrap() {
-            "held" => Bank::Held,
-            "replace" => Bank::LatchedReplace,
-            "add" => Bank::LatchedAdd,
-            "toggle" => Bank::LatchedToggle,
-            _ => panic!("unsupported fixture bank"),
-        };
-        let retrigger = match case["retrigger"].as_str().unwrap() {
-            "on_empty" => Retrigger::OnEmpty,
-            "bank_edit" => Retrigger::BankEdit,
-            _ => panic!("unsupported fixture retrigger"),
-        };
-        let mut arp = LiveArpeggiator::new(
-            bank,
-            Selection::Ascending,
-            beat(1, 4),
-            beat(4, 5),
-            retrigger,
-        )
-        .unwrap();
-        let mut events = Vec::new();
-        for action in case["actions"].as_array().unwrap() {
-            let at = ratio(action[1].as_str().unwrap());
-            let result = match action[0].as_str().unwrap() {
-                "on" => arp.note_on(
-                    at,
-                    action[2].as_u64().unwrap() as u8,
-                    action[3].as_u64().unwrap() as u8,
-                ),
-                "off" => arp.note_off(at, action[2].as_u64().unwrap() as u8),
-                "advance" => arp.advance(at),
-                "clear" => arp.clear(at),
-                _ => panic!("unsupported fixture action"),
+    for text in [
+        include_str!("../../../conformance/live-classic.json"),
+        include_str!("../../../conformance/euclidean.json"),
+    ] {
+        let fixture: Value = serde_json::from_str(text).unwrap();
+        for case in fixture["cases"].as_array().unwrap() {
+            let bank = match case["bank"].as_str().unwrap() {
+                "held" => Bank::Held,
+                "replace" => Bank::LatchedReplace,
+                "add" => Bank::LatchedAdd,
+                "toggle" => Bank::LatchedToggle,
+                _ => panic!("unsupported fixture bank"),
             };
-            events.extend(result.unwrap());
+            let retrigger = match case["retrigger"].as_str().unwrap() {
+                "on_empty" => Retrigger::OnEmpty,
+                "bank_edit" => Retrigger::BankEdit,
+                _ => panic!("unsupported fixture retrigger"),
+            };
+            let rhythm = match case.get("rhythm") {
+                Some(rhythm) => Rhythm::Euclidean {
+                    step: ratio(
+                        rhythm["step"]
+                            .as_str()
+                            .unwrap()
+                            .strip_suffix(" beat")
+                            .unwrap(),
+                    ),
+                    steps: rhythm["steps"].as_i64().unwrap(),
+                    pulses: rhythm["pulses"].as_i64().unwrap(),
+                    rotation: rhythm["rotation"].as_i64().unwrap(),
+                },
+                None => Rhythm::Grid { step: beat(1, 4) },
+            };
+            for polling in [false, true] {
+                let mut arp = LiveArpeggiator::new(
+                    bank,
+                    Selection::Ascending,
+                    rhythm,
+                    case.get("gate")
+                        .map_or(beat(4, 5), |v| ratio(v.as_str().unwrap())),
+                    retrigger,
+                )
+                .unwrap();
+                let mut events = Vec::new();
+                let mut last = beat(0, 1);
+                for action in case["actions"].as_array().unwrap() {
+                    let at = ratio(action[1].as_str().unwrap());
+                    if polling {
+                        while last + beat(1, 17) < at {
+                            last += beat(1, 17);
+                            events.extend(arp.advance(last).unwrap());
+                        }
+                    }
+                    last = at;
+                    let result = match action[0].as_str().unwrap() {
+                        "on" => arp.note_on(
+                            at,
+                            action[2].as_u64().unwrap() as u8,
+                            action[3].as_u64().unwrap() as u8,
+                        ),
+                        "off" => arp.note_off(at, action[2].as_u64().unwrap() as u8),
+                        "advance" => arp.advance(at),
+                        "clear" => arp.clear(at),
+                        _ => panic!("unsupported fixture action"),
+                    };
+                    events.extend(result.unwrap());
+                }
+                let actual: Vec<Value> = events
+                    .into_iter()
+                    .map(|event| {
+                        let (kind, id, source_id, key, velocity) = match event.kind {
+                            OutputKind::NoteOn {
+                                id,
+                                source_id,
+                                key,
+                                velocity,
+                            } => ("on", id, source_id, key, velocity),
+                            OutputKind::NoteOff { id, source_id, key } => {
+                                ("off", id, source_id, key, 0)
+                            }
+                        };
+                        json!([event.at.to_string(), kind, id, source_id, key, velocity])
+                    })
+                    .collect();
+                assert_eq!(
+                    actual,
+                    *case["expected"].as_array().unwrap(),
+                    "{}",
+                    case["name"]
+                );
+            }
         }
-        let actual: Vec<Value> = events
-            .into_iter()
-            .map(|event| {
-                let (kind, id, source_id, key, velocity) = match event.kind {
-                    OutputKind::NoteOn {
-                        id,
-                        source_id,
-                        key,
-                        velocity,
-                    } => ("on", id, source_id, key, velocity),
-                    OutputKind::NoteOff { id, source_id, key } => ("off", id, source_id, key, 0),
-                };
-                json!([event.at.to_string(), kind, id, source_id, key, velocity])
-            })
-            .collect();
-        assert_eq!(
-            actual,
-            *case["expected"].as_array().unwrap(),
-            "{}",
-            case["name"]
-        );
     }
 }
 

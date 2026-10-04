@@ -7,6 +7,7 @@ pub mod gesture;
 pub mod history;
 pub mod live;
 pub mod marked_sample;
+pub mod rhythm;
 
 pub type Beat = Ratio<i64>;
 
@@ -48,12 +49,14 @@ pub fn render_held<'a>(
     notes: &'a [HeldNote<'a>],
     bank_mode: Bank,
     selection: Selection,
-    step: Beat,
+    rhythm: rhythm::Rhythm,
     gate: Beat,
     through: Beat,
 ) -> Result<Vec<Occurrence<'a>>, &'static str> {
-    if step <= Beat::from_integer(0) || gate < Beat::from_integer(0) {
-        return Err("step must be positive and gate nonnegative");
+    rhythm.validate()?;
+    let step = rhythm.step();
+    if gate < Beat::from_integer(0) {
+        return Err("gate must be nonnegative");
     }
     if through < Beat::from_integer(0) {
         return Err("render horizon must be nonnegative");
@@ -73,6 +76,10 @@ pub fn render_held<'a>(
         }
         if active.is_empty() {
             previous_key = None;
+            at += step;
+            continue;
+        }
+        if !rhythm.allows_step((at / step).to_integer()) {
             at += step;
             continue;
         }

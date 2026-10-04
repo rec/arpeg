@@ -3,6 +3,7 @@
 use std::collections::{HashMap, VecDeque};
 
 use arpeg_core::live::Retrigger;
+use arpeg_core::rhythm::Rhythm;
 use arpeg_core::{Bank, Beat, HeldNote, Selection, render_held};
 use midly::{
     Format, Header, MetaMessage, MidiMessage, Smf, Timing, TrackEvent, TrackEventKind,
@@ -15,7 +16,7 @@ pub mod live;
 pub struct HeldProfile {
     pub bank: Bank,
     pub selection: Selection,
-    pub step: Beat,
+    pub rhythm: Rhythm,
     pub gate: Beat,
     pub retrigger: Retrigger,
 }
@@ -248,44 +249,72 @@ pub fn parse_profile(text: &str) -> Result<Profile, String> {
         }
         _ => return Err("unsupported note selection".into()),
     };
-    let step = parse_grid_step(body)?;
+    let rhythm = parse_rhythm(body)?;
     let gate = parse_gate(body)?;
     Ok(match bank {
         ParsedBank::Classic(bank) => Profile::Classic(HeldProfile {
             bank,
             selection,
-            step,
+            rhythm,
             gate,
             retrigger,
         }),
-        ParsedBank::History(notes) => Profile::History(HistoryProfile {
-            notes,
-            selection,
-            step,
-            gate,
-            retrigger,
-        }),
+        ParsedBank::History(notes) => {
+            if !matches!(rhythm, Rhythm::Grid { .. }) {
+                return Err("history playback currently requires grid rhythm".into());
+            }
+            Profile::History(HistoryProfile {
+                notes,
+                selection,
+                step: rhythm.step(),
+                gate,
+                retrigger,
+            })
+        }
     })
 }
 
-fn parse_grid_step(body: &toml::map::Map<String, toml::Value>) -> Result<Beat, String> {
+fn parse_rhythm(body: &toml::map::Map<String, toml::Value>) -> Result<Rhythm, String> {
     let rhythm = body
         .get("rhythm")
         .and_then(toml::Value::as_table)
         .ok_or("profile requires rhythm")?;
-    if rhythm.len() != 2 || rhythm.get("kind").and_then(toml::Value::as_str) != Some("grid") {
-        return Err("only grid rhythm is supported".into());
-    }
     let step = rhythm
         .get("step")
         .and_then(toml::Value::as_str)
         .and_then(|value| value.strip_suffix(" beat"))
-        .ok_or("grid step must be a rational beat duration")?;
+        .ok_or("rhythm step must be a rational beat duration")?;
     let step = parse_ratio(step)?;
-    if step <= Beat::from_integer(0) {
-        return Err("grid step must be positive".into());
-    }
-    Ok(step)
+    let parsed = match rhythm.get("kind").and_then(toml::Value::as_str) {
+        Some("grid") if rhythm.len() == 2 => Rhythm::Grid { step },
+        Some("euclidean")
+            if rhythm.keys().all(|key| {
+                ["kind", "step", "steps", "pulses", "rotation"].contains(&key.as_str())
+            }) =>
+        {
+            let steps = rhythm
+                .get("steps")
+                .and_then(toml::Value::as_integer)
+                .ok_or("Euclidean steps must be an integer")?;
+            let pulses = rhythm
+                .get("pulses")
+                .and_then(toml::Value::as_integer)
+                .ok_or("Euclidean pulses must be an integer")?;
+            let rotation = rhythm
+                .get("rotation")
+                .map_or(Some(0), toml::Value::as_integer)
+                .ok_or("Euclidean rotation must be an integer")?;
+            Rhythm::Euclidean {
+                step,
+                steps,
+                pulses,
+                rotation,
+            }
+        }
+        _ => return Err("only grid or Euclidean rhythm is supported".into()),
+    };
+    parsed.validate().map_err(str::to_owned)?;
+    Ok(parsed)
 }
 
 fn parse_gate(body: &toml::map::Map<String, toml::Value>) -> Result<Beat, String> {
@@ -386,7 +415,7 @@ pub fn render_file(profile: &str, input: &[u8]) -> Result<Vec<u8>, String> {
         &held,
         profile.bank,
         profile.selection,
-        profile.step,
+        profile.rhythm,
         profile.gate,
         through,
     )

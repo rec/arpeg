@@ -123,7 +123,7 @@ fn run_classic(
     let mut arp = LiveArpeggiator::new(
         profile.bank,
         profile.selection,
-        profile.step,
+        profile.rhythm,
         profile.gate,
         profile.retrigger,
     )

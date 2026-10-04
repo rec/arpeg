@@ -8,6 +8,7 @@ from ufor.arpeggiator import (
     ArpeggiatorScore,
     Ascending,
     Descending,
+    Euclidean,
     Grid,
     HeldBank,
     LatchedBank,
@@ -17,6 +18,8 @@ from ufor.arpeggiator_capture import CapturedPhrase, Occurrence, SourceNote
 from ufor.base import Identifier
 from ufor.control import Clock, TempoMap
 
+from .rhythm import allows_step
+
 
 def render_held(
     profile: ArpeggiatorScore,
@@ -25,7 +28,7 @@ def render_held(
     through: Fraction,
     destination: Identifier,
 ) -> list[Occurrence]:
-    """Render supported held/grid selections before ``through``."""
+    """Render supported held and latched selections before ``through``."""
     body = profile.body
     if not isinstance(body.bank, (HeldBank, LatchedBank)):
         raise ValueError("held rendering requires a held or latched bank")
@@ -36,8 +39,8 @@ def render_held(
         raise ValueError("held rendering requires pitch selection")
     if isinstance(selection, Ascending) and selection.repeats != 1:
         raise ValueError("held rendering does not support repeated selections")
-    if not isinstance(body.rhythm, Grid):
-        raise ValueError("held rendering requires grid rhythm")
+    if not isinstance(body.rhythm, (Grid, Euclidean)):
+        raise ValueError("held rendering requires grid or Euclidean rhythm")
     if body.retrigger != "on_empty":
         raise ValueError("held rendering does not support bank-edit retrigger")
     if through < 0:
@@ -80,6 +83,8 @@ def render_held(
             previous_bank = bank
         if not active:
             previous_key = None
+            continue
+        if not allows_step(body.rhythm, index):
             continue
         ordered = sorted(active, key=lambda n: _selection_key(n, selection))
         note = next(
