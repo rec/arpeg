@@ -250,6 +250,16 @@ pub fn parse_profile(text: &str) -> Result<Profile, String> {
                 _ => return Err("unsupported played direction".into()),
             }
         }
+        Some(kind @ ("inside_out" | "outside_in")) => {
+            if selection.expect("selection table").len() != 1 {
+                return Err("unsupported center/edge selection option".into());
+            }
+            if kind == "inside_out" {
+                Selection::InsideOut
+            } else {
+                Selection::OutsideIn
+            }
+        }
         Some("alternating") => {
             let table = selection.expect("selection table");
             if table
@@ -348,6 +358,11 @@ pub fn parse_profile(text: &str) -> Result<Profile, String> {
             retrigger,
         }),
         ParsedBank::History(notes) => {
+            if matches!(selection, Selection::InsideOut | Selection::OutsideIn) {
+                return Err(
+                    "center/edge selection currently requires a held or latched bank".into(),
+                );
+            }
             if matches!(selection, Selection::Alternating { .. }) {
                 return Err("alternating currently requires a held or latched bank".into());
             }

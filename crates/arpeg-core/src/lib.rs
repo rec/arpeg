@@ -19,6 +19,8 @@ pub enum Selection {
     Played,
     ReversePlayed,
     Alternating { repeat_endpoints: bool },
+    InsideOut,
+    OutsideIn,
     Walk(Walk),
 }
 
@@ -86,6 +88,9 @@ pub fn render_held<'a>(
     }
     if matches!(selection, Selection::Alternating { .. }) {
         return Err("alternating selection currently requires live input");
+    }
+    if matches!(selection, Selection::InsideOut | Selection::OutsideIn) {
+        return Err("center/edge selection currently requires live input");
     }
     rhythm.validate()?;
     if matches!(rhythm, rhythm::Rhythm::Pattern { .. }) {
@@ -157,9 +162,11 @@ pub fn render_held<'a>(
 
 fn selection_key<'a>(note: &HeldNote<'a>, selection: &Selection) -> (Beat, &'a str) {
     let position = match selection {
-        Selection::Ascending | Selection::Walk(_) | Selection::Alternating { .. } => {
-            Beat::from_integer(note.key.into())
-        }
+        Selection::Ascending
+        | Selection::Walk(_)
+        | Selection::Alternating { .. }
+        | Selection::InsideOut
+        | Selection::OutsideIn => Beat::from_integer(note.key.into()),
         Selection::Descending => -Beat::from_integer(note.key.into()),
         Selection::Played => note.onset,
         Selection::ReversePlayed => -note.onset,

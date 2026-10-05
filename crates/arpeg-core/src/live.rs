@@ -360,7 +360,23 @@ impl LiveArpeggiator {
         let selection = &self.selection;
         let mut ordered = active.clone();
         ordered.sort_unstable_by_key(|note| selection_key(note, selection));
-        let selected = if let Selection::Alternating { repeat_endpoints } = selection {
+        let selected = if matches!(selection, Selection::InsideOut | Selection::OutsideIn) {
+            let size = ordered.len();
+            let mut indices: Vec<_> = (0..size).collect();
+            indices.sort_by_key(|i| {
+                let distance = if matches!(selection, Selection::InsideOut) {
+                    (2 * i).abs_diff(size - 1)
+                } else {
+                    (*i).min(size - 1 - i)
+                };
+                (distance, *i)
+            });
+            ordered = indices.into_iter().map(|i| ordered[i]).collect();
+            let previous = self
+                .previous_key
+                .and_then(|(_, id)| ordered.iter().position(|note| note.id == id));
+            ordered[previous.map_or(0, |i| (i + 1) % size)]
+        } else if let Selection::Alternating { repeat_endpoints } = selection {
             if let Some(previous) = self.previous_key {
                 if ordered.len() == 1 {
                     ordered[0]
@@ -510,9 +526,11 @@ impl LiveArpeggiator {
 
 fn selection_key(note: &InputNote, selection: &Selection) -> (Beat, u64) {
     let position = match selection {
-        Selection::Ascending | Selection::Walk(_) | Selection::Alternating { .. } => {
-            Beat::from_integer(i64::from(note.key))
-        }
+        Selection::Ascending
+        | Selection::Walk(_)
+        | Selection::Alternating { .. }
+        | Selection::InsideOut
+        | Selection::OutsideIn => Beat::from_integer(i64::from(note.key)),
         Selection::Descending => -Beat::from_integer(i64::from(note.key)),
         Selection::Played => note.onset,
         Selection::ReversePlayed => -note.onset,

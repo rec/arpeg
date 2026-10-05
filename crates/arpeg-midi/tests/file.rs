@@ -147,6 +147,33 @@ fn alternating_profile_validates_endpoint_policy_and_is_live_only() {
 }
 
 #[test]
+fn center_edge_profiles_are_live_only_and_have_no_extra_options() {
+    for (profile, selection) in [
+        (
+            include_str!("../../../conformance/inside-out.toml"),
+            arpeg_core::Selection::InsideOut,
+        ),
+        (
+            include_str!("../../../conformance/outside-in.toml"),
+            arpeg_core::Selection::OutsideIn,
+        ),
+    ] {
+        let Profile::Classic(parsed) = parse_profile(profile).unwrap() else {
+            panic!("expected live note profile");
+        };
+        assert_eq!(parsed.selection, selection);
+        assert_eq!(
+            render_file(profile, &single_note_input(0)).unwrap_err(),
+            "center/edge selection currently requires live input"
+        );
+        let history = profile.replace("[body]", "[body]\nbank = { kind = \"history\" }");
+        assert!(parse_profile(&history).is_err());
+        let extra = profile.replace("selection = {", "selection = { repeats = 2,");
+        assert!(parse_profile(&extra).is_err());
+    }
+}
+
+#[test]
 fn weighted_walk_profile_validates_choices_and_requires_live_input() {
     let profile = include_str!("../../../conformance/weighted-walk.toml");
     let Profile::Classic(parsed) = parse_profile(profile).unwrap() else {

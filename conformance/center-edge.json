@@ -1,0 +1,481 @@
+{
+  "cases": [
+    {
+      "name": "inside-out even chord cycles from lower center",
+      "bank": "held",
+      "retrigger": "on_empty",
+      "gate": "0",
+      "selection": {"kind":"inside_out"},
+      "actions": [
+        ["on","0",60,100],
+        ["on","0",64,90],
+        ["on","0",67,80],
+        ["on","0",72,70],
+        ["advance","5/4"]
+      ],
+      "expected": [
+        ["0","on",0,1,64,90],
+        ["0","off",0,1,64,0],
+        ["1/4","on",1,2,67,80],
+        ["1/4","off",1,2,67,0],
+        ["1/2","on",2,0,60,100],
+        ["1/2","off",2,0,60,0],
+        ["3/4","on",3,3,72,70],
+        ["3/4","off",3,3,72,0],
+        ["1","on",4,1,64,90],
+        ["1","off",4,1,64,0],
+        ["5/4","on",5,2,67,80],
+        ["5/4","off",5,2,67,0]
+      ]
+    },
+    {
+      "name": "outside-in even chord cycles from bass",
+      "bank": "held",
+      "retrigger": "on_empty",
+      "gate": "0",
+      "selection": {"kind":"outside_in"},
+      "actions": [
+        ["on","0",60,100],
+        ["on","0",64,90],
+        ["on","0",67,80],
+        ["on","0",72,70],
+        ["advance","5/4"]
+      ],
+      "expected": [
+        ["0","on",0,0,60,100],
+        ["0","off",0,0,60,0],
+        ["1/4","on",1,3,72,70],
+        ["1/4","off",1,3,72,0],
+        ["1/2","on",2,1,64,90],
+        ["1/2","off",2,1,64,0],
+        ["3/4","on",3,2,67,80],
+        ["3/4","off",3,2,67,0],
+        ["1","on",4,0,60,100],
+        ["1","off",4,0,60,0],
+        ["5/4","on",5,3,72,70],
+        ["5/4","off",5,3,72,0]
+      ]
+    },
+    {
+      "name": "inside-out odd chord visits center then lower side",
+      "bank": "held",
+      "retrigger": "on_empty",
+      "gate": "0",
+      "selection": {"kind":"inside_out"},
+      "actions": [
+        ["on","0",60,100],
+        ["on","0",64,90],
+        ["on","0",67,80],
+        ["on","0",72,70],
+        ["on","0",76,60],
+        ["advance","5/4"]
+      ],
+      "expected": [
+        ["0","on",0,2,67,80],
+        ["0","off",0,2,67,0],
+        ["1/4","on",1,1,64,90],
+        ["1/4","off",1,1,64,0],
+        ["1/2","on",2,3,72,70],
+        ["1/2","off",2,3,72,0],
+        ["3/4","on",3,0,60,100],
+        ["3/4","off",3,0,60,0],
+        ["1","on",4,4,76,60],
+        ["1","off",4,4,76,0],
+        ["5/4","on",5,2,67,80],
+        ["5/4","off",5,2,67,0]
+      ]
+    },
+    {
+      "name": "outside-in odd chord ends each cycle in center",
+      "bank": "held",
+      "retrigger": "on_empty",
+      "gate": "0",
+      "selection": {"kind":"outside_in"},
+      "actions": [
+        ["on","0",60,100],
+        ["on","0",64,90],
+        ["on","0",67,80],
+        ["on","0",72,70],
+        ["on","0",76,60],
+        ["advance","5/4"]
+      ],
+      "expected": [
+        ["0","on",0,0,60,100],
+        ["0","off",0,0,60,0],
+        ["1/4","on",1,4,76,60],
+        ["1/4","off",1,4,76,0],
+        ["1/2","on",2,1,64,90],
+        ["1/2","off",2,1,64,0],
+        ["3/4","on",3,3,72,70],
+        ["3/4","off",3,3,72,0],
+        ["1","on",4,2,67,80],
+        ["1","off",4,2,67,0],
+        ["5/4","on",5,0,60,100],
+        ["5/4","off",5,0,60,0]
+      ]
+    },
+    {
+      "name": "inside-out equal pitches retain distinct identities",
+      "bank": "held",
+      "retrigger": "on_empty",
+      "gate": "0",
+      "selection": {"kind":"inside_out"},
+      "actions": [
+        ["on","0",60,100],
+        ["on","0",60,90],
+        ["on","0",67,80],
+        ["on","0",67,70],
+        ["advance","1"]
+      ],
+      "expected": [
+        ["0","on",0,1,60,90],
+        ["0","off",0,1,60,0],
+        ["1/4","on",1,2,67,80],
+        ["1/4","off",1,2,67,0],
+        ["1/2","on",2,0,60,100],
+        ["1/2","off",2,0,60,0],
+        ["3/4","on",3,3,67,70],
+        ["3/4","off",3,3,67,0],
+        ["1","on",4,1,60,90],
+        ["1","off",4,1,60,0]
+      ]
+    },
+    {
+      "name": "inside-out single note repeats",
+      "bank": "held",
+      "retrigger": "on_empty",
+      "gate": "0",
+      "selection": {"kind":"inside_out"},
+      "actions": [
+        ["on","0",64,100],
+        ["advance","1/2"]
+      ],
+      "expected": [
+        ["0","on",0,0,64,100],
+        ["0","off",0,0,64,0],
+        ["1/4","on",1,0,64,100],
+        ["1/4","off",1,0,64,0],
+        ["1/2","on",2,0,64,100],
+        ["1/2","off",2,0,64,0]
+      ]
+    },
+    {
+      "name": "outside-in single note repeats",
+      "bank": "held",
+      "retrigger": "on_empty",
+      "gate": "0",
+      "selection": {"kind":"outside_in"},
+      "actions": [
+        ["on","0",64,100],
+        ["advance","1/2"]
+      ],
+      "expected": [
+        ["0","on",0,0,64,100],
+        ["0","off",0,0,64,0],
+        ["1/4","on",1,0,64,100],
+        ["1/4","off",1,0,64,0],
+        ["1/2","on",2,0,64,100],
+        ["1/2","off",2,0,64,0]
+      ]
+    },
+    {
+      "name": "inside-out two notes cycle",
+      "bank": "held",
+      "retrigger": "on_empty",
+      "gate": "0",
+      "selection": {"kind":"inside_out"},
+      "actions": [
+        ["on","0",60,100],
+        ["on","0",67,90],
+        ["advance","3/4"]
+      ],
+      "expected": [
+        ["0","on",0,0,60,100],
+        ["0","off",0,0,60,0],
+        ["1/4","on",1,1,67,90],
+        ["1/4","off",1,1,67,0],
+        ["1/2","on",2,0,60,100],
+        ["1/2","off",2,0,60,0],
+        ["3/4","on",3,1,67,90],
+        ["3/4","off",3,1,67,0]
+      ]
+    },
+    {
+      "name": "outside-in two notes cycle",
+      "bank": "held",
+      "retrigger": "on_empty",
+      "gate": "0",
+      "selection": {"kind":"outside_in"},
+      "actions": [
+        ["on","0",60,100],
+        ["on","0",67,90],
+        ["advance","3/4"]
+      ],
+      "expected": [
+        ["0","on",0,0,60,100],
+        ["0","off",0,0,60,0],
+        ["1/4","on",1,1,67,90],
+        ["1/4","off",1,1,67,0],
+        ["1/2","on",2,0,60,100],
+        ["1/2","off",2,0,60,0],
+        ["3/4","on",3,1,67,90],
+        ["3/4","off",3,1,67,0]
+      ]
+    },
+    {
+      "name": "inside-out edit continues after retained identity",
+      "bank": "held",
+      "retrigger": "on_empty",
+      "gate": "0",
+      "selection": {"kind":"inside_out"},
+      "actions": [
+        ["on","0",60,100],
+        ["on","0",64,90],
+        ["on","0",67,80],
+        ["on","0",72,70],
+        ["on","3/8",76,60],
+        ["advance","3/4"]
+      ],
+      "expected": [
+        ["0","on",0,1,64,90],
+        ["0","off",0,1,64,0],
+        ["1/4","on",1,2,67,80],
+        ["1/4","off",1,2,67,0],
+        ["1/2","on",2,1,64,90],
+        ["1/2","off",2,1,64,0],
+        ["3/4","on",3,3,72,70],
+        ["3/4","off",3,3,72,0]
+      ]
+    },
+    {
+      "name": "outside-in edit continues after retained identity",
+      "bank": "held",
+      "retrigger": "on_empty",
+      "gate": "0",
+      "selection": {"kind":"outside_in"},
+      "actions": [
+        ["on","0",60,100],
+        ["on","0",64,90],
+        ["on","0",67,80],
+        ["on","0",72,70],
+        ["on","3/8",76,60],
+        ["advance","3/4"]
+      ],
+      "expected": [
+        ["0","on",0,0,60,100],
+        ["0","off",0,0,60,0],
+        ["1/4","on",1,3,72,70],
+        ["1/4","off",1,3,72,0],
+        ["1/2","on",2,2,67,80],
+        ["1/2","off",2,2,67,0],
+        ["3/4","on",3,0,60,100],
+        ["3/4","off",3,0,60,0]
+      ]
+    },
+    {
+      "name": "inside-out removed identity restarts traversal",
+      "bank": "held",
+      "retrigger": "on_empty",
+      "gate": "0",
+      "selection": {"kind":"inside_out"},
+      "actions": [
+        ["on","0",60,100],
+        ["on","0",64,90],
+        ["on","0",67,80],
+        ["on","0",72,70],
+        ["off","3/8",67],
+        ["advance","3/4"]
+      ],
+      "expected": [
+        ["0","on",0,1,64,90],
+        ["0","off",0,1,64,0],
+        ["1/4","on",1,2,67,80],
+        ["1/4","off",1,2,67,0],
+        ["1/2","on",2,1,64,90],
+        ["1/2","off",2,1,64,0],
+        ["3/4","on",3,0,60,100],
+        ["3/4","off",3,0,60,0]
+      ]
+    },
+    {
+      "name": "outside-in removed identity restarts traversal",
+      "bank": "held",
+      "retrigger": "on_empty",
+      "gate": "0",
+      "selection": {"kind":"outside_in"},
+      "actions": [
+        ["on","0",60,100],
+        ["on","0",64,90],
+        ["on","0",67,80],
+        ["on","0",72,70],
+        ["off","3/8",72],
+        ["advance","3/4"]
+      ],
+      "expected": [
+        ["0","on",0,0,60,100],
+        ["0","off",0,0,60,0],
+        ["1/4","on",1,3,72,70],
+        ["1/4","off",1,3,72,0],
+        ["1/2","on",2,0,60,100],
+        ["1/2","off",2,0,60,0],
+        ["3/4","on",3,2,67,80],
+        ["3/4","off",3,2,67,0]
+      ]
+    },
+    {
+      "name": "inside-out bank edit retrigger restarts at center",
+      "bank": "held",
+      "retrigger": "bank_edit",
+      "gate": "0",
+      "selection": {"kind":"inside_out"},
+      "actions": [
+        ["on","0",60,100],
+        ["on","0",64,90],
+        ["on","0",67,80],
+        ["on","0",72,70],
+        ["on","3/8",76,60],
+        ["advance","3/4"]
+      ],
+      "expected": [
+        ["0","on",0,1,64,90],
+        ["0","off",0,1,64,0],
+        ["1/4","on",1,2,67,80],
+        ["1/4","off",1,2,67,0],
+        ["1/2","on",2,2,67,80],
+        ["1/2","off",2,2,67,0],
+        ["3/4","on",3,1,64,90],
+        ["3/4","off",3,1,64,0]
+      ]
+    },
+    {
+      "name": "outside-in bank edit retrigger restarts at bass",
+      "bank": "held",
+      "retrigger": "bank_edit",
+      "gate": "0",
+      "selection": {"kind":"outside_in"},
+      "actions": [
+        ["on","0",60,100],
+        ["on","0",64,90],
+        ["on","0",67,80],
+        ["on","0",72,70],
+        ["on","3/8",76,60],
+        ["advance","3/4"]
+      ],
+      "expected": [
+        ["0","on",0,0,60,100],
+        ["0","off",0,0,60,0],
+        ["1/4","on",1,3,72,70],
+        ["1/4","off",1,3,72,0],
+        ["1/2","on",2,0,60,100],
+        ["1/2","off",2,0,60,0],
+        ["3/4","on",3,4,76,60],
+        ["3/4","off",3,4,76,0]
+      ]
+    },
+    {
+      "name": "inside-out latch clear starts from new bank",
+      "bank": "replace",
+      "retrigger": "on_empty",
+      "gate": "0",
+      "selection": {"kind":"inside_out"},
+      "actions": [
+        ["on","0",60,100],
+        ["on","0",64,90],
+        ["on","0",67,80],
+        ["on","0",72,70],
+        ["clear","3/8"],
+        ["on","1/2",76,60],
+        ["advance","3/4"]
+      ],
+      "expected": [
+        ["0","on",0,1,64,90],
+        ["0","off",0,1,64,0],
+        ["1/4","on",1,2,67,80],
+        ["1/4","off",1,2,67,0],
+        ["1/2","on",2,4,76,60],
+        ["1/2","off",2,4,76,0],
+        ["3/4","on",3,4,76,60],
+        ["3/4","off",3,4,76,0]
+      ]
+    },
+    {
+      "name": "empty bank restarts inside-out",
+      "bank": "held",
+      "retrigger": "on_empty",
+      "gate": "0",
+      "selection": {"kind":"inside_out"},
+      "actions": [
+        ["on","0",60,100],
+        ["off","1/8",60],
+        ["on","1/2",64,90],
+        ["advance","3/4"]
+      ],
+      "expected": [
+        ["0","on",0,0,60,100],
+        ["0","off",0,0,60,0],
+        ["1/2","on",1,1,64,90],
+        ["1/2","off",1,1,64,0],
+        ["3/4","on",2,1,64,90],
+        ["3/4","off",2,1,64,0]
+      ]
+    },
+    {
+      "name": "inside-out repeats reuse selection through rests",
+      "bank": "held",
+      "retrigger": "on_empty",
+      "gate": "0",
+      "selection": {"kind":"inside_out"},
+      "actions": [
+        ["on","0",60,100],
+        ["on","0",64,90],
+        ["on","0",67,80],
+        ["advance","9/8"]
+      ],
+      "expected": [
+        ["0","on",0,1,64,90],
+        ["0","off",0,1,64,0],
+        ["1/8","on",1,1,64,90],
+        ["1/8","off",1,1,64,0],
+        ["1/2","on",2,0,60,100],
+        ["1/2","off",2,0,60,0],
+        ["5/8","on",3,0,60,100],
+        ["5/8","off",3,0,60,0],
+        ["1","on",4,2,67,80],
+        ["1","off",4,2,67,0],
+        ["9/8","on",5,2,67,80],
+        ["9/8","off",5,2,67,0]
+      ],
+      "rhythm": {"kind":"pattern","steps":[{"kind":"hit","duration":"1/4 beat","repeats":2},{"kind":"rest","duration":"1/4 beat"}]}
+    },
+    {
+      "name": "outside-in chance rejection preserves traversal",
+      "bank": "held",
+      "retrigger": "on_empty",
+      "gate": "0",
+      "selection": {"kind":"outside_in"},
+      "actions": [
+        ["on","0",60,100],
+        ["on","0",64,90],
+        ["on","0",67,80],
+        ["advance","2"]
+      ],
+      "expected": [
+        ["0","on",0,0,60,100],
+        ["0","off",0,0,60,0],
+        ["1/4","on",1,2,67,80],
+        ["1/4","off",1,2,67,0],
+        ["1","on",2,1,64,90],
+        ["1","off",2,1,64,0],
+        ["3/2","on",3,0,60,100],
+        ["3/2","off",3,0,60,0],
+        ["7/4","on",4,2,67,80],
+        ["7/4","off",4,2,67,0],
+        ["2","on",5,1,64,90],
+        ["2","off",5,1,64,0]
+      ],
+      "probability": "2/3",
+      "seed": 42,
+      "profile_name": "weighted-walk"
+    }
+  ]
+}

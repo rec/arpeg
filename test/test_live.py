@@ -229,9 +229,28 @@ def test_saved_alternating_traversal_preserves_its_direction() -> None:
     assert restored.advance(Fraction(2)) == arp.advance(Fraction(2))
 
 
+@pytest.mark.parametrize("name", ["inside-out", "outside-in"])
+def test_saved_center_edge_traversal_preserves_selected_identity(name: str) -> None:
+    profile = parse_score(Path(f"conformance/{name}.toml").read_text())
+    assert isinstance(profile, ArpeggiatorScore)
+    arp = LiveArpeggiator(profile=profile)
+    for key in (60, 64, 67, 72):
+        arp.note_on(Fraction(0), key, 100)
+    arp.advance(Fraction(1, 4))
+    restored = LiveArpeggiator.model_validate_json(arp.model_dump_json())
+    assert restored.advance(Fraction(2)) == arp.advance(Fraction(2))
+
+
 @pytest.mark.parametrize(
     "fixture",
-    ["live-classic", "euclidean", "custom-steps", "chance-walk", "alternating"],
+    [
+        "live-classic",
+        "euclidean",
+        "custom-steps",
+        "chance-walk",
+        "alternating",
+        "center-edge",
+    ],
 )
 def test_live_classic_matches_shared_python_rust_traces(fixture: str) -> None:
     cases = json.loads(Path(f"conformance/{fixture}.json").read_text())["cases"]

@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import pytest
 from ufor.codec import parse_score, score_toml
 
 
@@ -27,4 +28,10 @@ def test_weighted_walk_profile_round_trips() -> None:
 
 def test_alternating_profile_round_trips() -> None:
     profile = parse_score(Path("conformance/alternating.toml").read_text())
+    assert parse_score(score_toml(profile)) == profile
+
+
+@pytest.mark.parametrize("name", ["inside-out", "outside-in"])
+def test_center_edge_profile_round_trips(name: str) -> None:
+    profile = parse_score(Path(f"conformance/{name}.toml").read_text())
     assert parse_score(score_toml(profile)) == profile

@@ -121,6 +121,9 @@ impl MarkedSample {
             Selection::Alternating { .. } => {
                 return Err("alternating selection currently requires live MIDI input");
             }
+            Selection::InsideOut | Selection::OutsideIn => {
+                return Err("center/edge selection currently requires live MIDI input");
+            }
         }
         Ok((0..cycles).flat_map(|_| notes.iter().cloned()).collect())
     }

@@ -19,7 +19,9 @@ from ufor.arpeggiator import (
     Euclidean,
     Grid,
     HeldBank,
+    InsideOut,
     LatchedBank,
+    OutsideIn,
     Pattern,
     Played,
     Walk,
@@ -67,11 +69,10 @@ class LiveArpeggiator(BaseModel):
         if not isinstance(body.bank, (HeldBank, LatchedBank)):
             raise ValueError("live mode requires a held or latched bank")
         if not isinstance(
-            body.selection, (Ascending, Descending, Played, Alternating, Walk)
+            body.selection,
+            (Ascending, Descending, Played, Alternating, InsideOut, OutsideIn, Walk),
         ):
-            raise ValueError(
-                "live mode requires a classic, alternating, or walk selection"
-            )
+            raise ValueError("unsupported live note selection")
         if (
             isinstance(body.selection, (Ascending, Descending))
             and body.selection.key != "pitch"
@@ -90,9 +91,14 @@ class LiveArpeggiator(BaseModel):
         return bank
 
     @cached_property
-    def selection(self) -> Ascending | Descending | Played | Alternating | Walk:
+    def selection(
+        self,
+    ) -> Ascending | Descending | Played | Alternating | InsideOut | OutsideIn | Walk:
         selection = self.profile.body.selection
-        assert isinstance(selection, (Ascending, Descending, Played, Alternating, Walk))
+        assert isinstance(
+            selection,
+            (Ascending, Descending, Played, Alternating, InsideOut, OutsideIn, Walk),
+        )
         return selection
 
     def note_on(self, at: Fraction, key: int, velocity: int) -> list[LiveEvent]:
@@ -267,7 +273,27 @@ class LiveArpeggiator(BaseModel):
             ):
                 return
         ordered = sorted(active, key=self._selection_key)
-        if isinstance(selection := self.selection, Alternating):
+        if isinstance(selection := self.selection, (InsideOut, OutsideIn)):
+            size = len(ordered)
+            indices = sorted(
+                range(size),
+                key=lambda i: (
+                    abs(2 * i - (size - 1))
+                    if isinstance(selection, InsideOut)
+                    else min(i, size - 1 - i)
+                ),
+            )
+            ordered = [ordered[i] for i in indices]
+            previous = next(
+                (
+                    i
+                    for i, n in enumerate(ordered)
+                    if self.previous_note is not None and n.id == self.previous_note.id
+                ),
+                None,
+            )
+            note = ordered[0 if previous is None else (previous + 1) % size]
+        elif isinstance(selection, Alternating):
             if self.previous_note is None:
                 self.rising = True
                 note = ordered[0]

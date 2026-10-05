@@ -77,7 +77,15 @@ def test_play_arguments_are_typed_pydantic_commands() -> None:
 
 
 @pytest.mark.parametrize(
-    "name", ["euclidean", "custom-steps", "weighted-walk", "alternating"]
+    "name",
+    [
+        "euclidean",
+        "custom-steps",
+        "weighted-walk",
+        "alternating",
+        "inside-out",
+        "outside-in",
+    ],
 )
 def test_live_presets_prepare_without_opening_devices(name: str) -> None:
     player = MidiPlayer(profile=_profile(name))

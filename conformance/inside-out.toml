@@ -1,0 +1,7 @@
+kind = "arpeggiator"
+name = "inside-out"
+title = "From the middle of the chord outward"
+
+[body]
+selection = { kind = "inside_out" }
+rhythm = { kind = "grid", step = "1/4 beat" }

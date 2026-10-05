@@ -82,6 +82,22 @@ not advance traversal. Python snapshots retain direction. The
 [shared traces](conformance/alternating.json) check both engines under irregular
 polling. Alternating selection currently supports live held and latched banks.
 
+[Inside-out](conformance/inside-out.toml) selection visits notes from the center
+outward; [outside-in](conformance/outside-in.toml) visits the edges first.
+Use `selection = { kind = "inside_out" }` or `kind = "outside_in"`.
+For pitches `60, 64, 67, 72`, their repeating orders are respectively
+`64, 67, 60, 72` and `60, 72, 64, 67`. For an odd-sized chord, inside-out
+starts at the center, then visits the lower side before the upper side at
+each distance; outside-in always starts on the lower side. Equal pitches
+are ordered by source identity. Each cycle visits every note once.
+Chord edits rebuild the order and continue after the selected identity if it
+survives; removal restarts at the beginning. Bank-edit retrigger, clear, and an
+empty bank also restart. Single-note banks repeat that note. Rests, ties,
+chance-rejected hits, and repeated attacks follow the existing selection rules.
+Both Python and Rust support these orders for live held and latched banks.
+File rendering and recorded history reject them. The
+[shared traces](conformance/center-edge.json) specify their exact behavior.
+
 [src/arpeg/capture.py](src/arpeg/capture.py) records a MIDI phrase through
 `MidiCapture.accept` and closes it with `finish`. Its profile declares whether
 overlapping onsets hand off a monophonic segment or remain independent notes.
