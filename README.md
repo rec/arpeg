@@ -68,6 +68,20 @@ The [random contract](conformance/random.md) and
 Probability and walks currently support live held and latched banks;
 file rendering and recorded history reject them.
 
+[Alternating selection](conformance/alternating.toml) walks up and down through
+the chord in pitch order. With `repeat_endpoints = false` (the default), three
+notes play `60, 64, 67, 64, 60, 64…`. Setting it to `true` plays
+`60, 64, 67, 67, 64, 60, 60…`. Equal pitches remain distinct source notes.
+The first admitted hit starts at the lowest note, moving upward. Ordinary
+chord edits preserve direction and continue to the nearest note beyond the
+previous pitch/identity; if none remains, direction reverses. Only a retained
+endpoint can be repeated. A single-note bank keeps playing that note, and an
+empty bank resets traversal. `retrigger = "bank_edit"` restarts at the lowest
+note. Repeats reuse a selection, and rests, ties, and chance-rejected hits do
+not advance traversal. Python snapshots retain direction. The
+[shared traces](conformance/alternating.json) check both engines under irregular
+polling. Alternating selection currently supports live held and latched banks.
+
 [src/arpeg/capture.py](src/arpeg/capture.py) records a MIDI phrase through
 `MidiCapture.accept` and closes it with `finish`. Its profile declares whether
 overlapping onsets hand off a monophonic segment or remain independent notes.
@@ -124,6 +138,7 @@ cargo run -p arpeg-midi -- play conformance/live-latch.toml SOURCE_INDEX DESTINA
 cargo run -p arpeg-midi -- play conformance/euclidean.toml SOURCE_INDEX DESTINATION_INDEX 120
 cargo run -p arpeg-midi -- play conformance/custom-steps.toml SOURCE_INDEX DESTINATION_INDEX 120
 cargo run -p arpeg-midi -- play conformance/weighted-walk.toml SOURCE_INDEX DESTINATION_INDEX 120
+cargo run -p arpeg-midi -- play conformance/alternating.toml SOURCE_INDEX DESTINATION_INDEX 120
 cargo run -p arpeg-midi -- play conformance/history-wind.toml SOURCE_INDEX DESTINATION_INDEX 120
 ```
 

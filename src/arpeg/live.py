@@ -12,6 +12,7 @@ from typing import Literal, Self
 
 from pydantic import BaseModel, Field, model_validator
 from ufor.arpeggiator import (
+    Alternating,
     ArpeggiatorScore,
     Ascending,
     Descending,
@@ -47,6 +48,7 @@ class LiveArpeggiator(BaseModel):
     decision_count: int = 0
     walk_count: int = 0
     walk_rank: int = 0
+    rising: bool = True
     pending: list[_Attack] = Field(default_factory=list)
     now: Fraction = Fraction(0)
     next_input_id: int = 0
@@ -64,8 +66,12 @@ class LiveArpeggiator(BaseModel):
         body = self.profile.body
         if not isinstance(body.bank, (HeldBank, LatchedBank)):
             raise ValueError("live mode requires a held or latched bank")
-        if not isinstance(body.selection, (Ascending, Descending, Played, Walk)):
-            raise ValueError("live mode requires a classic or walk note selection")
+        if not isinstance(
+            body.selection, (Ascending, Descending, Played, Alternating, Walk)
+        ):
+            raise ValueError(
+                "live mode requires a classic, alternating, or walk selection"
+            )
         if (
             isinstance(body.selection, (Ascending, Descending))
             and body.selection.key != "pitch"
@@ -84,9 +90,9 @@ class LiveArpeggiator(BaseModel):
         return bank
 
     @cached_property
-    def selection(self) -> Ascending | Descending | Played | Walk:
+    def selection(self) -> Ascending | Descending | Played | Alternating | Walk:
         selection = self.profile.body.selection
-        assert isinstance(selection, (Ascending, Descending, Played, Walk))
+        assert isinstance(selection, (Ascending, Descending, Played, Alternating, Walk))
         return selection
 
     def note_on(self, at: Fraction, key: int, velocity: int) -> list[LiveEvent]:
@@ -261,7 +267,47 @@ class LiveArpeggiator(BaseModel):
             ):
                 return
         ordered = sorted(active, key=self._selection_key)
-        if isinstance(selection := self.selection, Walk):
+        if isinstance(selection := self.selection, Alternating):
+            if self.previous_note is None:
+                self.rising = True
+                note = ordered[0]
+            elif len(ordered) == 1:
+                note = ordered[0]
+            else:
+                previous_key = self._selection_key(self.previous_note)
+                candidates = ordered if self.rising else list(reversed(ordered))
+                note = next(
+                    (
+                        n
+                        for n in candidates
+                        if (
+                            self._selection_key(n) > previous_key
+                            if self.rising
+                            else self._selection_key(n) < previous_key
+                        )
+                    ),
+                    None,
+                )
+                if note is None:
+                    self.rising = not self.rising
+                    candidates.reverse()
+                    note = next(
+                        (
+                            n
+                            for n in candidates
+                            if (
+                                self._selection_key(n) >= previous_key
+                                if self.rising
+                                else self._selection_key(n) <= previous_key
+                            )
+                            and (
+                                selection.repeat_endpoints
+                                or n.id != self.previous_note.id
+                            )
+                        ),
+                        candidates[0],
+                    )
+        elif isinstance(selection, Walk):
             previous = next(
                 (
                     i

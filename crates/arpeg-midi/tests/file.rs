@@ -113,6 +113,40 @@ fn incomplete_walk_profile_fails_explicitly() {
 }
 
 #[test]
+fn alternating_profile_validates_endpoint_policy_and_is_live_only() {
+    let profile = include_str!("../../../conformance/alternating.toml");
+    for (policy, expected) in [
+        ("", false),
+        (", repeat_endpoints = false", false),
+        (", repeat_endpoints = true", true),
+    ] {
+        let text = profile.replace(", repeat_endpoints = false", policy);
+        let Profile::Classic(parsed) = parse_profile(&text).unwrap() else {
+            panic!("expected live note profile");
+        };
+        assert_eq!(
+            parsed.selection,
+            arpeg_core::Selection::Alternating {
+                repeat_endpoints: expected
+            }
+        );
+    }
+    assert_eq!(
+        render_file(profile, &single_note_input(0)).unwrap_err(),
+        "alternating selection currently requires live input"
+    );
+    for value in ["1", "\"true\""] {
+        let text = profile.replace(
+            "repeat_endpoints = false",
+            &format!("repeat_endpoints = {value}"),
+        );
+        assert!(parse_profile(&text).is_err());
+    }
+    let history = profile.replace("[body]", "[body]\nbank = { kind = \"history\" }");
+    assert!(parse_profile(&history).is_err());
+}
+
+#[test]
 fn weighted_walk_profile_validates_choices_and_requires_live_input() {
     let profile = include_str!("../../../conformance/weighted-walk.toml");
     let Profile::Classic(parsed) = parse_profile(profile).unwrap() else {

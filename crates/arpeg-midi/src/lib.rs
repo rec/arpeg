@@ -251,6 +251,21 @@ pub fn parse_profile(text: &str) -> Result<Profile, String> {
                 _ => return Err("unsupported played direction".into()),
             }
         }
+        Some("alternating") => {
+            let table = selection.expect("selection table");
+            if table
+                .keys()
+                .any(|key| !["kind", "repeat_endpoints"].contains(&key.as_str()))
+            {
+                return Err("unsupported alternating option".into());
+            }
+            let repeat_endpoints = table
+                .get("repeat_endpoints")
+                .map(|value| value.as_bool().ok_or("repeat_endpoints must be a boolean"))
+                .transpose()?
+                .unwrap_or(false);
+            Selection::Alternating { repeat_endpoints }
+        }
         Some("walk") => {
             let table = selection.expect("selection table");
             if table.keys().any(|key| {
@@ -334,6 +349,9 @@ pub fn parse_profile(text: &str) -> Result<Profile, String> {
             retrigger,
         }),
         ParsedBank::History(notes) => {
+            if matches!(selection, Selection::Alternating { .. }) {
+                return Err("alternating currently requires a held or latched bank".into());
+            }
             if matches!(selection, Selection::Walk(_)) {
                 return Err("walk currently requires a held or latched bank".into());
             }

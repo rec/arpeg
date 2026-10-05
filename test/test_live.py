@@ -218,8 +218,20 @@ def test_saved_walk_continues_the_same_random_sequence() -> None:
     assert restored.advance(Fraction(3)) == arp.advance(Fraction(3))
 
 
+def test_saved_alternating_traversal_preserves_its_direction() -> None:
+    profile = parse_score(Path("conformance/alternating.toml").read_text())
+    assert isinstance(profile, ArpeggiatorScore)
+    arp = LiveArpeggiator(profile=profile)
+    for key in (60, 64, 67):
+        arp.note_on(Fraction(0), key, 100)
+    arp.advance(Fraction(3, 4))
+    restored = LiveArpeggiator.model_validate_json(arp.model_dump_json())
+    assert restored.advance(Fraction(2)) == arp.advance(Fraction(2))
+
+
 @pytest.mark.parametrize(
-    "fixture", ["live-classic", "euclidean", "custom-steps", "chance-walk"]
+    "fixture",
+    ["live-classic", "euclidean", "custom-steps", "chance-walk", "alternating"],
 )
 def test_live_classic_matches_shared_python_rust_traces(fixture: str) -> None:
     cases = json.loads(Path(f"conformance/{fixture}.json").read_text())["cases"]

@@ -23,3 +23,8 @@ def test_custom_steps_profile_round_trips() -> None:
 def test_weighted_walk_profile_round_trips() -> None:
     profile = parse_score(Path("conformance/weighted-walk.toml").read_text())
     assert parse_score(score_toml(profile)) == profile
+
+
+def test_alternating_profile_round_trips() -> None:
+    profile = parse_score(Path("conformance/alternating.toml").read_text())
+    assert parse_score(score_toml(profile)) == profile

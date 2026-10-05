@@ -1,0 +1,7 @@
+kind = "arpeggiator"
+name = "alternating"
+title = "Up and down through the chord"
+
+[body]
+selection = { kind = "alternating", repeat_endpoints = false }
+rhythm = { kind = "grid", step = "1/4 beat" }

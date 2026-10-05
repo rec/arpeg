@@ -138,6 +138,7 @@ fn live_classic_matches_shared_python_rust_traces() {
         include_str!("../../../conformance/euclidean.json"),
         include_str!("../../../conformance/custom-steps.json"),
         include_str!("../../../conformance/chance-walk.json"),
+        include_str!("../../../conformance/alternating.json"),
     ] {
         let fixture: Value = serde_json::from_str(text).unwrap();
         for case in fixture["cases"].as_array().unwrap() {
@@ -196,6 +197,9 @@ fn live_classic_matches_shared_python_rust_traces() {
                 None => Rhythm::Grid { step: beat(1, 4) },
             };
             let selection = match case.get("selection") {
+                Some(s) if s["kind"] == "alternating" => Selection::Alternating {
+                    repeat_endpoints: s["repeat_endpoints"].as_bool().unwrap_or(false),
+                },
                 Some(s) => Selection::Walk(Walk {
                     moves: serde_json::from_value(s["moves"].clone()).unwrap(),
                     weights: serde_json::from_value(s["weights"].clone()).unwrap(),

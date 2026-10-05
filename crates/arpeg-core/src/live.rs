@@ -64,6 +64,7 @@ pub struct LiveArpeggiator {
     decision_count: u64,
     walk_count: u64,
     walk_rank: usize,
+    rising: bool,
     retrigger: Retrigger,
     selection: Selection,
     rhythm: Rhythm,
@@ -110,6 +111,7 @@ impl LiveArpeggiator {
             decision_count: 0,
             walk_count: 0,
             walk_rank: 0,
+            rising: true,
             retrigger,
             selection,
             rhythm,
@@ -358,7 +360,45 @@ impl LiveArpeggiator {
         let selection = &self.selection;
         let mut ordered = active.clone();
         ordered.sort_unstable_by_key(|note| selection_key(note, selection));
-        let selected = if let Selection::Walk(walk) = selection {
+        let selected = if let Selection::Alternating { repeat_endpoints } = selection {
+            if let Some(previous) = self.previous_key {
+                if ordered.len() == 1 {
+                    ordered[0]
+                } else {
+                    if !self.rising {
+                        ordered.reverse();
+                    }
+                    let next = ordered.iter().find(|note| {
+                        let key = selection_key(note, selection);
+                        if self.rising {
+                            key > previous
+                        } else {
+                            key < previous
+                        }
+                    });
+                    if let Some(note) = next {
+                        *note
+                    } else {
+                        self.rising = !self.rising;
+                        ordered.reverse();
+                        *ordered
+                            .iter()
+                            .find(|note| {
+                                let key = selection_key(note, selection);
+                                (if self.rising {
+                                    key >= previous
+                                } else {
+                                    key <= previous
+                                }) && (*repeat_endpoints || note.id != previous.1)
+                            })
+                            .unwrap_or(&ordered[0])
+                    }
+                }
+            } else {
+                self.rising = true;
+                ordered[0]
+            }
+        } else if let Selection::Walk(walk) = selection {
             let previous = self
                 .previous_key
                 .and_then(|(_, id)| ordered.iter().position(|note| note.id == id));
@@ -470,7 +510,9 @@ impl LiveArpeggiator {
 
 fn selection_key(note: &InputNote, selection: &Selection) -> (Beat, u64) {
     let position = match selection {
-        Selection::Ascending | Selection::Walk(_) => Beat::from_integer(i64::from(note.key)),
+        Selection::Ascending | Selection::Walk(_) | Selection::Alternating { .. } => {
+            Beat::from_integer(i64::from(note.key))
+        }
         Selection::Descending => -Beat::from_integer(i64::from(note.key)),
         Selection::Played => note.onset,
         Selection::ReversePlayed => -note.onset,

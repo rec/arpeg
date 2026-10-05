@@ -18,6 +18,7 @@ pub enum Selection {
     Descending,
     Played,
     ReversePlayed,
+    Alternating { repeat_endpoints: bool },
     Walk(Walk),
 }
 
@@ -82,6 +83,9 @@ pub fn render_held<'a>(
 ) -> Result<Vec<Occurrence<'a>>, &'static str> {
     if matches!(selection, Selection::Walk(_)) {
         return Err("walk selection currently requires live input");
+    }
+    if matches!(selection, Selection::Alternating { .. }) {
+        return Err("alternating selection currently requires live input");
     }
     rhythm.validate()?;
     if matches!(rhythm, rhythm::Rhythm::Pattern { .. }) {
@@ -153,7 +157,9 @@ pub fn render_held<'a>(
 
 fn selection_key<'a>(note: &HeldNote<'a>, selection: &Selection) -> (Beat, &'a str) {
     let position = match selection {
-        Selection::Ascending | Selection::Walk(_) => Beat::from_integer(note.key.into()),
+        Selection::Ascending | Selection::Walk(_) | Selection::Alternating { .. } => {
+            Beat::from_integer(note.key.into())
+        }
         Selection::Descending => -Beat::from_integer(note.key.into()),
         Selection::Played => note.onset,
         Selection::ReversePlayed => -note.onset,
