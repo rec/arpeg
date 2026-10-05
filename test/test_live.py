@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 from ufor.arpeggiator import ArpeggiatorScore, HistoryBank, LatchedBank
+from ufor.codec import parse_score
 
 from arpeg.live import LiveArpeggiator
 
@@ -206,7 +207,20 @@ def test_clear_releases_latched_output_without_losing_input_pairing() -> None:
     assert arp.advance(Fraction(1, 4)) == []
 
 
-@pytest.mark.parametrize("fixture", ["live-classic", "euclidean", "custom-steps"])
+def test_saved_walk_continues_the_same_random_sequence() -> None:
+    profile = parse_score(Path("conformance/weighted-walk.toml").read_text())
+    assert isinstance(profile, ArpeggiatorScore)
+    arp = LiveArpeggiator(profile=profile)
+    for key in (60, 64, 67):
+        arp.note_on(Fraction(0), key, 100)
+    arp.advance(Fraction(1, 4))
+    restored = LiveArpeggiator.model_validate_json(arp.model_dump_json())
+    assert restored.advance(Fraction(3)) == arp.advance(Fraction(3))
+
+
+@pytest.mark.parametrize(
+    "fixture", ["live-classic", "euclidean", "custom-steps", "chance-walk"]
+)
 def test_live_classic_matches_shared_python_rust_traces(fixture: str) -> None:
     cases = json.loads(Path(f"conformance/{fixture}.json").read_text())["cases"]
     for case in cases:
@@ -219,8 +233,12 @@ def test_live_classic_matches_shared_python_rust_traces(fixture: str) -> None:
         profile = ArpeggiatorScore.model_validate(
             {
                 **profile.model_dump(),
+                "name": case.get("profile_name", profile.name),
                 "body": {
                     **profile.body.model_dump(),
+                    "probability": case.get("probability", "1"),
+                    "seed": case.get("seed"),
+                    "selection": case.get("selection", {"kind": "ascending"}),
                     "bank": bank,
                     "retrigger": case["retrigger"],
                     "rhythm": case.get("rhythm", profile.body.rhythm.model_dump()),

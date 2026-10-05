@@ -21,8 +21,10 @@ from ufor.arpeggiator import (
     LatchedBank,
     Pattern,
     Played,
+    Walk,
 )
 
+from .chance import draw_below
 from .rhythm import RhythmDecision, decide_step
 
 
@@ -41,6 +43,10 @@ class LiveArpeggiator(BaseModel):
     profile: ArpeggiatorScore = Field(frozen=True)
     next_step: Fraction = Fraction(0)
     step_index: int = 0
+    bank_revision: int = 0
+    decision_count: int = 0
+    walk_count: int = 0
+    walk_rank: int = 0
     pending: list[_Attack] = Field(default_factory=list)
     now: Fraction = Fraction(0)
     next_input_id: int = 0
@@ -58,8 +64,8 @@ class LiveArpeggiator(BaseModel):
         body = self.profile.body
         if not isinstance(body.bank, (HeldBank, LatchedBank)):
             raise ValueError("live mode requires a held or latched bank")
-        if not isinstance(body.selection, (Ascending, Descending, Played)):
-            raise ValueError("live mode requires a classic note selection")
+        if not isinstance(body.selection, (Ascending, Descending, Played, Walk)):
+            raise ValueError("live mode requires a classic or walk note selection")
         if (
             isinstance(body.selection, (Ascending, Descending))
             and body.selection.key != "pitch"
@@ -78,9 +84,9 @@ class LiveArpeggiator(BaseModel):
         return bank
 
     @cached_property
-    def selection(self) -> Ascending | Descending | Played:
+    def selection(self) -> Ascending | Descending | Played | Walk:
         selection = self.profile.body.selection
-        assert isinstance(selection, (Ascending, Descending, Played))
+        assert isinstance(selection, (Ascending, Descending, Played, Walk))
         return selection
 
     def note_on(self, at: Fraction, key: int, velocity: int) -> list[LiveEvent]:
@@ -119,6 +125,8 @@ class LiveArpeggiator(BaseModel):
             if not self.bank:
                 self.previous_note = None
                 events.extend(self._release_all(at))
+        if edited:
+            self.bank_revision += 1
         if edited and self.profile.body.retrigger == "bank_edit":
             self.previous_note = None
         self.next_input_id += 1
@@ -131,6 +139,8 @@ class LiveArpeggiator(BaseModel):
             raise ValueError("release has no matching onset")
         events = self._process_until(at, inclusive=False)
         self.input.pop(next(i for i, n in enumerate(self.input) if n.key == key))
+        if isinstance(self.bank_mode, HeldBank):
+            self.bank_revision += 1
         if (
             isinstance(self.bank_mode, HeldBank)
             and self.profile.body.retrigger == "bank_edit"
@@ -151,6 +161,9 @@ class LiveArpeggiator(BaseModel):
         self._check_time(at)
         events = self._process_until(at, inclusive=False)
         events.extend(self._release_all(at))
+        active = self.input if isinstance(self.bank_mode, HeldBank) else self.bank
+        if active:
+            self.bank_revision += 1
         self.input.clear()
         self.bank.clear()
         self.toggle_at = None
@@ -166,6 +179,8 @@ class LiveArpeggiator(BaseModel):
         if isinstance(self.bank_mode, HeldBank):
             raise ValueError("clear requires a latched bank")
         events = self._process_until(at, inclusive=False)
+        if self.bank:
+            self.bank_revision += 1
         self.bank.clear()
         self.toggle_at = None
         self.toggled_keys.clear()
@@ -226,16 +241,78 @@ class LiveArpeggiator(BaseModel):
             return
         if not decision.repeats:
             return
+        body = self.profile.body
+        decision_index = self.decision_count
+        self.decision_count += 1
+        if body.probability == 0:
+            return
+        if body.probability < 1:
+            assert body.seed is not None
+            if (
+                draw_below(
+                    body.seed,
+                    self.profile.name,
+                    "probability",
+                    self.bank_revision,
+                    decision_index,
+                    body.probability.denominator,
+                )
+                >= body.probability.numerator
+            ):
+                return
         ordered = sorted(active, key=self._selection_key)
-        note = next(
-            (
-                n
-                for n in ordered
+        if isinstance(selection := self.selection, Walk):
+            previous = next(
+                (
+                    i
+                    for i, n in enumerate(ordered)
+                    if self.previous_note is not None and n.id == self.previous_note.id
+                ),
+                None,
+            )
+            move = previous is not None or (
+                selection.start == "move"
                 if self.previous_note is None
-                or self._selection_key(n) > self._selection_key(self.previous_note)
-            ),
-            ordered[0],
-        )
+                else selection.on_remove == "rank"
+            )
+            rank = (
+                previous
+                if previous is not None
+                else (
+                    self.walk_rank % len(ordered)
+                    if self.previous_note is not None and selection.on_remove == "rank"
+                    else 0
+                )
+            )
+            if move:
+                chosen = draw_below(
+                    self.profile.body.seed or 0,
+                    self.profile.name,
+                    "walk",
+                    self.bank_revision,
+                    self.walk_count,
+                    sum(selection.weights),
+                )
+                for offset, weight in zip(
+                    selection.moves, selection.weights, strict=True
+                ):
+                    if chosen < weight:
+                        rank = (rank + offset) % len(ordered)
+                        break
+                    chosen -= weight
+            note = ordered[rank]
+            self.walk_rank = rank
+            self.walk_count += 1
+        else:
+            note = next(
+                (
+                    n
+                    for n in ordered
+                    if self.previous_note is None
+                    or self._selection_key(n) > self._selection_key(self.previous_note)
+                ),
+                ordered[0],
+            )
         self.previous_note = note
         interval = decision.duration / decision.repeats
         self.pending.extend(

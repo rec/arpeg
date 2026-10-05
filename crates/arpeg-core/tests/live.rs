@@ -1,6 +1,7 @@
+use arpeg_core::chance::Chance;
 use arpeg_core::rhythm::{PatternStep, Rhythm};
 use arpeg_core::{
-    Bank, Beat, Selection,
+    Bank, Beat, Selection, Walk,
     live::{LiveArpeggiator, OutputEvent, OutputKind, Retrigger},
 };
 use serde_json::{Value, json};
@@ -17,6 +18,7 @@ fn live_notes_follow_input_and_release_when_bank_empties() {
         Rhythm::Grid { step: beat(1, 4) },
         beat(4, 5),
         Retrigger::OnEmpty,
+        Chance::default(),
     )
     .unwrap();
     assert_eq!(arp.note_on(beat(0, 1), 60, 100).unwrap(), []);
@@ -78,6 +80,7 @@ fn live_step_order_is_independent_of_poll_intervals() {
         Rhythm::Grid { step: beat(1, 4) },
         beat(1, 1),
         Retrigger::OnEmpty,
+        Chance::default(),
     )
     .unwrap();
     let mut b = LiveArpeggiator::new(
@@ -86,6 +89,7 @@ fn live_step_order_is_independent_of_poll_intervals() {
         Rhythm::Grid { step: beat(1, 4) },
         beat(1, 1),
         Retrigger::OnEmpty,
+        Chance::default(),
     )
     .unwrap();
     a.note_on(beat(0, 1), 60, 100).unwrap();
@@ -108,6 +112,7 @@ fn simultaneous_note_ons_join_the_first_step() {
         Rhythm::Grid { step: beat(1, 4) },
         beat(1, 1),
         Retrigger::OnEmpty,
+        Chance::default(),
     )
     .unwrap();
     arp.note_on(beat(0, 1), 64, 90).unwrap();
@@ -132,6 +137,7 @@ fn live_classic_matches_shared_python_rust_traces() {
         include_str!("../../../conformance/live-classic.json"),
         include_str!("../../../conformance/euclidean.json"),
         include_str!("../../../conformance/custom-steps.json"),
+        include_str!("../../../conformance/chance-walk.json"),
     ] {
         let fixture: Value = serde_json::from_str(text).unwrap();
         for case in fixture["cases"].as_array().unwrap() {
@@ -189,14 +195,34 @@ fn live_classic_matches_shared_python_rust_traces() {
                 },
                 None => Rhythm::Grid { step: beat(1, 4) },
             };
+            let selection = match case.get("selection") {
+                Some(s) => Selection::Walk(Walk {
+                    moves: serde_json::from_value(s["moves"].clone()).unwrap(),
+                    weights: serde_json::from_value(s["weights"].clone()).unwrap(),
+                    start_move: s["start"] == "move",
+                    keep_rank: s["on_remove"] == "rank",
+                }),
+                None => Selection::Ascending,
+            };
+            let chance = Chance {
+                probability: case
+                    .get("probability")
+                    .map_or(beat(1, 1), |v| ratio(v.as_str().unwrap())),
+                seed: case.get("seed").and_then(Value::as_i64),
+                name: case
+                    .get("profile_name")
+                    .map_or("up", |v| v.as_str().unwrap())
+                    .to_owned(),
+            };
             for polling in [false, true] {
                 let mut arp = LiveArpeggiator::new(
                     bank,
-                    Selection::Ascending,
+                    selection.clone(),
                     rhythm.clone(),
                     case.get("gate")
                         .map_or(beat(4, 5), |v| ratio(v.as_str().unwrap())),
                     retrigger,
+                    chance.clone(),
                 )
                 .unwrap();
                 let mut events = Vec::new();

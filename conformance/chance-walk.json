@@ -1,0 +1,57 @@
+{
+  "draws": {
+    "probability": [0, 1, 2, 2, 0, 2, 1, 0, 0, 0, 1, 0],
+    "walk": [1, 1, 2, 1, 1, 2, 4, 3, 0, 0, 4, 0]
+  },
+  "cases": [
+    {
+      "name": "rejected hits do not advance ascending selection",
+      "profile_name": "weighted-walk", "bank": "held", "retrigger": "on_empty",
+      "probability": "2/3", "seed": 42,
+      "actions": [["on", "0", 60, 100], ["on", "0", 64, 90], ["on", "0", 67, 80], ["advance", "2"]],
+      "expected": [["0", "on", 0, 0, 60, 100], ["1/5", "off", 0, 0, 60, 0], ["1/4", "on", 1, 1, 64, 90], ["9/20", "off", 1, 1, 64, 0], ["1", "on", 2, 2, 67, 80], ["6/5", "off", 2, 2, 67, 0], ["3/2", "on", 3, 0, 60, 100], ["17/10", "off", 3, 0, 60, 0], ["7/4", "on", 4, 1, 64, 90], ["39/20", "off", 4, 1, 64, 0], ["2", "on", 5, 2, 67, 80]]
+    },
+    {
+      "name": "weighted walk and chance use separate logical decisions",
+      "profile_name": "weighted-walk", "bank": "held", "retrigger": "on_empty",
+      "selection": {"kind": "walk", "moves": [-1, 0, 1], "weights": [1, 1, 3]},
+      "probability": "2/3", "seed": 42,
+      "actions": [["on", "0", 60, 100], ["on", "0", 64, 90], ["on", "0", 67, 80], ["advance", "2"]],
+      "expected": [["0", "on", 0, 0, 60, 100], ["1/5", "off", 0, 0, 60, 0], ["1/4", "on", 1, 0, 60, 100], ["9/20", "off", 1, 0, 60, 0], ["1", "on", 2, 1, 64, 90], ["6/5", "off", 2, 1, 64, 0], ["3/2", "on", 3, 1, 64, 90], ["17/10", "off", 3, 1, 64, 0], ["7/4", "on", 4, 1, 64, 90], ["39/20", "off", 4, 1, 64, 0], ["2", "on", 5, 2, 67, 80]]
+    },
+    {
+      "name": "probability admits or rejects a whole repeat group",
+      "profile_name": "weighted-walk", "bank": "held", "retrigger": "on_empty",
+      "probability": "2/3", "seed": 42, "gate": "0",
+      "rhythm": {"kind": "pattern", "steps": [{"kind": "hit", "duration": "1/4 beat", "repeats": 2}]},
+      "actions": [["on", "0", 60, 100], ["on", "0", 64, 90], ["on", "0", 67, 80], ["advance", "1/2"]],
+      "expected": [["0", "on", 0, 0, 60, 100], ["0", "off", 0, 0, 60, 0], ["1/8", "on", 1, 0, 60, 100], ["1/8", "off", 1, 0, 60, 0], ["1/4", "on", 2, 1, 64, 90], ["1/4", "off", 2, 1, 64, 0], ["3/8", "on", 3, 1, 64, 90], ["3/8", "off", 3, 1, 64, 0]]
+    },
+    {
+      "name": "zero probability is silent without a seed",
+      "bank": "held", "retrigger": "on_empty", "probability": "0",
+      "actions": [["on", "0", 60, 100], ["advance", "2"]], "expected": []
+    },
+    {
+      "name": "initial move wraps negative offsets",
+      "bank": "held", "retrigger": "on_empty",
+      "selection": {"kind": "walk", "moves": [-1], "weights": [1], "start": "move"},
+      "actions": [["on", "0", 60, 100], ["on", "0", 64, 90], ["on", "0", 67, 80], ["advance", "1/2"]],
+      "expected": [["0", "on", 0, 2, 67, 80], ["1/5", "off", 0, 2, 67, 0], ["1/4", "on", 1, 1, 64, 90], ["9/20", "off", 1, 1, 64, 0], ["1/2", "on", 2, 0, 60, 100]]
+    },
+    {
+      "name": "removed anchor restarts at lowest by default",
+      "bank": "held", "retrigger": "on_empty",
+      "selection": {"kind": "walk", "moves": [1], "weights": [1]},
+      "actions": [["on", "0", 60, 100], ["on", "0", 64, 90], ["on", "0", 67, 80], ["advance", "1/2"], ["off", "5/8", 67], ["advance", "3/4"]],
+      "expected": [["0", "on", 0, 0, 60, 100], ["1/5", "off", 0, 0, 60, 0], ["1/4", "on", 1, 1, 64, 90], ["9/20", "off", 1, 1, 64, 0], ["1/2", "on", 2, 2, 67, 80], ["7/10", "off", 2, 2, 67, 0], ["3/4", "on", 3, 0, 60, 100]]
+    },
+    {
+      "name": "removed anchor can retain rank before moving",
+      "bank": "held", "retrigger": "on_empty",
+      "selection": {"kind": "walk", "moves": [1], "weights": [1], "on_remove": "rank"},
+      "actions": [["on", "0", 60, 100], ["on", "0", 64, 90], ["on", "0", 67, 80], ["advance", "1/2"], ["off", "5/8", 67], ["advance", "3/4"]],
+      "expected": [["0", "on", 0, 0, 60, 100], ["1/5", "off", 0, 0, 60, 0], ["1/4", "on", 1, 1, 64, 90], ["9/20", "off", 1, 1, 64, 0], ["1/2", "on", 2, 2, 67, 80], ["7/10", "off", 2, 2, 67, 0], ["3/4", "on", 3, 1, 64, 90]]
+    }
+  ]
+}

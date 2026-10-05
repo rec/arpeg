@@ -104,12 +104,50 @@ fn file_render_preserves_tempo_and_emits_classic_note_order() {
 }
 
 #[test]
-fn unsupported_profile_modes_fail_explicitly() {
+fn incomplete_walk_profile_fails_explicitly() {
     let profile = include_str!("../../../conformance/up.toml").replace(
         "selection = { kind = \"ascending\" }",
         "selection = { kind = \"walk\" }",
     );
     assert!(parse_profile(&profile).is_err());
+}
+
+#[test]
+fn weighted_walk_profile_validates_choices_and_requires_live_input() {
+    let profile = include_str!("../../../conformance/weighted-walk.toml");
+    let Profile::Classic(parsed) = parse_profile(profile).unwrap() else {
+        panic!("expected live note profile");
+    };
+    let arpeg_core::Selection::Walk(walk) = parsed.selection else {
+        panic!("expected walk selection");
+    };
+    assert!(!walk.start_move);
+    assert!(!walk.keep_rank);
+    let changed = profile
+        .replace("start = \"lowest\"", "start = \"move\"")
+        .replace("on_remove = \"lowest\"", "on_remove = \"rank\"");
+    let Profile::Classic(parsed) = parse_profile(&changed).unwrap() else {
+        panic!("expected live note profile");
+    };
+    let arpeg_core::Selection::Walk(walk) = parsed.selection else {
+        panic!("expected walk selection");
+    };
+    assert!(walk.start_move);
+    assert!(walk.keep_rank);
+    assert_eq!(
+        render_file(profile, &single_note_input(0)).unwrap_err(),
+        "probability currently requires live input"
+    );
+    for (original, replacement) in [
+        ("seed = 42", ""),
+        ("probability = \"2/3\"", "probability = \"4/3\""),
+        ("weights = [1, 1, 3]", "weights = [1, 0, 3]"),
+        ("weights = [1, 1, 3]", "weights = [1, 3]"),
+        ("start = \"lowest\"", "start = \"unknown\""),
+        ("on_remove = \"lowest\"", "on_remove = \"unknown\""),
+    ] {
+        assert!(parse_profile(&profile.replace(original, replacement)).is_err());
+    }
 }
 
 #[test]

@@ -33,6 +33,9 @@ impl HistoryArpeggiator {
         gate: Tick,
         profile: Profile,
     ) -> Result<Self, &'static str> {
+        if matches!(selection, Selection::Walk(_)) {
+            return Err("history requires classic selection");
+        }
         if capacity == 0 || step <= Tick::from_integer(0) || gate < Tick::from_integer(0) {
             return Err("history requires positive capacity and step, and nonnegative gate");
         }
@@ -198,6 +201,7 @@ impl HistoryArpeggiator {
             }
             Selection::Played => {}
             Selection::ReversePlayed => ordered.reverse(),
+            Selection::Walk(_) => unreachable!("validated classic selection"),
         }
         let position = self
             .last_selected

@@ -3,6 +3,7 @@
 use num_rational::Ratio;
 
 pub mod capture;
+pub mod chance;
 pub mod gesture;
 pub mod history;
 pub mod live;
@@ -11,12 +12,38 @@ pub mod rhythm;
 
 pub type Beat = Ratio<i64>;
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Selection {
     Ascending,
     Descending,
     Played,
     ReversePlayed,
+    Walk(Walk),
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Walk {
+    pub moves: Vec<i64>,
+    pub weights: Vec<u64>,
+    pub start_move: bool,
+    pub keep_rank: bool,
+}
+
+impl Walk {
+    pub fn validate(&self) -> Result<(), &'static str> {
+        if self.moves.is_empty()
+            || self.moves.len() != self.weights.len()
+            || self.weights.contains(&0)
+            || self
+                .weights
+                .iter()
+                .try_fold(0_u64, |total, weight| total.checked_add(*weight))
+                .is_none()
+        {
+            return Err("walk requires positive weights matching moves with a total fitting u64");
+        }
+        Ok(())
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -53,6 +80,9 @@ pub fn render_held<'a>(
     gate: Beat,
     through: Beat,
 ) -> Result<Vec<Occurrence<'a>>, &'static str> {
+    if matches!(selection, Selection::Walk(_)) {
+        return Err("walk selection currently requires live input");
+    }
     rhythm.validate()?;
     if matches!(rhythm, rhythm::Rhythm::Pattern { .. }) {
         return Err("pattern rhythm currently requires live input");
@@ -86,12 +116,12 @@ pub fn render_held<'a>(
             at += step;
             continue;
         }
-        active.sort_unstable_by_key(|note| selection_key(note, selection));
+        active.sort_unstable_by_key(|note| selection_key(note, &selection));
         let note = active
             .iter()
-            .find(|note| previous_key.is_none_or(|key| selection_key(note, selection) > key))
+            .find(|note| previous_key.is_none_or(|key| selection_key(note, &selection) > key))
             .unwrap_or(&active[0]);
-        previous_key = Some(selection_key(note, selection));
+        previous_key = Some(selection_key(note, &selection));
 
         let mut gate_end = at + step * gate;
         let mut boundaries: Vec<_> = notes
@@ -121,9 +151,9 @@ pub fn render_held<'a>(
     Ok(occurrences)
 }
 
-fn selection_key<'a>(note: &HeldNote<'a>, selection: Selection) -> (Beat, &'a str) {
+fn selection_key<'a>(note: &HeldNote<'a>, selection: &Selection) -> (Beat, &'a str) {
     let position = match selection {
-        Selection::Ascending => Beat::from_integer(note.key.into()),
+        Selection::Ascending | Selection::Walk(_) => Beat::from_integer(note.key.into()),
         Selection::Descending => -Beat::from_integer(note.key.into()),
         Selection::Played => note.onset,
         Selection::ReversePlayed => -note.onset,

@@ -1,5 +1,7 @@
 //! Incremental decisions for a running, held-note arpeggiator.
 
+use crate::chance::{Chance, draw_below};
+
 use crate::{
     Bank, Beat, Selection,
     rhythm::{Rhythm, RhythmDecision},
@@ -57,6 +59,11 @@ struct Attack {
 
 pub struct LiveArpeggiator {
     bank_mode: Bank,
+    chance: Chance,
+    bank_revision: u64,
+    decision_count: u64,
+    walk_count: u64,
+    walk_rank: usize,
     retrigger: Retrigger,
     selection: Selection,
     rhythm: Rhythm,
@@ -83,13 +90,26 @@ impl LiveArpeggiator {
         rhythm: Rhythm,
         gate: Beat,
         retrigger: Retrigger,
+        chance: Chance,
     ) -> Result<Self, &'static str> {
         rhythm.validate()?;
+        chance.validate()?;
+        if let Selection::Walk(walk) = &selection {
+            walk.validate()?;
+            if walk.moves.len() > 1 && chance.seed.is_none() {
+                return Err("weighted walk requires an explicit seed");
+            }
+        }
         if gate < Beat::from_integer(0) {
             return Err("gate must be nonnegative");
         }
         Ok(Self {
             bank_mode: bank,
+            chance,
+            bank_revision: 0,
+            decision_count: 0,
+            walk_count: 0,
+            walk_rank: 0,
             retrigger,
             selection,
             rhythm,
@@ -166,6 +186,9 @@ impl LiveArpeggiator {
             self.previous_key = None;
             output.extend(self.release_all(at));
         }
+        if edited {
+            self.bank_revision += 1;
+        }
         if edited && self.retrigger == Retrigger::BankEdit {
             self.previous_key = None;
         }
@@ -182,6 +205,9 @@ impl LiveArpeggiator {
             .ok_or("release has no matching onset")?;
         let mut output = self.process_until(at, false);
         self.input.remove(index);
+        if self.bank_mode == Bank::Held {
+            self.bank_revision += 1;
+        }
         if self.bank_mode == Bank::Held && self.retrigger == Retrigger::BankEdit {
             self.previous_key = None;
         }
@@ -201,6 +227,15 @@ impl LiveArpeggiator {
         self.check_time(at)?;
         let mut output = self.process_until(at, false);
         output.extend(self.release_all(at));
+        if !(if self.bank_mode == Bank::Held {
+            &self.input
+        } else {
+            &self.bank
+        })
+        .is_empty()
+        {
+            self.bank_revision += 1;
+        }
         self.input.clear();
         self.bank.clear();
         self.toggle_at = None;
@@ -217,6 +252,9 @@ impl LiveArpeggiator {
             return Err("clear requires a latched bank");
         }
         let mut output = self.process_until(at, false);
+        if !self.bank.is_empty() {
+            self.bank_revision += 1;
+        }
         self.bank.clear();
         self.toggle_at = None;
         self.toggled_keys.clear();
@@ -312,16 +350,60 @@ impl LiveArpeggiator {
         if decision.repeats == 0 {
             return;
         }
-        let selection = self.selection;
+        let chance_index = self.decision_count;
+        self.decision_count += 1;
+        if !self.chance.allows(self.bank_revision, chance_index) {
+            return;
+        }
+        let selection = &self.selection;
         let mut ordered = active.clone();
         ordered.sort_unstable_by_key(|note| selection_key(note, selection));
-        let selected = *ordered
-            .iter()
-            .find(|note| {
-                self.previous_key
-                    .is_none_or(|previous| selection_key(note, selection) > previous)
-            })
-            .unwrap_or(&ordered[0]);
+        let selected = if let Selection::Walk(walk) = selection {
+            let previous = self
+                .previous_key
+                .and_then(|(_, id)| ordered.iter().position(|note| note.id == id));
+            let should_move = previous.is_some()
+                || if self.previous_key.is_none() {
+                    walk.start_move
+                } else {
+                    walk.keep_rank
+                };
+            let mut rank = previous.unwrap_or(if self.previous_key.is_some() && walk.keep_rank {
+                self.walk_rank % ordered.len()
+            } else {
+                0
+            });
+            if should_move {
+                let mut chosen = draw_below(
+                    self.chance.seed.unwrap_or(0),
+                    &self.chance.name,
+                    "walk",
+                    self.bank_revision,
+                    self.walk_count,
+                    walk.weights.iter().sum(),
+                );
+                for (offset, weight) in walk.moves.iter().zip(&walk.weights) {
+                    if chosen < *weight {
+                        rank = (rank as i128 + i128::from(*offset))
+                            .rem_euclid(ordered.len() as i128)
+                            as usize;
+                        break;
+                    }
+                    chosen -= weight;
+                }
+            }
+            self.walk_rank = rank;
+            self.walk_count += 1;
+            ordered[rank]
+        } else {
+            *ordered
+                .iter()
+                .find(|note| {
+                    self.previous_key
+                        .is_none_or(|previous| selection_key(note, selection) > previous)
+                })
+                .unwrap_or(&ordered[0])
+        };
         self.previous_key = Some(selection_key(&selected, selection));
         let interval = decision.duration / decision.repeats as i64;
         self.pending.extend((0..decision.repeats).map(|i| Attack {
@@ -386,9 +468,9 @@ impl LiveArpeggiator {
     }
 }
 
-fn selection_key(note: &InputNote, selection: Selection) -> (Beat, u64) {
+fn selection_key(note: &InputNote, selection: &Selection) -> (Beat, u64) {
     let position = match selection {
-        Selection::Ascending => Beat::from_integer(i64::from(note.key)),
+        Selection::Ascending | Selection::Walk(_) => Beat::from_integer(i64::from(note.key)),
         Selection::Descending => -Beat::from_integer(i64::from(note.key)),
         Selection::Played => note.onset,
         Selection::ReversePlayed => -note.onset,

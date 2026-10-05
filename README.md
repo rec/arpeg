@@ -44,6 +44,30 @@ check the Python and Rust schedulers with irregular polling.
 Custom patterns currently support live held and latched banks; file rendering
 and recorded history reject them.
 
+[Weighted walks](conformance/weighted-walk.toml) move through the bank in pitch
+order, breaking equal-pitch ties by source identity. `moves` contains signed
+rank offsets, `weights` contains their positive integer weights, and movement
+wraps around the bank. `start = "lowest"` plays the lowest note first;
+`start = "move"` applies a weighted move from that position before playing.
+When a chord edit removes the selected note, `on_remove = "lowest"` restarts
+at the lowest note; `on_remove = "rank"` keeps the previous rank modulo the
+new bank size, then applies a move. Both defaults are `"lowest"`. A retained
+note continues from its current rank. Bank-edit retrigger uses the start policy.
+
+`probability = "2/3"` admits each eligible hit with that exact probability.
+The default is `1`; `0` is silence. Rejected hits leave selection unchanged
+and do not move the rhythm clock. Repeats share one decision and one note.
+Rests, ties, and empty-bank steps do not consume chance decisions. An explicit
+integer `seed` is required for probability strictly between zero and one and
+for walks with multiple moves. Probability and walk choices have separate
+counters; profile name and bank revision also enter each choice. The same
+profile and input trace therefore reproduce the same decisions regardless of
+polling intervals. Python snapshots retain these counters and traversal state.
+The [random contract](conformance/random.md) and
+[shared traces](conformance/chance-walk.json) specify Python/Rust parity.
+Probability and walks currently support live held and latched banks;
+file rendering and recorded history reject them.
+
 [src/arpeg/capture.py](src/arpeg/capture.py) records a MIDI phrase through
 `MidiCapture.accept` and closes it with `finish`. Its profile declares whether
 overlapping onsets hand off a monophonic segment or remain independent notes.
@@ -99,6 +123,7 @@ cargo run -p arpeg-midi -- play conformance/up.toml SOURCE_INDEX DESTINATION_IND
 cargo run -p arpeg-midi -- play conformance/live-latch.toml SOURCE_INDEX DESTINATION_INDEX 120
 cargo run -p arpeg-midi -- play conformance/euclidean.toml SOURCE_INDEX DESTINATION_INDEX 120
 cargo run -p arpeg-midi -- play conformance/custom-steps.toml SOURCE_INDEX DESTINATION_INDEX 120
+cargo run -p arpeg-midi -- play conformance/weighted-walk.toml SOURCE_INDEX DESTINATION_INDEX 120
 cargo run -p arpeg-midi -- play conformance/history-wind.toml SOURCE_INDEX DESTINATION_INDEX 120
 ```
 

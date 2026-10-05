@@ -2,9 +2,10 @@
 
 use std::collections::{HashMap, VecDeque};
 
+use arpeg_core::chance::Chance;
 use arpeg_core::live::Retrigger;
 use arpeg_core::rhythm::{PatternStep, Rhythm};
-use arpeg_core::{Bank, Beat, HeldNote, Selection, render_held};
+use arpeg_core::{Bank, Beat, HeldNote, Selection, Walk, render_held};
 use midly::{
     Format, Header, MetaMessage, MidiMessage, Smf, Timing, TrackEvent, TrackEventKind,
     num::{u4, u7, u28},
@@ -14,6 +15,7 @@ use midly::{
 pub mod live;
 
 pub struct HeldProfile {
+    pub chance: Chance,
     pub bank: Bank,
     pub selection: Selection,
     pub rhythm: Rhythm,
@@ -96,6 +98,8 @@ pub fn parse_profile(text: &str) -> Result<Profile, String> {
             "gate",
             "retrigger",
             "expression",
+            "seed",
+            "probability",
         ]
         .contains(&key.as_str())
     }) {
@@ -247,12 +251,82 @@ pub fn parse_profile(text: &str) -> Result<Profile, String> {
                 _ => return Err("unsupported played direction".into()),
             }
         }
+        Some("walk") => {
+            let table = selection.expect("selection table");
+            if table.keys().any(|key| {
+                !["kind", "moves", "weights", "boundary", "start", "on_remove"]
+                    .contains(&key.as_str())
+            }) || table
+                .get("boundary")
+                .is_some_and(|value| value.as_str() != Some("wrap"))
+            {
+                return Err("unsupported walk option".into());
+            }
+            let moves = table
+                .get("moves")
+                .and_then(toml::Value::as_array)
+                .ok_or("walk requires moves")?
+                .iter()
+                .map(|v| v.as_integer().ok_or("walk moves must be integers"))
+                .collect::<Result<Vec<_>, _>>()?;
+            let weights = table
+                .get("weights")
+                .and_then(toml::Value::as_array)
+                .ok_or("walk requires weights")?
+                .iter()
+                .map(|v| {
+                    v.as_integer()
+                        .and_then(|w| u64::try_from(w).ok())
+                        .ok_or("walk weights must be positive integers")
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            let start_move = match table.get("start").and_then(toml::Value::as_str) {
+                None if !table.contains_key("start") => false,
+                Some("lowest") => false,
+                Some("move") => true,
+                _ => return Err("unsupported walk start".into()),
+            };
+            let keep_rank = match table.get("on_remove").and_then(toml::Value::as_str) {
+                None if !table.contains_key("on_remove") => false,
+                Some("lowest") => false,
+                Some("rank") => true,
+                _ => return Err("unsupported walk removal policy".into()),
+            };
+            let walk = Walk {
+                moves,
+                weights,
+                start_move,
+                keep_rank,
+            };
+            walk.validate().map_err(str::to_owned)?;
+            Selection::Walk(walk)
+        }
         _ => return Err("unsupported note selection".into()),
     };
     let rhythm = parse_rhythm(body)?;
     let gate = parse_gate(body)?;
+    let probability = match body.get("probability") {
+        None => Beat::from_integer(1),
+        Some(toml::Value::String(value)) => parse_ratio(value)?,
+        Some(toml::Value::Integer(value)) => Beat::from_integer(*value),
+        _ => return Err("probability must be an exact rational".into()),
+    };
+    let seed = body
+        .get("seed")
+        .map(|value| value.as_integer().ok_or("seed must be an integer"))
+        .transpose()?;
+    let chance = Chance {
+        probability,
+        seed,
+        name: name.to_owned(),
+    };
+    chance.validate().map_err(str::to_owned)?;
+    if matches!(&selection, Selection::Walk(walk) if walk.moves.len() > 1) && seed.is_none() {
+        return Err("weighted walk requires an explicit seed".into());
+    }
     Ok(match bank {
         ParsedBank::Classic(bank) => Profile::Classic(HeldProfile {
+            chance,
             bank,
             selection,
             rhythm,
@@ -260,6 +334,12 @@ pub fn parse_profile(text: &str) -> Result<Profile, String> {
             retrigger,
         }),
         ParsedBank::History(notes) => {
+            if matches!(selection, Selection::Walk(_)) {
+                return Err("walk currently requires a held or latched bank".into());
+            }
+            if chance.probability != Beat::from_integer(1) {
+                return Err("probability currently requires a held or latched bank".into());
+            }
             let Rhythm::Grid { step } = rhythm else {
                 return Err("history playback currently requires grid rhythm".into());
             };
@@ -374,6 +454,9 @@ pub fn render_file(profile: &str, input: &[u8]) -> Result<Vec<u8>, String> {
     let Profile::Classic(profile) = parse_profile(profile)? else {
         return Err("history profiles require live MIDI input".into());
     };
+    if profile.chance.probability != Beat::from_integer(1) {
+        return Err("probability currently requires live input".into());
+    }
     if profile.retrigger != Retrigger::OnEmpty {
         return Err("file rendering does not support bank-edit retrigger".into());
     }

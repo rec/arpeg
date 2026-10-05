@@ -126,6 +126,7 @@ fn run_classic(
         profile.rhythm,
         profile.gate,
         profile.retrigger,
+        profile.chance,
     )
     .map_err(str::to_owned)?;
     println!(

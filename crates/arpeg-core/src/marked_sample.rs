@@ -117,6 +117,7 @@ impl MarkedSample {
             }
             Selection::Played => {}
             Selection::ReversePlayed => notes.reverse(),
+            Selection::Walk(_) => return Err("walk selection currently requires live MIDI input"),
         }
         Ok((0..cycles).flat_map(|_| notes.iter().cloned()).collect())
     }

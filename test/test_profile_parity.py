@@ -18,3 +18,8 @@ def test_live_latch_profile_loads_in_python() -> None:
 def test_custom_steps_profile_round_trips() -> None:
     profile = parse_score(Path("conformance/custom-steps.toml").read_text())
     assert parse_score(score_toml(profile)) == profile
+
+
+def test_weighted_walk_profile_round_trips() -> None:
+    profile = parse_score(Path("conformance/weighted-walk.toml").read_text())
+    assert parse_score(score_toml(profile)) == profile

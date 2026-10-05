@@ -1,0 +1,52 @@
+# Deterministic random choices, version 1
+
+The Python reference and Rust core use `draw_below` to draw an integer from
+`0` through `bound - 1`, where `bound` is positive. No process-global random
+generator participates. The vectors in `chance-walk.json` use seed `42`, profile
+name `weighted-walk`, bank revision `3`, and decisions `0` through `11`.
+The probability bound is `3`; the walk bound is `5`.
+
+For each attempt, encode this string as UTF-8, with integers in ordinary decimal
+notation and the name length measured in UTF-8 bytes:
+
+```text
+arpeg-v1:{seed}:{name_length}:{name}:{lane}:{revision}:{decision}:{retry}:{chunk}
+```
+
+Start `retry` at zero. For each 64-bit chunk, start `word` at
+`0xcbf29ce484222325`. For every byte, set
+`word = (word XOR byte) * 0x100000001b3`, truncating to 64 bits. Then apply:
+
+```text
+word = (word XOR (word >> 30)) * 0xbf58476d1ce4e5b9
+word = (word XOR (word >> 27)) * 0x94d049bb133111eb
+word = word XOR (word >> 31)
+```
+
+Truncate each multiplication to 64 bits. Let `bits` be the bit length of
+`bound - 1`. Assemble enough chunks, starting at chunk zero with the least
+significant 64 bits, and retain the lowest `bits` bits. Return that value if
+it is less than `bound`; otherwise increment `retry` and try again. A bound
+of one returns zero. Python supports arbitrary integer bounds; the native core
+supports bounds through `u64::MAX` and therefore uses at most one chunk.
+
+## Live decision inputs
+
+- `name` is the portable profile name. Renaming a profile changes its choices.
+- `revision` starts at zero and increments once per bank edit. Held onsets and
+  releases edit the bank. Latched onsets that change membership edit the bank;
+  key releases do not. Clearing or stopping a nonempty bank also increments it.
+- Lane `probability` uses a counter incremented once per nonempty, eligible hit,
+  including rejected hits and probabilities zero and one. Masked steps, rests,
+  ties, and empty banks do not increment it. Draw below the reduced rational's
+  denominator and accept values below its numerator.
+- Lane `walk` uses a separate counter incremented once per admitted walk
+  selection, including initial or reset lowest-note selections. When a move
+  is needed, draw below the sum of weights and select the first cumulative
+  weight exceeding the draw.
+- Counters survive bank edits, retriggers, clear, and stop. Retrigger resets the
+  selected identity; it does not reset the random sequence. Saved Python state
+  includes the revision, counters, selected identity, and previous rank.
+
+The native profile uses signed 64-bit seeds and rational components and
+unsigned 64-bit weight totals. Shared profiles must stay within those ranges.
