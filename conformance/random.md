@@ -57,11 +57,21 @@ supports bounds through `u64::MAX` and therefore uses at most one chunk.
   ascending pitch/source order: draw below `size - position + 1` and insert at
   `position + draw`. Use the current bank revision for all these draws. When the
   queue ends, `once` rewinds it and `cycle` creates a fresh permutation.
+- Lane `choice` increments a separate counter once per admitted selection,
+  including single-note draws. Order the bank by ascending pitch/source identity.
+  Assign positive u32 weights by rank, extending with ones or repeating the list
+  as configured. Ignore weights beyond the bank size. With `no_repeat`, exclude
+  the previous identity if the bank has multiple notes, keeping each remaining
+  note's original rank weight. Draw below the sum of eligible weights and choose
+  the first cumulative weight exceeding the draw. Repeats share one selection;
+  chance rejections, rests, ties, masked steps, and empty banks consume no draw.
 - Counters survive bank edits, retriggers, clear, and stop. Retrigger resets the
   selected identity; it does not reset the random sequence. Saved Python state
   includes the revision, counters, selected identity, and previous rank.
   Shuffle snapshots also include the order, cursor, and revision used to update
   that order. Resets discard the order but retain its random counter.
+  Choice snapshots retain the previous identity and counter; resets forget the
+  identity while preserving its counter.
 
 The native profile uses signed 64-bit seeds and rational components and
 unsigned 64-bit weight totals. Shared profiles must stay within those ranges.

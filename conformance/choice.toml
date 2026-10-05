@@ -1,0 +1,8 @@
+kind = "arpeggiator"
+name = "choice"
+title = "Weighted random chord notes"
+
+[body]
+selection = { kind = "choice", weights = [4, 1] }
+rhythm = { kind = "grid", step = "1/4 beat" }
+seed = 42

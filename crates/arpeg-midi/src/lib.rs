@@ -309,6 +309,49 @@ pub fn parse_profile(text: &str) -> Result<Profile, String> {
                 rest_outside,
             }
         }
+        Some("choice") => {
+            let table = selection.expect("selection table");
+            if table
+                .keys()
+                .any(|key| !["kind", "weights", "extend", "no_repeat"].contains(&key.as_str()))
+            {
+                return Err("unsupported choice option".into());
+            }
+            let weights = match table.get("weights") {
+                None => vec![1],
+                Some(value) => value
+                    .as_array()
+                    .ok_or("choice weights must be an array")?
+                    .iter()
+                    .map(|value| {
+                        value
+                            .as_integer()
+                            .and_then(|weight| u32::try_from(weight).ok())
+                            .filter(|weight| *weight > 0)
+                            .ok_or("choice weights must be positive u32 integers")
+                    })
+                    .collect::<Result<Vec<_>, _>>()?,
+            };
+            if weights.is_empty() {
+                return Err("choice requires positive weights".into());
+            }
+            let repeat_weights = match table.get("extend") {
+                None => false,
+                Some(value) if value.as_str() == Some("ones") => false,
+                Some(value) if value.as_str() == Some("repeat") => true,
+                _ => return Err("choice extend must be ones or repeat".into()),
+            };
+            let no_repeat = table
+                .get("no_repeat")
+                .map(|value| value.as_bool().ok_or("no_repeat must be a boolean"))
+                .transpose()?
+                .unwrap_or(false);
+            Selection::Choice {
+                weights,
+                repeat_weights,
+                no_repeat,
+            }
+        }
         Some("shuffle") => {
             let table = selection.expect("selection table");
             if table
@@ -416,6 +459,9 @@ pub fn parse_profile(text: &str) -> Result<Profile, String> {
     if matches!(selection, Selection::Shuffle { .. }) && seed.is_none() {
         return Err("shuffle requires an explicit seed".into());
     }
+    if matches!(selection, Selection::Choice { .. }) && seed.is_none() {
+        return Err("choice requires an explicit seed".into());
+    }
     Ok(match bank {
         ParsedBank::Classic(bank) => Profile::Classic(HeldProfile {
             chance,
@@ -426,6 +472,9 @@ pub fn parse_profile(text: &str) -> Result<Profile, String> {
             retrigger,
         }),
         ParsedBank::History(notes) => {
+            if matches!(selection, Selection::Choice { .. }) {
+                return Err("choice selection currently requires a held or latched bank".into());
+            }
             if matches!(selection, Selection::Shuffle { .. }) {
                 return Err("shuffle selection currently requires a held or latched bank".into());
             }

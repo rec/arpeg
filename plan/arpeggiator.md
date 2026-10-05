@@ -392,6 +392,14 @@ source identity when multiple notes remain. `on_edit = "restart"` starts a new
 permutation by default. `on_edit = "preserve"` keeps surviving order and inserts
 new notes randomly into the unplayed portion. Bank-edit retrigger overrides that
 preservation, and empty banks, clear, and stop discard the order.
+Weighted choice assigns positive u32 weights by ascending pitch/source identity
+rank. The default `[1]` is uniform; `extend = "ones"` gives unspecified ranks
+weight 1, while `extend = "repeat"` cycles the list. An explicit seed is required.
+Repeated selections are allowed by default. `no_repeat = true` excludes the
+previous source identity when another note is available, retaining original rank
+weights. One-note banks still play. Repeats reuse a draw; rhythm gaps and rejected
+chance decisions leave the choice counter unchanged. Resets forget the previous
+identity while retaining the counter.
 Deriving a new pitch retains a source gesture reference or explicitly chooses
 a synthetic gesture. No hidden pitch generation from an empty bank.
 

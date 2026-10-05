@@ -469,6 +469,72 @@ fn shuffle_profile_requires_seed_and_validates_live_only_policies() {
     assert!(parse_profile(&history).is_err());
 }
 
+#[test]
+fn choice_profile_requires_seed_and_validates_weights_and_policies() {
+    let profile = include_str!("../../../conformance/choice.toml");
+    let Profile::Classic(parsed) = parse_profile(profile).unwrap() else {
+        panic!("expected live held profile");
+    };
+    assert_eq!(
+        parsed.selection,
+        arpeg_core::Selection::Choice {
+            weights: vec![4, 1],
+            repeat_weights: false,
+            no_repeat: false,
+        }
+    );
+    let uniform = profile.replace(", weights = [4, 1]", "");
+    let Profile::Classic(parsed) = parse_profile(&uniform).unwrap() else {
+        panic!("expected live held profile");
+    };
+    assert_eq!(
+        parsed.selection,
+        arpeg_core::Selection::Choice {
+            weights: vec![1],
+            repeat_weights: false,
+            no_repeat: false,
+        }
+    );
+    let options = profile.replace(
+        "weights = [4, 1]",
+        "weights = [4, 1], extend = \"repeat\", no_repeat = true",
+    );
+    let Profile::Classic(parsed) = parse_profile(&options).unwrap() else {
+        panic!("expected live held profile");
+    };
+    assert_eq!(
+        parsed.selection,
+        arpeg_core::Selection::Choice {
+            weights: vec![4, 1],
+            repeat_weights: true,
+            no_repeat: true,
+        }
+    );
+    for weights in [
+        "[]",
+        "[0]",
+        "[-1]",
+        "[1.5]",
+        "[true]",
+        "[\"1\"]",
+        "[4294967296]",
+        "1",
+    ] {
+        assert!(parse_profile(&profile.replace("[4, 1]", weights)).is_err());
+    }
+    for option in ["extend = \"last\"", "no_repeat = 1", "unknown = 1"] {
+        let text = profile.replace("weights = [4, 1]", &format!("weights = [4, 1], {option}"));
+        assert!(parse_profile(&text).is_err());
+    }
+    assert!(parse_profile(&profile.replace("seed = 42", "")).is_err());
+    assert_eq!(
+        render_file(profile, &single_note_input(0)).unwrap_err(),
+        "choice selection currently requires live input"
+    );
+    let history = profile.replace("[body]", "[body]\nbank = { kind = \"history\" }");
+    assert!(parse_profile(&history).is_err());
+}
+
 fn single_note_input(end_delay: u32) -> Vec<u8> {
     let channel = u4::from(0);
     let key = u7::from(60);

@@ -252,6 +252,7 @@ def test_saved_center_edge_traversal_preserves_selected_identity(name: str) -> N
         "center-edge",
         "index-pattern",
         "shuffle",
+        "choice",
     ],
 )
 def test_live_classic_matches_shared_python_rust_traces(fixture: str) -> None:
@@ -347,3 +348,22 @@ def test_shuffle_snapshot_retains_queue_and_random_counter(mode: str) -> None:
     arp.note_on(Fraction(3, 8), 55, 100)
     restored = LiveArpeggiator.model_validate_json(arp.model_dump_json())
     assert restored.advance(Fraction(4)) == arp.advance(Fraction(4))
+
+
+@pytest.mark.parametrize("extend", ["ones", "repeat"])
+def test_choice_snapshot_retains_counter_and_previous_identity(extend: str) -> None:
+    data = _profile().model_dump()
+    data["name"] = "choice"
+    data["body"]["seed"] = 42
+    data["body"]["selection"] = {
+        "kind": "choice",
+        "weights": [4, 1],
+        "extend": extend,
+        "no_repeat": True,
+    }
+    arp = LiveArpeggiator(profile=ArpeggiatorScore.model_validate(data))
+    for key in [60, 64, 67]:
+        arp.note_on(Fraction(0), key, 100)
+    arp.advance(Fraction(1, 4))
+    restored = LiveArpeggiator.model_validate_json(arp.model_dump_json())
+    assert restored.advance(Fraction(3)) == arp.advance(Fraction(3))

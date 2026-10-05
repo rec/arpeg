@@ -69,6 +69,7 @@ pub struct LiveArpeggiator {
     shuffle_position: usize,
     shuffle_revision: Option<u64>,
     shuffle_count: u64,
+    choice_count: u64,
     rising: bool,
     retrigger: Retrigger,
     selection: Selection,
@@ -100,6 +101,14 @@ impl LiveArpeggiator {
     ) -> Result<Self, &'static str> {
         rhythm.validate()?;
         chance.validate()?;
+        if let Selection::Choice { weights, .. } = &selection {
+            if weights.is_empty() || weights.contains(&0) {
+                return Err("choice requires positive weights");
+            }
+            if chance.seed.is_none() {
+                return Err("choice requires an explicit seed");
+            }
+        }
         if matches!(selection, Selection::Shuffle { .. }) && chance.seed.is_none() {
             return Err("shuffle requires an explicit seed");
         }
@@ -129,6 +138,7 @@ impl LiveArpeggiator {
             shuffle_position: 0,
             shuffle_revision: None,
             shuffle_count: 0,
+            choice_count: 0,
             rising: true,
             retrigger,
             selection,
@@ -410,6 +420,50 @@ impl LiveArpeggiator {
                 return;
             }
             ordered[(index % ordered.len() as u64) as usize]
+        } else if let Selection::Choice {
+            weights,
+            repeat_weights,
+            no_repeat,
+        } = selection
+        {
+            let candidates: Vec<_> = ordered
+                .iter()
+                .enumerate()
+                .filter_map(|(i, n)| {
+                    if *no_repeat
+                        && ordered.len() > 1
+                        && self.previous_key.is_some_and(|(_, id)| id == n.id)
+                    {
+                        return None;
+                    }
+                    let weight = if *repeat_weights {
+                        weights[i % weights.len()]
+                    } else {
+                        weights.get(i).copied().unwrap_or(1)
+                    };
+                    Some((*n, u64::from(weight)))
+                })
+                .collect();
+            let mut chosen = draw_below(
+                self.chance.seed.expect("validated choice seed"),
+                &self.chance.name,
+                "choice",
+                self.bank_revision,
+                self.choice_count,
+                candidates.iter().map(|(_, w)| w).sum(),
+            );
+            self.choice_count += 1;
+            candidates
+                .into_iter()
+                .find_map(|(note, weight)| {
+                    if chosen < weight {
+                        Some(note)
+                    } else {
+                        chosen -= weight;
+                        None
+                    }
+                })
+                .expect("positive choice weights")
         } else if let Selection::Shuffle {
             once,
             no_repeat,
@@ -652,6 +706,7 @@ fn selection_key(note: &InputNote, selection: &Selection) -> (Beat, u64) {
         Selection::Ascending
         | Selection::Walk(_)
         | Selection::Alternating { .. }
+        | Selection::Choice { .. }
         | Selection::Shuffle { .. }
         | Selection::IndexPattern { .. }
         | Selection::InsideOut

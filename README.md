@@ -128,6 +128,25 @@ through resets and in Python snapshots. Both engines support live held and
 latched banks; file rendering, history, and marked samples reject shuffle.
 [Shared traces](conformance/shuffle.json) check both modes and edit policies.
 
+[Weighted choice](conformance/choice.toml) independently selects a note on each
+admitted hit: `selection = { kind = "choice", weights = [4, 1] }`.
+Weights follow ascending pitch/source identity ranks and are positive integers
+through `4294967295`. The default weights `[1]` make every note equally likely.
+`extend = "ones"` supplies weight 1 for unspecified ranks; `extend = "repeat"`
+cycles the weight list across the bank. Extra weights beyond the bank are unused.
+Thus `[4, 1]` gives three notes weights `[4, 1, 1]` by default or `[4, 1, 4]`
+with repetition. Chord edits update rank weights on the next admitted hit.
+
+An explicit integer `seed` is required. Repeated selections are allowed by
+default. `no_repeat = true` excludes the previous source identity before drawing
+when another note is available; it preserves the remaining notes' original rank
+weights. A single-note bank still plays. A hit's repeats reuse its choice, and
+rhythm rests, ties, masked steps, and chance-rejected hits consume no choice.
+Bank-edit retrigger, an empty bank, clear, and stop forget the previous identity
+while retaining the random counter. Python snapshots retain both. Both engines
+support live held and latched banks; file rendering, history, and marked samples
+reject choice. [Shared traces](conformance/choice.json) specify the exact draws.
+
 [src/arpeg/capture.py](src/arpeg/capture.py) records a MIDI phrase through
 `MidiCapture.accept` and closes it with `finish`. Its profile declares whether
 overlapping onsets hand off a monophonic segment or remain independent notes.

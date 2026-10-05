@@ -121,6 +121,9 @@ impl MarkedSample {
             Selection::Alternating { .. } => {
                 return Err("alternating selection currently requires live MIDI input");
             }
+            Selection::Choice { .. } => {
+                return Err("choice selection currently requires live MIDI input");
+            }
             Selection::Shuffle { .. } => {
                 return Err("shuffle selection currently requires live MIDI input");
             }

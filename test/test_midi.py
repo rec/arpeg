@@ -87,6 +87,7 @@ def test_play_arguments_are_typed_pydantic_commands() -> None:
         "outside-in",
         "index-pattern",
         "shuffle",
+        "choice",
     ],
 )
 def test_live_presets_prepare_without_opening_devices(name: str) -> None:

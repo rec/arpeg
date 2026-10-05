@@ -15,6 +15,7 @@ from ufor.arpeggiator import (
     Alternating,
     ArpeggiatorScore,
     Ascending,
+    Choice,
     Descending,
     Euclidean,
     Grid,
@@ -57,6 +58,7 @@ class LiveArpeggiator(BaseModel):
     shuffle_position: int = 0
     shuffle_revision: int = -1
     shuffle_count: int = 0
+    choice_count: int = 0
     rising: bool = True
     pending: list[_Attack] = Field(default_factory=list)
     now: Fraction = Fraction(0)
@@ -86,6 +88,7 @@ class LiveArpeggiator(BaseModel):
                 OutsideIn,
                 IndexPattern,
                 Shuffle,
+                Choice,
                 Walk,
             ),
         ):
@@ -119,6 +122,7 @@ class LiveArpeggiator(BaseModel):
         | OutsideIn
         | IndexPattern
         | Shuffle
+        | Choice
         | Walk
     ):
         selection = self.profile.body.selection
@@ -133,6 +137,7 @@ class LiveArpeggiator(BaseModel):
                 OutsideIn,
                 IndexPattern,
                 Shuffle,
+                Choice,
                 Walk,
             ),
         )
@@ -337,6 +342,35 @@ class LiveArpeggiator(BaseModel):
             if selection.boundary == "rest" and index >= len(ordered):
                 return
             note = ordered[index % len(ordered)]
+        elif isinstance(selection, Choice):
+            candidates = [
+                (
+                    n,
+                    selection.weights[i % len(selection.weights)]
+                    if selection.extend == "repeat" or i < len(selection.weights)
+                    else 1,
+                )
+                for i, n in enumerate(ordered)
+                if not selection.no_repeat
+                or len(ordered) == 1
+                or self.previous_note is None
+                or n.id != self.previous_note.id
+            ]
+            assert body.seed is not None
+            chosen = draw_below(
+                body.seed,
+                self.profile.name,
+                "choice",
+                self.bank_revision,
+                self.choice_count,
+                sum(w for _, w in candidates),
+            )
+            self.choice_count += 1
+            index = 0
+            while chosen >= candidates[index][1]:
+                chosen -= candidates[index][1]
+                index += 1
+            note = candidates[index][0]
         elif isinstance(selection, Shuffle):
             note = self._shuffle_note(ordered, selection)
         elif isinstance(selection, (InsideOut, OutsideIn)):
