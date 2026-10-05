@@ -11,7 +11,6 @@ use midly::{
     num::{u4, u7, u28},
 };
 
-#[cfg(target_os = "macos")]
 pub mod live;
 
 pub struct HeldProfile {

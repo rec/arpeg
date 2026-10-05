@@ -2,7 +2,6 @@ use std::{env, fs, process};
 
 use arpeg_midi::{parse_profile, render_file};
 
-#[cfg(target_os = "macos")]
 use arpeg_midi::live::{list_ports, play};
 
 fn main() {
@@ -26,9 +25,7 @@ fn run() -> Result<(), String> {
             let rendered = render_file(&text, &input)?;
             fs::write(output, rendered).map_err(|e| e.to_string())?;
         }
-        #[cfg(target_os = "macos")]
-        [_, command] if command == "list-ports" => list_ports(),
-        #[cfg(target_os = "macos")]
+        [_, command] if command == "list-ports" => list_ports()?,
         [_, command, profile, source, destination, bpm] if command == "play" => {
             let text = fs::read_to_string(profile).map_err(|e| e.to_string())?;
             let profile = parse_profile(&text)?;

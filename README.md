@@ -18,7 +18,7 @@ The readable Python live engine is [src/arpeg/live.py](src/arpeg/live.py).
 `LiveArpeggiator` accepts a uFor profile and provides `note_on`, `note_off`,
 `advance`, `clear`, and `stop` methods with exact beat times. Its behavior is
 covered in [test/test_live.py](test/test_live.py) and the shared
-[live traces](conformance/live-classic.json). The CoreMIDI executable uses the Rust
+[live traces](conformance/live-classic.json). The standalone executable uses the Rust
 engine, so Python is not required when playing from MIDI ports.
 
 Held and latched banks also accept [Euclidean rhythm](conformance/euclidean.toml)
@@ -123,11 +123,29 @@ reordered playback have one-second WAV regressions on both sampler backends.
 
 The standalone `arpeg` executable validates supported profiles, renders
 single-track metrical MIDI files containing note and tempo events, and plays
-classic or recorded-history arpeggios through CoreMIDI on macOS. Live mode reads MIDI
-channel 1, outputs on channel 1, and uses an internal BPM clock. It polls every millisecond
-and sends events immediately when due; input packet timestamps and future
-CoreMIDI output timestamps are not used yet. Hardware timing and device behavior
-have not been verified.
+classic or recorded-history arpeggios through midir on Linux, Windows, and macOS.
+The Python `arpeg-python` host uses mido and its RtMidi backend to run the
+reference engines with the same presets on those platforms. Both hosts read MIDI
+channel 1, output on channel 1, and use an internal BPM clock. They timestamp
+messages when the input callback runs, poll every millisecond, and send events
+immediately when due. Driver timestamps and future output timestamps are not
+used yet. Hardware timing and device behavior have not been verified.
+
+Python MIDI port access requires the `midi` extra. The default package installs
+the reference engines, mido, and the CLI without the native RtMidi backend:
+
+```sh
+uv sync --extra midi
+uv run --extra midi arpeg-python list-ports
+uv run --extra midi arpeg-python play --profile conformance/up.toml --source 0 --destination 1 --bpm 120
+uv run --extra midi arpeg-python play --profile conformance/history-wind.toml --source 0 --destination 1 --bpm 120
+```
+
+Use the indices listed by the host you intend to run; Python and Rust port
+enumeration need not use the same order. Mido's RtMidi backend filters incoming
+active-sensing messages; received note, controller, bend, clock, and SysEx
+messages are handled through its portable API. Native driver selection is
+inside the MIDI libraries, with no OS-specific calls in arpeg.
 
 ```sh
 cargo run -p arpeg-midi -- validate conformance/up.toml
@@ -154,6 +172,15 @@ step. Channel 1 handoff ends overlapping gestures rather than assigning them
 independent MIDI channels.
 
 ## Development
+
+Building the Rust MIDI host on Linux requires ALSA development headers and
+`pkg-config` (`libasound2-dev` and `pkg-config` on Debian/Ubuntu). ALSA is also
+needed at runtime. Windows and macOS builds use their system MIDI services.
+The pure event core does not open devices.
+
+GitHub Actions builds and tests both implementations on Linux, Windows, and
+macOS, including Python installation with the MIDI extra. These tests need no
+physical MIDI device and do not establish hardware latency or USB-driver behavior.
 
 ```sh
 uv sync

@@ -1,0 +1,46 @@
+name: Cross-platform tests
+
+on: [push, pull_request]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@1.87.0
+        with:
+          components: rustfmt, clippy
+      - uses: astral-sh/setup-uv@v10.2.0
+        with:
+          python-version: "3.13"
+      - name: Install Linux MIDI build dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libasound2-dev pkg-config
+      - name: Install Python with MIDI support
+        # Read the public SSH-pinned dependency over HTTPS without an SSH key.
+        env:
+          GIT_CONFIG_COUNT: "1"
+          GIT_CONFIG_KEY_0: url.https://github.com/.insteadOf
+          GIT_CONFIG_VALUE_0: ssh://git@github.com/
+        run: uv sync --frozen --extra midi
+      - name: Test Python reference and host message handling
+        run: uv run --frozen --extra midi pytest
+      - name: Check Python
+        run: uv run --frozen --extra midi ruff check --select B,E,F,I src test
+      - name: Check Python formatting
+        run: uv run --frozen --extra midi ruff format --check src test
+      - name: Check Python types
+        run: uv run --frozen --extra midi ty check src
+      - name: Test Rust core and MIDI host
+        run: cargo test --workspace --locked
+      - name: Check Rust formatting
+        run: cargo fmt --all --check
+      - name: Check Rust
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings

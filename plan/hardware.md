@@ -4,7 +4,7 @@
 
 Build a small plastic box containing a Raspberry Pi, one TRS MIDI input, and
 one TRS MIDI output. It boots into arpeg without a screen, keyboard, or computer
-connection. This document plans the work; it does not implement a Linux backend
+connection. This document plans the work; it does not implement a UART adapter
 or constitute a reviewed electrical schematic.
 
 Assumption: TRS means **3.5 mm TRS MIDI**, carrying MIDI 1.0 messages, rather than
@@ -99,12 +99,13 @@ breadboard connections inside a device that will travel.
 
 ## 3. Software work needed before it can play on the Pi
 
-The current Rust MIDI executable uses **CoreMIDI on macOS** for live playing.
-Its `play` and `list-ports` commands are compiled only on macOS. Copying the
-current executable to a Pi will not provide live MIDI.
+The Rust MIDI executable uses midir on Linux, Windows, and macOS; the Python
+reference host uses mido with RtMidi on the same platforms. Both offer `play`
+and `list-ports`. Linux MIDI port access uses ALSA. A Pi needs its own Linux
+build, and a raw GPIO UART does not automatically appear as an ALSA MIDI port.
 
 Keep the Python implementation as the reference and reuse `arpeg-core` for the
-appliance. Add a Linux host that connects the hardware UART to the existing
+appliance. Add a UART adapter that connects the hardware UART to the existing
 event decisions. No audio renderer is required for this MIDI device.
 
 The host needs to:

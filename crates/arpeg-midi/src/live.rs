@@ -1,4 +1,4 @@
-//! A small CoreMIDI host for classic and recorded-history presets.
+//! A portable MIDI host for classic and recorded-history presets.
 
 use std::{
     io,
@@ -18,24 +18,28 @@ use arpeg_core::{
     history::HistoryArpeggiator,
     live::{LiveArpeggiator, OutputEvent, OutputKind},
 };
-use coremidi::{Client, Destination, Destinations, PacketBuffer, Source, Sources};
+use midir::{Ignore, MidiInput, MidiOutput, MidiOutputConnection};
 
 use crate::{HeldProfile, HistoryProfile, Profile};
 
-pub fn list_ports() {
+pub fn list_ports() -> Result<(), String> {
+    let input = MidiInput::new("arpeg input").map_err(|e| format!("MIDI input: {e}"))?;
+    let output = MidiOutput::new("arpeg output").map_err(|e| format!("MIDI output: {e}"))?;
     println!("Sources:");
-    for index in 0..Sources::count() {
-        let source = Source::from_index(index).expect("listed MIDI source");
-        println!("  {index}: {}", source.display_name().unwrap_or_default());
+    for (index, port) in input.ports().iter().enumerate() {
+        let name = input
+            .port_name(port)
+            .map_err(|e| format!("MIDI source name: {e}"))?;
+        println!("  {index}: {name}");
     }
     println!("Destinations:");
-    for index in 0..Destinations::count() {
-        let destination = Destination::from_index(index).expect("listed MIDI destination");
-        println!(
-            "  {index}: {}",
-            destination.display_name().unwrap_or_default()
-        );
+    for (index, port) in output.ports().iter().enumerate() {
+        let name = output
+            .port_name(port)
+            .map_err(|e| format!("MIDI destination name: {e}"))?;
+        println!("  {index}: {name}");
     }
+    Ok(())
 }
 
 pub fn play(
@@ -47,23 +51,30 @@ pub fn play(
     if bpm == 0 || bpm > 1000 {
         return Err("BPM must be between 1 and 1000".into());
     }
-    let source = Source::from_index(source_index).ok_or("MIDI source index is unavailable")?;
-    let destination = Destination::from_index(destination_index)
+    let mut input = MidiInput::new("arpeg input").map_err(|e| format!("MIDI input: {e}"))?;
+    input.ignore(Ignore::None);
+    let output = MidiOutput::new("arpeg output").map_err(|e| format!("MIDI output: {e}"))?;
+    let sources = input.ports();
+    let source = sources
+        .get(source_index)
+        .ok_or("MIDI source index is unavailable")?;
+    let destinations = output.ports();
+    let destination = destinations
+        .get(destination_index)
         .ok_or("MIDI destination index is unavailable")?;
-    let client = Client::new("arpeg").map_err(|e| format!("CoreMIDI client: {e}"))?;
-    let output_port = client
-        .output_port("arpeg output")
-        .map_err(|e| format!("CoreMIDI output: {e}"))?;
+    let mut output_connection = output
+        .connect(destination, "arpeg output")
+        .map_err(|e| format!("connect MIDI destination: {e}"))?;
     let (sender, receiver) = mpsc::channel();
-    let input_port = client
-        .input_port("arpeg input", move |packets| {
-            for packet in packets.iter() {
-                let _ = sender.send((Instant::now(), packet.data().to_vec()));
-            }
-        })
-        .map_err(|e| format!("CoreMIDI input: {e}"))?;
-    input_port
-        .connect_source(&source)
+    let _input_connection = input
+        .connect(
+            source,
+            "arpeg input",
+            move |_timestamp, data, sender| {
+                let _ = sender.send((Instant::now(), data.to_vec()));
+            },
+            sender,
+        )
         .map_err(|e| format!("connect MIDI source: {e}"))?;
     let stopped = Arc::new(AtomicBool::new(false));
     let signal = Arc::clone(&stopped);
@@ -95,8 +106,7 @@ pub fn play(
             bpm,
             &receiver,
             &command_receiver,
-            &output_port,
-            &destination,
+            &mut output_connection,
             &stopped,
         ),
         Profile::History(profile) => run_history(
@@ -104,8 +114,7 @@ pub fn play(
             bpm,
             &receiver,
             &command_receiver,
-            &output_port,
-            &destination,
+            &mut output_connection,
             &stopped,
         ),
     }
@@ -116,8 +125,7 @@ fn run_classic(
     bpm: u32,
     receiver: &mpsc::Receiver<(Instant, Vec<u8>)>,
     commands: &mpsc::Receiver<()>,
-    output_port: &coremidi::OutputPort,
-    destination: &Destination,
+    output: &mut MidiOutputConnection,
     stopped: &AtomicBool,
 ) -> Result<(), String> {
     let mut arp = LiveArpeggiator::new(
@@ -155,7 +163,7 @@ fn run_classic(
                         NoteInput::Off(key) => arp.note_off(at, key),
                     }
                     .map_err(str::to_owned)?;
-                    send_events(output_port, destination, &events)?;
+                    send_events(output, &events)?;
                 }
             }
             while commands.try_recv().is_ok() {
@@ -167,20 +175,12 @@ fn run_classic(
                     elapsed_beat(origin, Instant::now(), bpm).max(last)
                 });
                 last = at;
-                send_events(
-                    output_port,
-                    destination,
-                    &arp.clear(at).map_err(str::to_owned)?,
-                )?;
+                send_events(output, &arp.clear(at).map_err(str::to_owned)?)?;
             }
             if let Some(origin) = start {
                 let now = elapsed_beat(origin, Instant::now(), bpm).max(last);
                 last = now;
-                send_events(
-                    output_port,
-                    destination,
-                    &arp.advance(now).map_err(str::to_owned)?,
-                )?;
+                send_events(output, &arp.advance(now).map_err(str::to_owned)?)?;
             }
             thread::sleep(Duration::from_millis(1));
         }
@@ -190,7 +190,7 @@ fn run_classic(
         elapsed_beat(origin, Instant::now(), bpm).max(last)
     });
     if let Ok(events) = arp.stop(at) {
-        let _ = send_events(output_port, destination, &events);
+        let _ = send_events(output, &events);
     }
     result
 }
@@ -200,8 +200,7 @@ fn run_history(
     bpm: u32,
     receiver: &mpsc::Receiver<(Instant, Vec<u8>)>,
     commands: &mpsc::Receiver<()>,
-    output_port: &coremidi::OutputPort,
-    destination: &Destination,
+    output: &mut MidiOutputConnection,
     stopped: &AtomicBool,
 ) -> Result<(), String> {
     let step = profile.step * Tick::new(60_000_000, i64::from(bpm));
@@ -239,11 +238,7 @@ fn run_history(
                     eprintln!("late MIDI input moved to the next capture tick");
                     reported_late = true;
                 }
-                send_realized(
-                    output_port,
-                    destination,
-                    &arp.before(tick).map_err(str::to_owned)?,
-                )?;
+                send_realized(output, &arp.before(tick).map_err(str::to_owned)?)?;
                 if tick != last_input {
                     ordinal = 0;
                     last_input = tick;
@@ -264,19 +259,11 @@ fn run_history(
                 let tick = start
                     .map_or(0, |origin| elapsed_micros(origin, Instant::now()))
                     .max(last_published);
-                send_realized(
-                    output_port,
-                    destination,
-                    &arp.clear(tick).map_err(str::to_owned)?,
-                )?;
+                send_realized(output, &arp.clear(tick).map_err(str::to_owned)?)?;
             }
             if let Some(origin) = start {
                 let now = elapsed_micros(origin, Instant::now()).max(last_published);
-                send_realized(
-                    output_port,
-                    destination,
-                    &arp.advance(now).map_err(str::to_owned)?,
-                )?;
+                send_realized(output, &arp.advance(now).map_err(str::to_owned)?)?;
                 last_published = now;
             }
             thread::sleep(Duration::from_millis(1));
@@ -287,7 +274,7 @@ fn run_history(
         .map_or(0, |origin| elapsed_micros(origin, Instant::now()))
         .max(last_published);
     if let Ok(events) = arp.clear(at) {
-        let _ = send_realized(output_port, destination, &events);
+        let _ = send_realized(output, &events);
     }
     result
 }
@@ -302,30 +289,21 @@ fn elapsed_beat(start: Instant, now: Instant, bpm: u32) -> Beat {
     Beat::new(micros, 60_000_000) * i64::from(bpm)
 }
 
-fn send_events(
-    port: &coremidi::OutputPort,
-    destination: &Destination,
-    events: &[OutputEvent],
-) -> Result<(), String> {
+fn send_events(port: &mut MidiOutputConnection, events: &[OutputEvent]) -> Result<(), String> {
     for event in events {
         let bytes = match event.kind {
             OutputKind::NoteOn { key, velocity, .. } => [0x90, key, velocity],
             OutputKind::NoteOff { key, .. } => [0x80, key, 0],
         };
-        port.send(destination, &PacketBuffer::new(0, &bytes))
-            .map_err(|e| format!("CoreMIDI send: {e}"))?;
+        port.send(&bytes).map_err(|e| format!("MIDI send: {e}"))?;
     }
     Ok(())
 }
 
-fn send_realized(
-    port: &coremidi::OutputPort,
-    destination: &Destination,
-    events: &[RealizedEvent],
-) -> Result<(), String> {
+fn send_realized(port: &mut MidiOutputConnection, events: &[RealizedEvent]) -> Result<(), String> {
     for event in events {
-        port.send(destination, &PacketBuffer::new(0, &event.data))
-            .map_err(|error| format!("CoreMIDI send: {error}"))?;
+        port.send(&event.data)
+            .map_err(|error| format!("MIDI send: {error}"))?;
     }
     Ok(())
 }

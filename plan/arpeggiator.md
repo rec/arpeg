@@ -565,9 +565,12 @@ must not require a Python compilation step for each user preset.
 
 The standalone shell owns port enumeration, input/output selection, timestamped
 I/O, internal/external clock, capture controls, file import/export, and a bounded
-status trace. Start with macOS CoreMIDI for the user's hardware, keeping OS
-adapters outside the kernel. Other supported platforms get explicit builds and
-their own MIDI tests. Do not run audio initialization just to obtain a timer.
+status trace. Support Linux, Windows, and macOS through portable MIDI libraries:
+mido with RtMidi for the Python reference host and midir for the Rust executable.
+Keep platform-driver details inside those libraries, outside the event kernel.
+Build and test all three platforms with hosted runners; physical MIDI behavior
+requires separate hardware evidence. Do not run audio initialization just to
+obtain a timer.
 
 Expose a concise CLI for ordinary playing and explicit subcommands for listing
 ports, validating a profile, capturing a phrase, and rendering event files.
