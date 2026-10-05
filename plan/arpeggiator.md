@@ -369,6 +369,13 @@ without repeated endpoints, inside-out, outside-in, bass/treble alternation,
 pedal-note patterns, chord repeats, and explicit index patterns. Define empty
 and single-note behavior and use source identity to break equal-pitch ties.
 
+Explicit index patterns use zero-based ascending pitch ranks, with source identity
+breaking ties. `boundary = "wrap"` is the default; `boundary = "rest"` skips a
+missing index while advancing the pattern. Each admitted hit consumes one slot,
+and its repeats reuse that selection. Rhythm rests, ties, masks, and rejected
+chance decisions leave the position unchanged. Chord edits preserve it unless
+bank-edit retrigger is enabled; an empty bank, clear, and stop reset it.
+
 Octave expansion, scale-degree transposition, register limits, inversions, and
 voicing are separate transformations. State whether traversal iterates notes
 inside each octave or octaves inside each note. Keep pitches unrounded in the

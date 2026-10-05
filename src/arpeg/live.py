@@ -19,6 +19,7 @@ from ufor.arpeggiator import (
     Euclidean,
     Grid,
     HeldBank,
+    IndexPattern,
     InsideOut,
     LatchedBank,
     OutsideIn,
@@ -50,6 +51,7 @@ class LiveArpeggiator(BaseModel):
     decision_count: int = 0
     walk_count: int = 0
     walk_rank: int = 0
+    pattern_position: int = 0
     rising: bool = True
     pending: list[_Attack] = Field(default_factory=list)
     now: Fraction = Fraction(0)
@@ -70,7 +72,16 @@ class LiveArpeggiator(BaseModel):
             raise ValueError("live mode requires a held or latched bank")
         if not isinstance(
             body.selection,
-            (Ascending, Descending, Played, Alternating, InsideOut, OutsideIn, Walk),
+            (
+                Ascending,
+                Descending,
+                Played,
+                Alternating,
+                InsideOut,
+                OutsideIn,
+                IndexPattern,
+                Walk,
+            ),
         ):
             raise ValueError("unsupported live note selection")
         if (
@@ -93,11 +104,29 @@ class LiveArpeggiator(BaseModel):
     @cached_property
     def selection(
         self,
-    ) -> Ascending | Descending | Played | Alternating | InsideOut | OutsideIn | Walk:
+    ) -> (
+        Ascending
+        | Descending
+        | Played
+        | Alternating
+        | InsideOut
+        | OutsideIn
+        | IndexPattern
+        | Walk
+    ):
         selection = self.profile.body.selection
         assert isinstance(
             selection,
-            (Ascending, Descending, Played, Alternating, InsideOut, OutsideIn, Walk),
+            (
+                Ascending,
+                Descending,
+                Played,
+                Alternating,
+                InsideOut,
+                OutsideIn,
+                IndexPattern,
+                Walk,
+            ),
         )
         return selection
 
@@ -136,11 +165,13 @@ class LiveArpeggiator(BaseModel):
                     edited = True
             if not self.bank:
                 self.previous_note = None
+                self.pattern_position = 0
                 events.extend(self._release_all(at))
         if edited:
             self.bank_revision += 1
         if edited and self.profile.body.retrigger == "bank_edit":
             self.previous_note = None
+            self.pattern_position = 0
         self.next_input_id += 1
         return events
 
@@ -158,8 +189,10 @@ class LiveArpeggiator(BaseModel):
             and self.profile.body.retrigger == "bank_edit"
         ):
             self.previous_note = None
+            self.pattern_position = 0
         if not self.input and isinstance(self.bank_mode, HeldBank):
             self.previous_note = None
+            self.pattern_position = 0
             events.extend(self._release_all(at))
         return events
 
@@ -182,6 +215,7 @@ class LiveArpeggiator(BaseModel):
         self.toggled_keys.clear()
         self.toggle_added_keys.clear()
         self.previous_note = None
+        self.pattern_position = 0
         self.now = at
         return events
 
@@ -198,6 +232,7 @@ class LiveArpeggiator(BaseModel):
         self.toggled_keys.clear()
         self.toggle_added_keys.clear()
         self.previous_note = None
+        self.pattern_position = 0
         events.extend(self._release_all(at))
         return events
 
@@ -250,6 +285,7 @@ class LiveArpeggiator(BaseModel):
         active = self.input if isinstance(self.bank_mode, HeldBank) else self.bank
         if not active:
             self.previous_note = None
+            self.pattern_position = 0
             return
         if not decision.repeats:
             return
@@ -273,7 +309,13 @@ class LiveArpeggiator(BaseModel):
             ):
                 return
         ordered = sorted(active, key=self._selection_key)
-        if isinstance(selection := self.selection, (InsideOut, OutsideIn)):
+        if isinstance(selection := self.selection, IndexPattern):
+            index = selection.indices[self.pattern_position]
+            self.pattern_position = (self.pattern_position + 1) % len(selection.indices)
+            if selection.boundary == "rest" and index >= len(ordered):
+                return
+            note = ordered[index % len(ordered)]
+        elif isinstance(selection, (InsideOut, OutsideIn)):
             size = len(ordered)
             indices = sorted(
                 range(size),

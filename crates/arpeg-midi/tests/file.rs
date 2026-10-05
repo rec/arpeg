@@ -373,6 +373,53 @@ fn latched_file_keeps_playing_after_source_release() {
     assert_eq!(onsets, 8);
 }
 
+#[test]
+fn index_pattern_defaults_to_wrap_and_validates_live_only_options() {
+    let profile = include_str!("../../../conformance/index-pattern.toml");
+    let Profile::Classic(parsed) = parse_profile(profile).unwrap() else {
+        panic!("expected live held profile");
+    };
+    assert_eq!(
+        parsed.selection,
+        arpeg_core::Selection::IndexPattern {
+            indices: vec![0, 2, 1, 2],
+            rest_outside: false,
+        }
+    );
+    let explicit = profile.replace(
+        "indices = [0, 2, 1, 2]",
+        "indices = [0, 2, 1, 2], boundary = \"rest\"",
+    );
+    let Profile::Classic(parsed) = parse_profile(&explicit).unwrap() else {
+        panic!("expected live held profile");
+    };
+    assert_eq!(
+        parsed.selection,
+        arpeg_core::Selection::IndexPattern {
+            indices: vec![0, 2, 1, 2],
+            rest_outside: true,
+        }
+    );
+    for indices in ["[]", "[-1]", "[1.5]", "[true]", "[\"1\"]"] {
+        assert!(parse_profile(&profile.replace("[0, 2, 1, 2]", indices)).is_err());
+    }
+    for option in ["boundary = \"clamp\"", "boundary = true", "unknown = 1"] {
+        assert!(
+            parse_profile(&profile.replace(
+                "indices = [0, 2, 1, 2]",
+                &format!("indices = [0], {option}")
+            ))
+            .is_err()
+        );
+    }
+    assert_eq!(
+        render_file(profile, &single_note_input(0)).unwrap_err(),
+        "index pattern selection currently requires live input"
+    );
+    let history = profile.replace("[body]", "[body]\nbank = { kind = \"history\", notes = 8 }");
+    assert!(parse_profile(&history).is_err());
+}
+
 fn single_note_input(end_delay: u32) -> Vec<u8> {
     let channel = u4::from(0);
     let key = u7::from(60);

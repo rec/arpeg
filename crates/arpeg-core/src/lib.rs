@@ -18,9 +18,15 @@ pub enum Selection {
     Descending,
     Played,
     ReversePlayed,
-    Alternating { repeat_endpoints: bool },
+    Alternating {
+        repeat_endpoints: bool,
+    },
     InsideOut,
     OutsideIn,
+    IndexPattern {
+        indices: Vec<u64>,
+        rest_outside: bool,
+    },
     Walk(Walk),
 }
 
@@ -91,6 +97,9 @@ pub fn render_held<'a>(
     }
     if matches!(selection, Selection::InsideOut | Selection::OutsideIn) {
         return Err("center/edge selection currently requires live input");
+    }
+    if matches!(selection, Selection::IndexPattern { .. }) {
+        return Err("index pattern selection currently requires live input");
     }
     rhythm.validate()?;
     if matches!(rhythm, rhythm::Rhythm::Pattern { .. }) {
@@ -165,6 +174,7 @@ fn selection_key<'a>(note: &HeldNote<'a>, selection: &Selection) -> (Beat, &'a s
         Selection::Ascending
         | Selection::Walk(_)
         | Selection::Alternating { .. }
+        | Selection::IndexPattern { .. }
         | Selection::InsideOut
         | Selection::OutsideIn => Beat::from_integer(note.key.into()),
         Selection::Descending => -Beat::from_integer(note.key.into()),

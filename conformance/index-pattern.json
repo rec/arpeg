@@ -229,6 +229,136 @@
         ["1/2","on",2,2,67,80],
         ["1/2","off",2,2,67,0]
       ]
+    },
+    {
+      "name": "wrap is the default for missing indices",
+      "bank": "held",
+      "retrigger": "on_empty",
+      "gate": "0",
+      "selection": {
+        "kind": "index_pattern",
+        "indices": [5,0,3]
+      },
+      "actions": [
+        ["on","0",60,100],
+        ["on","0",64,90],
+        ["advance","3/4"]
+      ],
+      "expected": [
+        ["0","on",0,1,64,90],
+        ["0","off",0,1,64,0],
+        ["1/4","on",1,0,60,100],
+        ["1/4","off",1,0,60,0],
+        ["1/2","on",2,1,64,90],
+        ["1/2","off",2,1,64,0],
+        ["3/4","on",3,1,64,90],
+        ["3/4","off",3,1,64,0]
+      ]
+    },
+    {
+      "name": "explicit wrap matches the default",
+      "bank": "held",
+      "retrigger": "on_empty",
+      "gate": "0",
+      "selection": {
+        "kind": "index_pattern",
+        "indices": [5,0,3],
+        "boundary": "wrap"
+      },
+      "actions": [
+        ["on","0",60,100],
+        ["on","0",64,90],
+        ["advance","3/4"]
+      ],
+      "expected": [
+        ["0","on",0,1,64,90],
+        ["0","off",0,1,64,0],
+        ["1/4","on",1,0,60,100],
+        ["1/4","off",1,0,60,0],
+        ["1/2","on",2,1,64,90],
+        ["1/2","off",2,1,64,0],
+        ["3/4","on",3,1,64,90],
+        ["3/4","off",3,1,64,0]
+      ]
+    },
+    {
+      "name": "missing-index rests advance and cycle without a previous note",
+      "bank": "held",
+      "retrigger": "on_empty",
+      "gate": "0",
+      "selection": {
+        "kind": "index_pattern",
+        "indices": [5,0,3,1],
+        "boundary": "rest"
+      },
+      "actions": [
+        ["on","0",60,100],
+        ["on","0",64,90],
+        ["advance","3/4"]
+      ],
+      "expected": [
+        ["1/4","on",0,0,60,100],
+        ["1/4","off",0,0,60,0],
+        ["3/4","on",1,1,64,90],
+        ["3/4","off",1,1,64,0]
+      ]
+    },
+    {
+      "name": "all missing indices keep resting",
+      "bank": "held",
+      "retrigger": "on_empty",
+      "gate": "0",
+      "selection": {
+        "kind": "index_pattern",
+        "indices": [2,3],
+        "boundary": "rest"
+      },
+      "actions": [
+        ["on","0",60,100],
+        ["on","0",64,90],
+        ["advance","3/4"]
+      ],
+      "expected": []
+    },
+    {
+      "name": "empty bank resets a cursor after a first missing-index rest",
+      "bank": "held",
+      "retrigger": "on_empty",
+      "gate": "0",
+      "selection": {
+        "kind": "index_pattern",
+        "indices": [5,0],
+        "boundary": "rest"
+      },
+      "actions": [
+        ["on","0",60,100],
+        ["advance","0"],
+        ["off","1/8",60],
+        ["on","1/4",64,90],
+        ["advance","1/2"]
+      ],
+      "expected": [
+        ["1/2","on",0,1,64,90],
+        ["1/2","off",0,1,64,0]
+      ]
+    },
+    {
+      "name": "a missing-index rest preserves the preceding gate",
+      "bank": "held",
+      "retrigger": "on_empty",
+      "gate": "2",
+      "selection": {
+        "kind": "index_pattern",
+        "indices": [0,5],
+        "boundary": "rest"
+      },
+      "actions": [
+        ["on","0",60,100],
+        ["advance","3/8"]
+      ],
+      "expected": [
+        ["0","on",0,0,60,100]
+      ]
     }
   ]
 }

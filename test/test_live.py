@@ -250,6 +250,7 @@ def test_saved_center_edge_traversal_preserves_selected_identity(name: str) -> N
         "chance-walk",
         "alternating",
         "center-edge",
+        "index-pattern",
     ],
 )
 def test_live_classic_matches_shared_python_rust_traces(fixture: str) -> None:
@@ -300,3 +301,28 @@ def test_live_classic_matches_shared_python_rust_traces(fixture: str) -> None:
                 for e in events
             ]
             assert actual == case["expected"], case["name"]
+
+
+def test_index_pattern_snapshot_retains_position_after_missing_index_rest() -> None:
+    profile = _profile()
+    profile = ArpeggiatorScore.model_validate(
+        {
+            **profile.model_dump(),
+            "body": {
+                **profile.body.model_dump(),
+                "selection": {
+                    "kind": "index_pattern",
+                    "indices": [5, 0, 1],
+                    "boundary": "rest",
+                },
+            },
+        }
+    )
+    arp = LiveArpeggiator(profile=profile)
+    arp.note_on(Fraction(0), 60, 100)
+    arp.note_on(Fraction(0), 64, 90)
+    assert arp.advance(Fraction(0)) == []
+    restored = LiveArpeggiator.model_validate_json(arp.model_dump_json())
+    actual = restored.advance(Fraction(1, 4))
+    assert actual == arp.advance(Fraction(1, 4))
+    assert [(e.at, e.key) for e in actual if e.kind == "on"] == [(Fraction(1, 4), 60)]

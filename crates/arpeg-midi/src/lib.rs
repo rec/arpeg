@@ -275,6 +275,40 @@ pub fn parse_profile(text: &str) -> Result<Profile, String> {
                 .unwrap_or(false);
             Selection::Alternating { repeat_endpoints }
         }
+        Some("index_pattern") => {
+            let table = selection.expect("selection table");
+            if table
+                .keys()
+                .any(|key| !["kind", "indices", "boundary"].contains(&key.as_str()))
+            {
+                return Err("unsupported index pattern option".into());
+            }
+            let indices = table
+                .get("indices")
+                .and_then(toml::Value::as_array)
+                .ok_or("index pattern requires an indices array")?
+                .iter()
+                .map(|value| {
+                    value
+                        .as_integer()
+                        .and_then(|index| u64::try_from(index).ok())
+                        .ok_or("indices must be nonnegative integers")
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            if indices.is_empty() {
+                return Err("index pattern requires at least one index".into());
+            }
+            let rest_outside = match table.get("boundary") {
+                None => false,
+                Some(value) if value.as_str() == Some("wrap") => false,
+                Some(value) if value.as_str() == Some("rest") => true,
+                _ => return Err("index pattern boundary must be wrap or rest".into()),
+            };
+            Selection::IndexPattern {
+                indices,
+                rest_outside,
+            }
+        }
         Some("walk") => {
             let table = selection.expect("selection table");
             if table.keys().any(|key| {
@@ -358,6 +392,11 @@ pub fn parse_profile(text: &str) -> Result<Profile, String> {
             retrigger,
         }),
         ParsedBank::History(notes) => {
+            if matches!(selection, Selection::IndexPattern { .. }) {
+                return Err(
+                    "index pattern selection currently requires a held or latched bank".into(),
+                );
+            }
             if matches!(selection, Selection::InsideOut | Selection::OutsideIn) {
                 return Err(
                     "center/edge selection currently requires a held or latched bank".into(),

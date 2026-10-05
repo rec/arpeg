@@ -98,6 +98,19 @@ Both Python and Rust support these orders for live held and latched banks.
 File rendering and recorded history reject them. The
 [shared traces](conformance/center-edge.json) specify their exact behavior.
 
+[Index patterns](conformance/index-pattern.toml) cycle through explicit chord
+positions: `selection = { kind = "index_pattern", indices = [0, 2, 1, 2] }`.
+Positions start at zero, ordered by ascending pitch and then source identity.
+`boundary = "wrap"` is the default: each index is taken modulo the bank size.
+Set `boundary = "rest"` to skip a missing position and advance to the next slot.
+Ordinary chord edits preserve the pattern position; bank-edit retrigger, an empty
+bank, clear, and stop reset it. Repeats reuse one selection. Rhythm rests, ties,
+masked steps, and chance-rejected hits leave the position unchanged. Python
+snapshots retain it, including after a missing-index rest. Both engines support
+live held and latched banks; file rendering, history, and marked samples reject
+this selection. [Shared traces](conformance/index-pattern.json) check the order
+and both boundary policies under irregular polling.
+
 [src/arpeg/capture.py](src/arpeg/capture.py) records a MIDI phrase through
 `MidiCapture.accept` and closes it with `finish`. Its profile declares whether
 overlapping onsets hand off a monophonic segment or remain independent notes.

@@ -1,0 +1,7 @@
+kind = "arpeggiator"
+name = "index-pattern"
+title = "A repeating order of chord positions"
+
+[body]
+selection = { kind = "index_pattern", indices = [0, 2, 1, 2] }
+rhythm = { kind = "grid", step = "1/4 beat" }

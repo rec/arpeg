@@ -140,6 +140,7 @@ fn live_classic_matches_shared_python_rust_traces() {
         include_str!("../../../conformance/chance-walk.json"),
         include_str!("../../../conformance/alternating.json"),
         include_str!("../../../conformance/center-edge.json"),
+        include_str!("../../../conformance/index-pattern.json"),
     ] {
         let fixture: Value = serde_json::from_str(text).unwrap();
         for case in fixture["cases"].as_array().unwrap() {
@@ -198,6 +199,15 @@ fn live_classic_matches_shared_python_rust_traces() {
                 None => Rhythm::Grid { step: beat(1, 4) },
             };
             let selection = match case.get("selection") {
+                Some(s) if s["kind"] == "index_pattern" => Selection::IndexPattern {
+                    indices: s["indices"]
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .map(|i| i.as_u64().unwrap())
+                        .collect(),
+                    rest_outside: s["boundary"] == "rest",
+                },
                 Some(s) if s["kind"] == "inside_out" => Selection::InsideOut,
                 Some(s) if s["kind"] == "outside_in" => Selection::OutsideIn,
                 Some(s) if s["kind"] == "alternating" => Selection::Alternating {

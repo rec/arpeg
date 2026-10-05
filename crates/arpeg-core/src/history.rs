@@ -39,7 +39,10 @@ impl HistoryArpeggiator {
         if matches!(selection, Selection::Alternating { .. }) {
             return Err("history requires classic selection");
         }
-        if matches!(selection, Selection::InsideOut | Selection::OutsideIn) {
+        if matches!(
+            selection,
+            Selection::IndexPattern { .. } | Selection::InsideOut | Selection::OutsideIn
+        ) {
             return Err("history requires classic selection");
         }
         if capacity == 0 || step <= Tick::from_integer(0) || gate < Tick::from_integer(0) {
@@ -209,6 +212,7 @@ impl HistoryArpeggiator {
             Selection::ReversePlayed => ordered.reverse(),
             Selection::Walk(_)
             | Selection::Alternating { .. }
+            | Selection::IndexPattern { .. }
             | Selection::InsideOut
             | Selection::OutsideIn => {
                 unreachable!("validated classic selection")

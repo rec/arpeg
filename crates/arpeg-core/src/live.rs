@@ -64,6 +64,7 @@ pub struct LiveArpeggiator {
     decision_count: u64,
     walk_count: u64,
     walk_rank: usize,
+    pattern_position: usize,
     rising: bool,
     retrigger: Retrigger,
     selection: Selection,
@@ -95,6 +96,11 @@ impl LiveArpeggiator {
     ) -> Result<Self, &'static str> {
         rhythm.validate()?;
         chance.validate()?;
+        if let Selection::IndexPattern { indices, .. } = &selection {
+            if indices.is_empty() {
+                return Err("index pattern requires at least one index");
+            }
+        }
         if let Selection::Walk(walk) = &selection {
             walk.validate()?;
             if walk.moves.len() > 1 && chance.seed.is_none() {
@@ -111,6 +117,7 @@ impl LiveArpeggiator {
             decision_count: 0,
             walk_count: 0,
             walk_rank: 0,
+            pattern_position: 0,
             rising: true,
             retrigger,
             selection,
@@ -186,6 +193,7 @@ impl LiveArpeggiator {
         };
         if self.bank_mode != Bank::Held && self.bank.is_empty() {
             self.previous_key = None;
+            self.pattern_position = 0;
             output.extend(self.release_all(at));
         }
         if edited {
@@ -193,6 +201,7 @@ impl LiveArpeggiator {
         }
         if edited && self.retrigger == Retrigger::BankEdit {
             self.previous_key = None;
+            self.pattern_position = 0;
         }
         self.next_id += 1;
         Ok(output)
@@ -212,9 +221,11 @@ impl LiveArpeggiator {
         }
         if self.bank_mode == Bank::Held && self.retrigger == Retrigger::BankEdit {
             self.previous_key = None;
+            self.pattern_position = 0;
         }
         if self.bank_mode == Bank::Held && self.input.is_empty() {
             self.previous_key = None;
+            self.pattern_position = 0;
             output.extend(self.release_all(at));
         }
         Ok(output)
@@ -244,6 +255,7 @@ impl LiveArpeggiator {
         self.toggled_keys.clear();
         self.toggle_added_keys.clear();
         self.previous_key = None;
+        self.pattern_position = 0;
         self.now = at;
         Ok(output)
     }
@@ -262,6 +274,7 @@ impl LiveArpeggiator {
         self.toggled_keys.clear();
         self.toggle_added_keys.clear();
         self.previous_key = None;
+        self.pattern_position = 0;
         output.extend(self.release_all(at));
         Ok(output)
     }
@@ -347,6 +360,7 @@ impl LiveArpeggiator {
         };
         if active.is_empty() {
             self.previous_key = None;
+            self.pattern_position = 0;
             return;
         }
         if decision.repeats == 0 {
@@ -360,7 +374,18 @@ impl LiveArpeggiator {
         let selection = &self.selection;
         let mut ordered = active.clone();
         ordered.sort_unstable_by_key(|note| selection_key(note, selection));
-        let selected = if matches!(selection, Selection::InsideOut | Selection::OutsideIn) {
+        let selected = if let Selection::IndexPattern {
+            indices,
+            rest_outside,
+        } = selection
+        {
+            let index = indices[self.pattern_position];
+            self.pattern_position = (self.pattern_position + 1) % indices.len();
+            if *rest_outside && index >= ordered.len() as u64 {
+                return;
+            }
+            ordered[(index % ordered.len() as u64) as usize]
+        } else if matches!(selection, Selection::InsideOut | Selection::OutsideIn) {
             let size = ordered.len();
             let mut indices: Vec<_> = (0..size).collect();
             indices.sort_by_key(|i| {
@@ -529,6 +554,7 @@ fn selection_key(note: &InputNote, selection: &Selection) -> (Beat, u64) {
         Selection::Ascending
         | Selection::Walk(_)
         | Selection::Alternating { .. }
+        | Selection::IndexPattern { .. }
         | Selection::InsideOut
         | Selection::OutsideIn => Beat::from_integer(i64::from(note.key)),
         Selection::Descending => -Beat::from_integer(i64::from(note.key)),
