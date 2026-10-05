@@ -44,9 +44,24 @@ supports bounds through `u64::MAX` and therefore uses at most one chunk.
   selection, including initial or reset lowest-note selections. When a move
   is needed, draw below the sum of weights and select the first cumulative
   weight exceeding the draw.
+- Lane `shuffle` has a separate counter incremented once per draw, including
+  draws with bound one. Begin each fresh permutation with ascending pitch/source
+  identity order. Apply Fisher-Yates from index `size - 1` down to `1`: draw
+  below `index + 1` and swap those positions. With `no_repeat`, if the first
+  identity equals the previous selection and the size exceeds one, draw below
+  `size - 1`, add one, and swap that position with the first. This gives a uniform
+  permutation conditional on a different first identity. Repeats within one hit
+  reuse the selection.
+  For preserved chord edits, remove missing identities and count surviving
+  identities before the cursor to update its position. Add new identities in
+  ascending pitch/source order: draw below `size - position + 1` and insert at
+  `position + draw`. Use the current bank revision for all these draws. When the
+  queue ends, `once` rewinds it and `cycle` creates a fresh permutation.
 - Counters survive bank edits, retriggers, clear, and stop. Retrigger resets the
   selected identity; it does not reset the random sequence. Saved Python state
   includes the revision, counters, selected identity, and previous rank.
+  Shuffle snapshots also include the order, cursor, and revision used to update
+  that order. Resets discard the order but retain its random counter.
 
 The native profile uses signed 64-bit seeds and rational components and
 unsigned 64-bit weight totals. Shared profiles must stay within those ranges.

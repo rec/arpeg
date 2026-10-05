@@ -27,6 +27,11 @@ pub enum Selection {
         indices: Vec<u64>,
         rest_outside: bool,
     },
+    Shuffle {
+        once: bool,
+        no_repeat: bool,
+        preserve: bool,
+    },
     Walk(Walk),
 }
 
@@ -101,6 +106,9 @@ pub fn render_held<'a>(
     if matches!(selection, Selection::IndexPattern { .. }) {
         return Err("index pattern selection currently requires live input");
     }
+    if matches!(selection, Selection::Shuffle { .. }) {
+        return Err("shuffle selection currently requires live input");
+    }
     rhythm.validate()?;
     if matches!(rhythm, rhythm::Rhythm::Pattern { .. }) {
         return Err("pattern rhythm currently requires live input");
@@ -174,6 +182,7 @@ fn selection_key<'a>(note: &HeldNote<'a>, selection: &Selection) -> (Beat, &'a s
         Selection::Ascending
         | Selection::Walk(_)
         | Selection::Alternating { .. }
+        | Selection::Shuffle { .. }
         | Selection::IndexPattern { .. }
         | Selection::InsideOut
         | Selection::OutsideIn => Beat::from_integer(note.key.into()),

@@ -25,6 +25,7 @@ from ufor.arpeggiator import (
     OutsideIn,
     Pattern,
     Played,
+    Shuffle,
     Walk,
 )
 
@@ -52,6 +53,10 @@ class LiveArpeggiator(BaseModel):
     walk_count: int = 0
     walk_rank: int = 0
     pattern_position: int = 0
+    shuffle_order: list[int] = Field(default_factory=list)
+    shuffle_position: int = 0
+    shuffle_revision: int = -1
+    shuffle_count: int = 0
     rising: bool = True
     pending: list[_Attack] = Field(default_factory=list)
     now: Fraction = Fraction(0)
@@ -80,6 +85,7 @@ class LiveArpeggiator(BaseModel):
                 InsideOut,
                 OutsideIn,
                 IndexPattern,
+                Shuffle,
                 Walk,
             ),
         ):
@@ -112,6 +118,7 @@ class LiveArpeggiator(BaseModel):
         | InsideOut
         | OutsideIn
         | IndexPattern
+        | Shuffle
         | Walk
     ):
         selection = self.profile.body.selection
@@ -125,6 +132,7 @@ class LiveArpeggiator(BaseModel):
                 InsideOut,
                 OutsideIn,
                 IndexPattern,
+                Shuffle,
                 Walk,
             ),
         )
@@ -166,12 +174,16 @@ class LiveArpeggiator(BaseModel):
             if not self.bank:
                 self.previous_note = None
                 self.pattern_position = 0
+                self.shuffle_order.clear()
+                self.shuffle_position = 0
                 events.extend(self._release_all(at))
         if edited:
             self.bank_revision += 1
         if edited and self.profile.body.retrigger == "bank_edit":
             self.previous_note = None
             self.pattern_position = 0
+            self.shuffle_order.clear()
+            self.shuffle_position = 0
         self.next_input_id += 1
         return events
 
@@ -190,9 +202,13 @@ class LiveArpeggiator(BaseModel):
         ):
             self.previous_note = None
             self.pattern_position = 0
+            self.shuffle_order.clear()
+            self.shuffle_position = 0
         if not self.input and isinstance(self.bank_mode, HeldBank):
             self.previous_note = None
             self.pattern_position = 0
+            self.shuffle_order.clear()
+            self.shuffle_position = 0
             events.extend(self._release_all(at))
         return events
 
@@ -216,6 +232,8 @@ class LiveArpeggiator(BaseModel):
         self.toggle_added_keys.clear()
         self.previous_note = None
         self.pattern_position = 0
+        self.shuffle_order.clear()
+        self.shuffle_position = 0
         self.now = at
         return events
 
@@ -233,6 +251,8 @@ class LiveArpeggiator(BaseModel):
         self.toggle_added_keys.clear()
         self.previous_note = None
         self.pattern_position = 0
+        self.shuffle_order.clear()
+        self.shuffle_position = 0
         events.extend(self._release_all(at))
         return events
 
@@ -286,6 +306,8 @@ class LiveArpeggiator(BaseModel):
         if not active:
             self.previous_note = None
             self.pattern_position = 0
+            self.shuffle_order.clear()
+            self.shuffle_position = 0
             return
         if not decision.repeats:
             return
@@ -315,6 +337,8 @@ class LiveArpeggiator(BaseModel):
             if selection.boundary == "rest" and index >= len(ordered):
                 return
             note = ordered[index % len(ordered)]
+        elif isinstance(selection, Shuffle):
+            note = self._shuffle_note(ordered, selection)
         elif isinstance(selection, (InsideOut, OutsideIn)):
             size = len(ordered)
             indices = sorted(
@@ -439,6 +463,74 @@ class LiveArpeggiator(BaseModel):
             )
             for i in range(decision.repeats)
         )
+
+    def _shuffle_note(
+        self, ordered: list[_InputNote], selection: Shuffle
+    ) -> _InputNote:
+        seed = self.profile.body.seed
+        assert seed is not None
+        identities = [n.id for n in ordered]
+        edited = self.shuffle_revision != self.bank_revision
+        if edited and self.shuffle_order and selection.on_edit == "preserve":
+            played = self.shuffle_order[: self.shuffle_position]
+            self.shuffle_order = [i for i in self.shuffle_order if i in identities]
+            self.shuffle_position = sum(i in identities for i in played)
+            for identity in identities:
+                if identity not in self.shuffle_order:
+                    offset = draw_below(
+                        seed,
+                        self.profile.name,
+                        "shuffle",
+                        self.bank_revision,
+                        self.shuffle_count,
+                        len(self.shuffle_order) - self.shuffle_position + 1,
+                    )
+                    self.shuffle_count += 1
+                    self.shuffle_order.insert(self.shuffle_position + offset, identity)
+        restart = not self.shuffle_order or (edited and selection.on_edit == "restart")
+        finished = self.shuffle_position == len(self.shuffle_order)
+        if restart or (finished and selection.mode == "cycle"):
+            self.shuffle_order = identities
+            self.shuffle_position = 0
+            for index in range(len(self.shuffle_order) - 1, 0, -1):
+                chosen = draw_below(
+                    seed,
+                    self.profile.name,
+                    "shuffle",
+                    self.bank_revision,
+                    self.shuffle_count,
+                    index + 1,
+                )
+                self.shuffle_count += 1
+                self.shuffle_order[index], self.shuffle_order[chosen] = (
+                    self.shuffle_order[chosen],
+                    self.shuffle_order[index],
+                )
+            if (
+                selection.no_repeat
+                and len(self.shuffle_order) > 1
+                and self.previous_note is not None
+                and self.shuffle_order[0] == self.previous_note.id
+            ):
+                chosen = 1 + draw_below(
+                    seed,
+                    self.profile.name,
+                    "shuffle",
+                    self.bank_revision,
+                    self.shuffle_count,
+                    len(self.shuffle_order) - 1,
+                )
+                self.shuffle_count += 1
+                self.shuffle_order[0], self.shuffle_order[chosen] = (
+                    self.shuffle_order[chosen],
+                    self.shuffle_order[0],
+                )
+        elif finished:
+            self.shuffle_position = 0
+        self.shuffle_revision = self.bank_revision
+        identity = self.shuffle_order[self.shuffle_position]
+        self.shuffle_position += 1
+        return next(n for n in ordered if n.id == identity)
 
     def _attack(self, attack: _Attack) -> list[LiveEvent]:
         at, note = attack.at, attack.note

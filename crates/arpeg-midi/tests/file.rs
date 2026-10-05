@@ -420,6 +420,55 @@ fn index_pattern_defaults_to_wrap_and_validates_live_only_options() {
     assert!(parse_profile(&history).is_err());
 }
 
+#[test]
+fn shuffle_profile_requires_seed_and_validates_live_only_policies() {
+    let profile = include_str!("../../../conformance/shuffle.toml");
+    for (options, once, no_repeat, preserve) in [
+        ("", false, false, false),
+        (
+            ", mode = \"once\", no_repeat = true, on_edit = \"preserve\"",
+            true,
+            true,
+            true,
+        ),
+    ] {
+        let text = profile.replace(
+            "kind = \"shuffle\"",
+            &format!("kind = \"shuffle\"{options}"),
+        );
+        let Profile::Classic(parsed) = parse_profile(&text).unwrap() else {
+            panic!("expected live held profile");
+        };
+        assert_eq!(
+            parsed.selection,
+            arpeg_core::Selection::Shuffle {
+                once,
+                no_repeat,
+                preserve
+            }
+        );
+    }
+    for option in [
+        "mode = \"random\"",
+        "on_edit = \"append\"",
+        "no_repeat = 1",
+        "unknown = true",
+    ] {
+        let text = profile.replace(
+            "kind = \"shuffle\"",
+            &format!("kind = \"shuffle\", {option}"),
+        );
+        assert!(parse_profile(&text).is_err());
+    }
+    assert!(parse_profile(&profile.replace("seed = 42", "")).is_err());
+    assert_eq!(
+        render_file(profile, &single_note_input(0)).unwrap_err(),
+        "shuffle selection currently requires live input"
+    );
+    let history = profile.replace("[body]", "[body]\nbank = { kind = \"history\" }");
+    assert!(parse_profile(&history).is_err());
+}
+
 fn single_note_input(end_delay: u32) -> Vec<u8> {
     let channel = u4::from(0);
     let key = u7::from(60);

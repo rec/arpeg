@@ -31,7 +31,9 @@ def test_alternating_profile_round_trips() -> None:
     assert parse_score(score_toml(profile)) == profile
 
 
-@pytest.mark.parametrize("name", ["inside-out", "outside-in", "index-pattern"])
+@pytest.mark.parametrize(
+    "name", ["inside-out", "outside-in", "index-pattern", "shuffle"]
+)
 def test_center_edge_profile_round_trips(name: str) -> None:
     profile = parse_score(Path(f"conformance/{name}.toml").read_text())
     assert parse_score(score_toml(profile)) == profile

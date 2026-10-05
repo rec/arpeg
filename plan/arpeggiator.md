@@ -385,6 +385,13 @@ Out-of-range pitches require a chosen drop/fold/error policy, never silent clamp
 Algorithmic selectors include weighted choice, shuffle-once, reshuffle-per-cycle,
 no-immediate-repeat, bounded random walks, interval contours, transition tables,
 and finite grammar expansions. All must still select or derive identified notes.
+Shuffle selection requires a seed. `mode = "cycle"` shuffles each cycle by
+default; `mode = "once"` reuses the order. `no_repeat = false` allows adjacent
+cycle-boundary repeats; enable it to avoid consecutive selections of the same
+source identity when multiple notes remain. `on_edit = "restart"` starts a new
+permutation by default. `on_edit = "preserve"` keeps surviving order and inserts
+new notes randomly into the unplayed portion. Bank-edit retrigger overrides that
+preservation, and empty banks, clear, and stop discard the order.
 Deriving a new pitch retains a source gesture reference or explicitly chooses
 a synthetic gesture. No hidden pitch generation from an empty bank.
 

@@ -1,0 +1,510 @@
+{
+  "cases": [
+    {
+      "name": "each cycle shuffles again and boundary repeats are allowed",
+      "profile_name": "shuffle",
+      "seed": 42,
+      "bank": "held",
+      "retrigger": "on_empty",
+      "gate": "0",
+      "selection": {
+        "kind": "shuffle"
+      },
+      "actions": [
+        ["on","0",60,100],
+        ["on","0",64,90],
+        ["on","0",67,80],
+        ["advance","11/4"]
+      ],
+      "expected": [
+        ["0","on",0,1,64,90],
+        ["0","off",0,1,64,0],
+        ["1/4","on",1,0,60,100],
+        ["1/4","off",1,0,60,0],
+        ["1/2","on",2,2,67,80],
+        ["1/2","off",2,2,67,0],
+        ["3/4","on",3,0,60,100],
+        ["3/4","off",3,0,60,0],
+        ["1","on",4,1,64,90],
+        ["1","off",4,1,64,0],
+        ["5/4","on",5,2,67,80],
+        ["5/4","off",5,2,67,0],
+        ["3/2","on",6,0,60,100],
+        ["3/2","off",6,0,60,0],
+        ["7/4","on",7,2,67,80],
+        ["7/4","off",7,2,67,0],
+        ["2","on",8,1,64,90],
+        ["2","off",8,1,64,0],
+        ["9/4","on",9,1,64,90],
+        ["9/4","off",9,1,64,0],
+        ["5/2","on",10,0,60,100],
+        ["5/2","off",10,0,60,0],
+        ["11/4","on",11,2,67,80],
+        ["11/4","off",11,2,67,0]
+      ]
+    },
+    {
+      "name": "no-repeat prevents a repeated source across cycles",
+      "profile_name": "shuffle",
+      "seed": 42,
+      "bank": "held",
+      "retrigger": "on_empty",
+      "gate": "0",
+      "selection": {
+        "kind": "shuffle",
+        "no_repeat": true
+      },
+      "actions": [
+        ["on","0",60,100],
+        ["on","0",64,90],
+        ["on","0",67,80],
+        ["advance","11/4"]
+      ],
+      "expected": [
+        ["0","on",0,1,64,90],
+        ["0","off",0,1,64,0],
+        ["1/4","on",1,0,60,100],
+        ["1/4","off",1,0,60,0],
+        ["1/2","on",2,2,67,80],
+        ["1/2","off",2,2,67,0],
+        ["3/4","on",3,0,60,100],
+        ["3/4","off",3,0,60,0],
+        ["1","on",4,1,64,90],
+        ["1","off",4,1,64,0],
+        ["5/4","on",5,2,67,80],
+        ["5/4","off",5,2,67,0],
+        ["3/2","on",6,0,60,100],
+        ["3/2","off",6,0,60,0],
+        ["7/4","on",7,2,67,80],
+        ["7/4","off",7,2,67,0],
+        ["2","on",8,1,64,90],
+        ["2","off",8,1,64,0],
+        ["9/4","on",9,2,67,80],
+        ["9/4","off",9,2,67,0],
+        ["5/2","on",10,0,60,100],
+        ["5/2","off",10,0,60,0],
+        ["11/4","on",11,1,64,90],
+        ["11/4","off",11,1,64,0]
+      ]
+    },
+    {
+      "name": "shuffle once repeats one permutation",
+      "profile_name": "shuffle",
+      "seed": 42,
+      "bank": "held",
+      "retrigger": "on_empty",
+      "gate": "0",
+      "selection": {
+        "kind": "shuffle",
+        "mode": "once"
+      },
+      "actions": [
+        ["on","0",60,100],
+        ["on","0",64,90],
+        ["on","0",67,80],
+        ["advance","11/4"]
+      ],
+      "expected": [
+        ["0","on",0,1,64,90],
+        ["0","off",0,1,64,0],
+        ["1/4","on",1,0,60,100],
+        ["1/4","off",1,0,60,0],
+        ["1/2","on",2,2,67,80],
+        ["1/2","off",2,2,67,0],
+        ["3/4","on",3,1,64,90],
+        ["3/4","off",3,1,64,0],
+        ["1","on",4,0,60,100],
+        ["1","off",4,0,60,0],
+        ["5/4","on",5,2,67,80],
+        ["5/4","off",5,2,67,0],
+        ["3/2","on",6,1,64,90],
+        ["3/2","off",6,1,64,0],
+        ["7/4","on",7,0,60,100],
+        ["7/4","off",7,0,60,0],
+        ["2","on",8,2,67,80],
+        ["2","off",8,2,67,0],
+        ["9/4","on",9,1,64,90],
+        ["9/4","off",9,1,64,0],
+        ["5/2","on",10,0,60,100],
+        ["5/2","off",10,0,60,0],
+        ["11/4","on",11,2,67,80],
+        ["11/4","off",11,2,67,0]
+      ]
+    },
+    {
+      "name": "duplicate pitches retain separate identities",
+      "profile_name": "shuffle",
+      "seed": 42,
+      "bank": "held",
+      "retrigger": "on_empty",
+      "gate": "0",
+      "selection": {
+        "kind": "shuffle"
+      },
+      "actions": [
+        ["on","0",60,100],
+        ["on","0",60,90],
+        ["on","0",67,80],
+        ["advance","1/2"]
+      ],
+      "expected": [
+        ["0","on",0,1,60,90],
+        ["0","off",0,1,60,0],
+        ["1/4","on",1,0,60,100],
+        ["1/4","off",1,0,60,0],
+        ["1/2","on",2,2,67,80],
+        ["1/2","off",2,2,67,0]
+      ]
+    },
+    {
+      "name": "single-note no-repeat remains playable",
+      "profile_name": "shuffle",
+      "seed": 42,
+      "bank": "held",
+      "retrigger": "on_empty",
+      "gate": "0",
+      "selection": {
+        "kind": "shuffle",
+        "no_repeat": true
+      },
+      "actions": [
+        ["on","0",60,100],
+        ["advance","1/2"]
+      ],
+      "expected": [
+        ["0","on",0,0,60,100],
+        ["0","off",0,0,60,0],
+        ["1/4","on",1,0,60,100],
+        ["1/4","off",1,0,60,0],
+        ["1/2","on",2,0,60,100],
+        ["1/2","off",2,0,60,0]
+      ]
+    },
+    {
+      "name": "a chord addition restarts by default",
+      "profile_name": "shuffle",
+      "seed": 42,
+      "bank": "held",
+      "retrigger": "on_empty",
+      "gate": "0",
+      "selection": {
+        "kind": "shuffle",
+        "mode": "once"
+      },
+      "actions": [
+        ["on","0",60,100],
+        ["on","0",64,90],
+        ["on","0",67,80],
+        ["on","3/8",55,70],
+        ["advance","5/4"]
+      ],
+      "expected": [
+        ["0","on",0,1,64,90],
+        ["0","off",0,1,64,0],
+        ["1/4","on",1,0,60,100],
+        ["1/4","off",1,0,60,0],
+        ["1/2","on",2,1,64,90],
+        ["1/2","off",2,1,64,0],
+        ["3/4","on",3,2,67,80],
+        ["3/4","off",3,2,67,0],
+        ["1","on",4,0,60,100],
+        ["1","off",4,0,60,0],
+        ["5/4","on",5,3,55,70],
+        ["5/4","off",5,3,55,0]
+      ]
+    },
+    {
+      "name": "preserve inserts a new note into the unplayed cycle",
+      "profile_name": "shuffle",
+      "seed": 42,
+      "bank": "held",
+      "retrigger": "on_empty",
+      "gate": "0",
+      "selection": {
+        "kind": "shuffle",
+        "mode": "once",
+        "on_edit": "preserve"
+      },
+      "actions": [
+        ["on","0",60,100],
+        ["on","0",64,90],
+        ["on","0",67,80],
+        ["on","3/8",55,70],
+        ["advance","7/4"]
+      ],
+      "expected": [
+        ["0","on",0,1,64,90],
+        ["0","off",0,1,64,0],
+        ["1/4","on",1,0,60,100],
+        ["1/4","off",1,0,60,0],
+        ["1/2","on",2,3,55,70],
+        ["1/2","off",2,3,55,0],
+        ["3/4","on",3,2,67,80],
+        ["3/4","off",3,2,67,0],
+        ["1","on",4,1,64,90],
+        ["1","off",4,1,64,0],
+        ["5/4","on",5,0,60,100],
+        ["5/4","off",5,0,60,0],
+        ["3/2","on",6,3,55,70],
+        ["3/2","off",6,3,55,0],
+        ["7/4","on",7,2,67,80],
+        ["7/4","off",7,2,67,0]
+      ]
+    },
+    {
+      "name": "bank-edit retrigger overrides preserve",
+      "profile_name": "shuffle",
+      "seed": 42,
+      "bank": "held",
+      "retrigger": "bank_edit",
+      "gate": "0",
+      "selection": {
+        "kind": "shuffle",
+        "mode": "once",
+        "on_edit": "preserve"
+      },
+      "actions": [
+        ["on","0",60,100],
+        ["on","0",64,90],
+        ["on","0",67,80],
+        ["on","3/8",55,70],
+        ["advance","5/4"]
+      ],
+      "expected": [
+        ["0","on",0,1,64,90],
+        ["0","off",0,1,64,0],
+        ["1/4","on",1,0,60,100],
+        ["1/4","off",1,0,60,0],
+        ["1/2","on",2,1,64,90],
+        ["1/2","off",2,1,64,0],
+        ["3/4","on",3,2,67,80],
+        ["3/4","off",3,2,67,0],
+        ["1","on",4,0,60,100],
+        ["1","off",4,0,60,0],
+        ["5/4","on",5,3,55,70],
+        ["5/4","off",5,3,55,0]
+      ]
+    },
+    {
+      "name": "preserve handles removal of an already selected identity",
+      "profile_name": "shuffle",
+      "seed": 42,
+      "bank": "held",
+      "retrigger": "on_empty",
+      "gate": "0",
+      "selection": {
+        "kind": "shuffle",
+        "mode": "once",
+        "on_edit": "preserve"
+      },
+      "actions": [
+        ["on","0",60,100],
+        ["on","0",64,90],
+        ["on","0",67,80],
+        ["off","3/8",60],
+        ["advance","5/4"]
+      ],
+      "expected": [
+        ["0","on",0,1,64,90],
+        ["0","off",0,1,64,0],
+        ["1/4","on",1,0,60,100],
+        ["1/4","off",1,0,60,0],
+        ["1/2","on",2,2,67,80],
+        ["1/2","off",2,2,67,0],
+        ["3/4","on",3,1,64,90],
+        ["3/4","off",3,1,64,0],
+        ["1","on",4,2,67,80],
+        ["1","off",4,2,67,0],
+        ["5/4","on",5,1,64,90],
+        ["5/4","off",5,1,64,0]
+      ]
+    },
+    {
+      "name": "new notes join after the last hit before the next cycle",
+      "profile_name": "shuffle",
+      "seed": 42,
+      "bank": "held",
+      "retrigger": "on_empty",
+      "gate": "0",
+      "selection": {
+        "kind": "shuffle",
+        "mode": "once",
+        "on_edit": "preserve"
+      },
+      "actions": [
+        ["on","0",60,100],
+        ["on","0",64,90],
+        ["on","0",67,80],
+        ["on","5/8",55,70],
+        ["advance","7/4"]
+      ],
+      "expected": [
+        ["0","on",0,1,64,90],
+        ["0","off",0,1,64,0],
+        ["1/4","on",1,0,60,100],
+        ["1/4","off",1,0,60,0],
+        ["1/2","on",2,2,67,80],
+        ["1/2","off",2,2,67,0],
+        ["3/4","on",3,3,55,70],
+        ["3/4","off",3,3,55,0],
+        ["1","on",4,1,64,90],
+        ["1","off",4,1,64,0],
+        ["5/4","on",5,0,60,100],
+        ["5/4","off",5,0,60,0],
+        ["3/2","on",6,2,67,80],
+        ["3/2","off",6,2,67,0],
+        ["7/4","on",7,3,55,70],
+        ["7/4","off",7,3,55,0]
+      ]
+    },
+    {
+      "name": "chance rejection leaves the shuffled queue unchanged",
+      "profile_name": "shuffle",
+      "seed": 42,
+      "bank": "held",
+      "retrigger": "on_empty",
+      "gate": "0",
+      "selection": {
+        "kind": "shuffle",
+        "mode": "once"
+      },
+      "actions": [
+        ["on","0",60,100],
+        ["on","0",64,90],
+        ["on","0",67,80],
+        ["advance","11/4"]
+      ],
+      "expected": [
+        ["0","on",0,1,64,90],
+        ["0","off",0,1,64,0],
+        ["1","on",1,0,60,100],
+        ["1","off",1,0,60,0],
+        ["3/2","on",2,2,67,80],
+        ["3/2","off",2,2,67,0],
+        ["7/4","on",3,1,64,90],
+        ["7/4","off",3,1,64,0],
+        ["2","on",4,0,60,100],
+        ["2","off",4,0,60,0],
+        ["9/4","on",5,2,67,80],
+        ["9/4","off",5,2,67,0],
+        ["5/2","on",6,1,64,90],
+        ["5/2","off",6,1,64,0]
+      ],
+      "probability": "2/3"
+    },
+    {
+      "name": "repeats reuse selection and rhythm rests leave the queue unchanged",
+      "profile_name": "shuffle",
+      "seed": 42,
+      "bank": "held",
+      "retrigger": "on_empty",
+      "gate": "0",
+      "selection": {
+        "kind": "shuffle",
+        "mode": "once"
+      },
+      "actions": [
+        ["on","0",60,100],
+        ["on","0",64,90],
+        ["on","0",67,80],
+        ["advance","5/4"]
+      ],
+      "expected": [
+        ["0","on",0,1,64,90],
+        ["0","off",0,1,64,0],
+        ["1/8","on",1,1,64,90],
+        ["1/8","off",1,1,64,0],
+        ["1/2","on",2,0,60,100],
+        ["1/2","off",2,0,60,0],
+        ["5/8","on",3,0,60,100],
+        ["5/8","off",3,0,60,0],
+        ["1","on",4,2,67,80],
+        ["1","off",4,2,67,0],
+        ["9/8","on",5,2,67,80],
+        ["9/8","off",5,2,67,0]
+      ],
+      "rhythm": {
+        "kind": "pattern",
+        "steps": [
+          {
+            "kind": "hit",
+            "duration": "1/4 beat",
+            "repeats": 2
+          },
+          {
+            "kind": "rest",
+            "duration": "1/4 beat"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Euclidean gaps do not consume shuffled notes",
+      "profile_name": "shuffle",
+      "seed": 42,
+      "bank": "held",
+      "retrigger": "on_empty",
+      "gate": "0",
+      "selection": {
+        "kind": "shuffle",
+        "mode": "once"
+      },
+      "actions": [
+        ["on","0",60,100],
+        ["on","0",64,90],
+        ["on","0",67,80],
+        ["advance","5/4"]
+      ],
+      "expected": [
+        ["0","on",0,1,64,90],
+        ["0","off",0,1,64,0],
+        ["1/2","on",1,0,60,100],
+        ["1/2","off",1,0,60,0],
+        ["1","on",2,2,67,80],
+        ["1","off",2,2,67,0]
+      ],
+      "rhythm": {
+        "kind": "euclidean",
+        "steps": 4,
+        "pulses": 2,
+        "rotation": 0,
+        "step": "1/4 beat"
+      }
+    },
+    {
+      "name": "latched key releases do not reshuffle the bank",
+      "profile_name": "shuffle",
+      "seed": 42,
+      "bank": "replace",
+      "retrigger": "on_empty",
+      "gate": "0",
+      "selection": {
+        "kind": "shuffle",
+        "mode": "once"
+      },
+      "actions": [
+        ["on","0",60,100],
+        ["on","0",64,90],
+        ["on","0",67,80],
+        ["off","1/8",60],
+        ["off","1/8",64],
+        ["off","1/8",67],
+        ["advance","5/4"]
+      ],
+      "expected": [
+        ["0","on",0,1,64,90],
+        ["0","off",0,1,64,0],
+        ["1/4","on",1,0,60,100],
+        ["1/4","off",1,0,60,0],
+        ["1/2","on",2,2,67,80],
+        ["1/2","off",2,2,67,0],
+        ["3/4","on",3,1,64,90],
+        ["3/4","off",3,1,64,0],
+        ["1","on",4,0,60,100],
+        ["1","off",4,0,60,0],
+        ["5/4","on",5,2,67,80],
+        ["5/4","off",5,2,67,0]
+      ]
+    }
+  ]
+}

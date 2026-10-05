@@ -65,6 +65,10 @@ pub struct LiveArpeggiator {
     walk_count: u64,
     walk_rank: usize,
     pattern_position: usize,
+    shuffle_order: Vec<u64>,
+    shuffle_position: usize,
+    shuffle_revision: Option<u64>,
+    shuffle_count: u64,
     rising: bool,
     retrigger: Retrigger,
     selection: Selection,
@@ -96,6 +100,9 @@ impl LiveArpeggiator {
     ) -> Result<Self, &'static str> {
         rhythm.validate()?;
         chance.validate()?;
+        if matches!(selection, Selection::Shuffle { .. }) && chance.seed.is_none() {
+            return Err("shuffle requires an explicit seed");
+        }
         if let Selection::IndexPattern { indices, .. } = &selection {
             if indices.is_empty() {
                 return Err("index pattern requires at least one index");
@@ -118,6 +125,10 @@ impl LiveArpeggiator {
             walk_count: 0,
             walk_rank: 0,
             pattern_position: 0,
+            shuffle_order: Vec::new(),
+            shuffle_position: 0,
+            shuffle_revision: None,
+            shuffle_count: 0,
             rising: true,
             retrigger,
             selection,
@@ -194,6 +205,8 @@ impl LiveArpeggiator {
         if self.bank_mode != Bank::Held && self.bank.is_empty() {
             self.previous_key = None;
             self.pattern_position = 0;
+            self.shuffle_order.clear();
+            self.shuffle_position = 0;
             output.extend(self.release_all(at));
         }
         if edited {
@@ -202,6 +215,8 @@ impl LiveArpeggiator {
         if edited && self.retrigger == Retrigger::BankEdit {
             self.previous_key = None;
             self.pattern_position = 0;
+            self.shuffle_order.clear();
+            self.shuffle_position = 0;
         }
         self.next_id += 1;
         Ok(output)
@@ -222,10 +237,14 @@ impl LiveArpeggiator {
         if self.bank_mode == Bank::Held && self.retrigger == Retrigger::BankEdit {
             self.previous_key = None;
             self.pattern_position = 0;
+            self.shuffle_order.clear();
+            self.shuffle_position = 0;
         }
         if self.bank_mode == Bank::Held && self.input.is_empty() {
             self.previous_key = None;
             self.pattern_position = 0;
+            self.shuffle_order.clear();
+            self.shuffle_position = 0;
             output.extend(self.release_all(at));
         }
         Ok(output)
@@ -256,6 +275,8 @@ impl LiveArpeggiator {
         self.toggle_added_keys.clear();
         self.previous_key = None;
         self.pattern_position = 0;
+        self.shuffle_order.clear();
+        self.shuffle_position = 0;
         self.now = at;
         Ok(output)
     }
@@ -275,6 +296,8 @@ impl LiveArpeggiator {
         self.toggle_added_keys.clear();
         self.previous_key = None;
         self.pattern_position = 0;
+        self.shuffle_order.clear();
+        self.shuffle_position = 0;
         output.extend(self.release_all(at));
         Ok(output)
     }
@@ -361,6 +384,8 @@ impl LiveArpeggiator {
         if active.is_empty() {
             self.previous_key = None;
             self.pattern_position = 0;
+            self.shuffle_order.clear();
+            self.shuffle_position = 0;
             return;
         }
         if decision.repeats == 0 {
@@ -385,6 +410,79 @@ impl LiveArpeggiator {
                 return;
             }
             ordered[(index % ordered.len() as u64) as usize]
+        } else if let Selection::Shuffle {
+            once,
+            no_repeat,
+            preserve,
+        } = selection
+        {
+            let seed = self.chance.seed.expect("validated shuffle seed");
+            let identities: Vec<_> = ordered.iter().map(|n| n.id).collect();
+            let edited = self.shuffle_revision != Some(self.bank_revision);
+            if edited && !self.shuffle_order.is_empty() && *preserve {
+                let played = self.shuffle_order[..self.shuffle_position].to_vec();
+                self.shuffle_order.retain(|i| identities.contains(i));
+                self.shuffle_position = played.iter().filter(|i| identities.contains(i)).count();
+                for identity in &identities {
+                    if !self.shuffle_order.contains(identity) {
+                        let offset = draw_below(
+                            seed,
+                            &self.chance.name,
+                            "shuffle",
+                            self.bank_revision,
+                            self.shuffle_count,
+                            (self.shuffle_order.len() - self.shuffle_position + 1) as u64,
+                        ) as usize;
+                        self.shuffle_count += 1;
+                        self.shuffle_order
+                            .insert(self.shuffle_position + offset, *identity);
+                    }
+                }
+            }
+            let restart = self.shuffle_order.is_empty() || (edited && !preserve);
+            let finished = self.shuffle_position == self.shuffle_order.len();
+            if restart || (finished && !once) {
+                self.shuffle_order = identities;
+                self.shuffle_position = 0;
+                for index in (1..self.shuffle_order.len()).rev() {
+                    let chosen = draw_below(
+                        seed,
+                        &self.chance.name,
+                        "shuffle",
+                        self.bank_revision,
+                        self.shuffle_count,
+                        (index + 1) as u64,
+                    ) as usize;
+                    self.shuffle_count += 1;
+                    self.shuffle_order.swap(index, chosen);
+                }
+                if *no_repeat
+                    && self.shuffle_order.len() > 1
+                    && self
+                        .previous_key
+                        .is_some_and(|(_, id)| self.shuffle_order[0] == id)
+                {
+                    let chosen = 1 + draw_below(
+                        seed,
+                        &self.chance.name,
+                        "shuffle",
+                        self.bank_revision,
+                        self.shuffle_count,
+                        (self.shuffle_order.len() - 1) as u64,
+                    ) as usize;
+                    self.shuffle_count += 1;
+                    self.shuffle_order.swap(0, chosen);
+                }
+            } else if finished {
+                self.shuffle_position = 0;
+            }
+            self.shuffle_revision = Some(self.bank_revision);
+            let identity = self.shuffle_order[self.shuffle_position];
+            self.shuffle_position += 1;
+            *ordered
+                .iter()
+                .find(|n| n.id == identity)
+                .expect("current shuffle identity")
         } else if matches!(selection, Selection::InsideOut | Selection::OutsideIn) {
             let size = ordered.len();
             let mut indices: Vec<_> = (0..size).collect();
@@ -554,6 +652,7 @@ fn selection_key(note: &InputNote, selection: &Selection) -> (Beat, u64) {
         Selection::Ascending
         | Selection::Walk(_)
         | Selection::Alternating { .. }
+        | Selection::Shuffle { .. }
         | Selection::IndexPattern { .. }
         | Selection::InsideOut
         | Selection::OutsideIn => Beat::from_integer(i64::from(note.key)),

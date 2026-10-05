@@ -111,6 +111,23 @@ live held and latched banks; file rendering, history, and marked samples reject
 this selection. [Shared traces](conformance/index-pattern.json) check the order
 and both boundary policies under irregular polling.
 
+[Shuffle selection](conformance/shuffle.toml) visits every note once per cycle.
+`selection = { kind = "shuffle" }` shuffles again each cycle; `mode = "once"`
+repeats the initial order. An explicit integer `seed` is required. The default
+allows the same source note at the end of one cycle and the beginning of the
+next. Set `no_repeat = true` to prevent consecutive selections of that source
+when more than one note is available. A hit's repeats still reuse its selection.
+
+`on_edit = "restart"` is the default: chord edits start a fresh shuffled cycle.
+With `on_edit = "preserve"`, surviving notes retain their order, removed notes
+disappear, and added notes are inserted randomly into the unplayed portion.
+The updated complete order is reused in `once` mode. Bank-edit retrigger, an
+empty bank, clear, and stop discard the order. Rhythm rests, ties, masked steps,
+and chance-rejected hits leave the queue unchanged. Random counters persist
+through resets and in Python snapshots. Both engines support live held and
+latched banks; file rendering, history, and marked samples reject shuffle.
+[Shared traces](conformance/shuffle.json) check both modes and edit policies.
+
 [src/arpeg/capture.py](src/arpeg/capture.py) records a MIDI phrase through
 `MidiCapture.accept` and closes it with `finish`. Its profile declares whether
 overlapping onsets hand off a monophonic segment or remain independent notes.

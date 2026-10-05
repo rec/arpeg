@@ -141,6 +141,7 @@ fn live_classic_matches_shared_python_rust_traces() {
         include_str!("../../../conformance/alternating.json"),
         include_str!("../../../conformance/center-edge.json"),
         include_str!("../../../conformance/index-pattern.json"),
+        include_str!("../../../conformance/shuffle.json"),
     ] {
         let fixture: Value = serde_json::from_str(text).unwrap();
         for case in fixture["cases"].as_array().unwrap() {
@@ -199,6 +200,11 @@ fn live_classic_matches_shared_python_rust_traces() {
                 None => Rhythm::Grid { step: beat(1, 4) },
             };
             let selection = match case.get("selection") {
+                Some(s) if s["kind"] == "shuffle" => Selection::Shuffle {
+                    once: s["mode"] == "once",
+                    no_repeat: s["no_repeat"] == true,
+                    preserve: s["on_edit"] == "preserve",
+                },
                 Some(s) if s["kind"] == "index_pattern" => Selection::IndexPattern {
                     indices: s["indices"]
                         .as_array()

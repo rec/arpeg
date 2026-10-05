@@ -1,0 +1,8 @@
+kind = "arpeggiator"
+name = "shuffle"
+title = "Shuffle the chord each cycle"
+
+[body]
+selection = { kind = "shuffle" }
+rhythm = { kind = "grid", step = "1/4 beat" }
+seed = 42

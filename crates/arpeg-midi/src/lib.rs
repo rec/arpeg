@@ -309,6 +309,37 @@ pub fn parse_profile(text: &str) -> Result<Profile, String> {
                 rest_outside,
             }
         }
+        Some("shuffle") => {
+            let table = selection.expect("selection table");
+            if table
+                .keys()
+                .any(|key| !["kind", "mode", "no_repeat", "on_edit"].contains(&key.as_str()))
+            {
+                return Err("unsupported shuffle option".into());
+            }
+            let once = match table.get("mode") {
+                None => false,
+                Some(value) if value.as_str() == Some("cycle") => false,
+                Some(value) if value.as_str() == Some("once") => true,
+                _ => return Err("shuffle mode must be once or cycle".into()),
+            };
+            let preserve = match table.get("on_edit") {
+                None => false,
+                Some(value) if value.as_str() == Some("restart") => false,
+                Some(value) if value.as_str() == Some("preserve") => true,
+                _ => return Err("shuffle on_edit must be restart or preserve".into()),
+            };
+            let no_repeat = table
+                .get("no_repeat")
+                .map(|value| value.as_bool().ok_or("no_repeat must be a boolean"))
+                .transpose()?
+                .unwrap_or(false);
+            Selection::Shuffle {
+                once,
+                no_repeat,
+                preserve,
+            }
+        }
         Some("walk") => {
             let table = selection.expect("selection table");
             if table.keys().any(|key| {
@@ -382,6 +413,9 @@ pub fn parse_profile(text: &str) -> Result<Profile, String> {
     if matches!(&selection, Selection::Walk(walk) if walk.moves.len() > 1) && seed.is_none() {
         return Err("weighted walk requires an explicit seed".into());
     }
+    if matches!(selection, Selection::Shuffle { .. }) && seed.is_none() {
+        return Err("shuffle requires an explicit seed".into());
+    }
     Ok(match bank {
         ParsedBank::Classic(bank) => Profile::Classic(HeldProfile {
             chance,
@@ -392,6 +426,9 @@ pub fn parse_profile(text: &str) -> Result<Profile, String> {
             retrigger,
         }),
         ParsedBank::History(notes) => {
+            if matches!(selection, Selection::Shuffle { .. }) {
+                return Err("shuffle selection currently requires a held or latched bank".into());
+            }
             if matches!(selection, Selection::IndexPattern { .. }) {
                 return Err(
                     "index pattern selection currently requires a held or latched bank".into(),
