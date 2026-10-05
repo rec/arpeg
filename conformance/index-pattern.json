@@ -1,0 +1,234 @@
+{
+  "cases": [
+    {
+      "name": "explicit order repeats ranks within each cycle",
+      "bank": "held",
+      "retrigger": "on_empty",
+      "gate": "0",
+      "selection": {"kind":"index_pattern","indices":[0,2,1,2]},
+      "actions": [
+        ["on","0",60,100],
+        ["on","0",64,90],
+        ["on","0",67,80],
+        ["advance","7/4"]
+      ],
+      "expected": [
+        ["0","on",0,0,60,100],
+        ["0","off",0,0,60,0],
+        ["1/4","on",1,2,67,80],
+        ["1/4","off",1,2,67,0],
+        ["1/2","on",2,1,64,90],
+        ["1/2","off",2,1,64,0],
+        ["3/4","on",3,2,67,80],
+        ["3/4","off",3,2,67,0],
+        ["1","on",4,0,60,100],
+        ["1","off",4,0,60,0],
+        ["5/4","on",5,2,67,80],
+        ["5/4","off",5,2,67,0],
+        ["3/2","on",6,1,64,90],
+        ["3/2","off",6,1,64,0],
+        ["7/4","on",7,2,67,80],
+        ["7/4","off",7,2,67,0]
+      ]
+    },
+    {
+      "name": "duplicate pitches are separate indexed notes",
+      "bank": "held",
+      "retrigger": "on_empty",
+      "gate": "0",
+      "selection": {"kind":"index_pattern","indices":[0,2,1,2]},
+      "actions": [
+        ["on","0",60,100],
+        ["on","0",60,90],
+        ["on","0",67,80],
+        ["advance","3/4"]
+      ],
+      "expected": [
+        ["0","on",0,0,60,100],
+        ["0","off",0,0,60,0],
+        ["1/4","on",1,2,67,80],
+        ["1/4","off",1,2,67,0],
+        ["1/2","on",2,1,60,90],
+        ["1/2","off",2,1,60,0],
+        ["3/4","on",3,2,67,80],
+        ["3/4","off",3,2,67,0]
+      ]
+    },
+    {
+      "name": "chord edit preserves pattern position",
+      "bank": "held",
+      "retrigger": "on_empty",
+      "gate": "0",
+      "selection": {"kind":"index_pattern","indices":[2,0,1]},
+      "actions": [
+        ["on","0",60,100],
+        ["on","0",64,90],
+        ["on","0",67,80],
+        ["on","3/8",55,70],
+        ["advance","3/4"]
+      ],
+      "expected": [
+        ["0","on",0,2,67,80],
+        ["0","off",0,2,67,0],
+        ["1/4","on",1,0,60,100],
+        ["1/4","off",1,0,60,0],
+        ["1/2","on",2,0,60,100],
+        ["1/2","off",2,0,60,0],
+        ["3/4","on",3,1,64,90],
+        ["3/4","off",3,1,64,0]
+      ]
+    },
+    {
+      "name": "bank edit retrigger restarts pattern",
+      "bank": "held",
+      "retrigger": "bank_edit",
+      "gate": "0",
+      "selection": {"kind":"index_pattern","indices":[2,0,1]},
+      "actions": [
+        ["on","0",60,100],
+        ["on","0",64,90],
+        ["on","0",67,80],
+        ["on","3/8",55,70],
+        ["advance","3/4"]
+      ],
+      "expected": [
+        ["0","on",0,2,67,80],
+        ["0","off",0,2,67,0],
+        ["1/4","on",1,0,60,100],
+        ["1/4","off",1,0,60,0],
+        ["1/2","on",2,1,64,90],
+        ["1/2","off",2,1,64,0],
+        ["3/4","on",3,3,55,70],
+        ["3/4","off",3,3,55,0]
+      ]
+    },
+    {
+      "name": "one valid index repeats a singleton bank",
+      "bank": "held",
+      "retrigger": "on_empty",
+      "gate": "0",
+      "selection": {"kind":"index_pattern","indices":[0]},
+      "actions": [
+        ["on","0",60,100],
+        ["advance","1/2"]
+      ],
+      "expected": [
+        ["0","on",0,0,60,100],
+        ["0","off",0,0,60,0],
+        ["1/4","on",1,0,60,100],
+        ["1/4","off",1,0,60,0],
+        ["1/2","on",2,0,60,100],
+        ["1/2","off",2,0,60,0]
+      ]
+    },
+    {
+      "name": "repeat groups share one index and rests do not advance",
+      "bank": "held",
+      "retrigger": "on_empty",
+      "gate": "0",
+      "selection": {"kind":"index_pattern","indices":[0,2,1,2]},
+      "actions": [
+        ["on","0",60,100],
+        ["on","0",64,90],
+        ["on","0",67,80],
+        ["advance","13/8"]
+      ],
+      "expected": [
+        ["0","on",0,0,60,100],
+        ["0","off",0,0,60,0],
+        ["1/8","on",1,0,60,100],
+        ["1/8","off",1,0,60,0],
+        ["1/2","on",2,2,67,80],
+        ["1/2","off",2,2,67,0],
+        ["5/8","on",3,2,67,80],
+        ["5/8","off",3,2,67,0],
+        ["1","on",4,1,64,90],
+        ["1","off",4,1,64,0],
+        ["9/8","on",5,1,64,90],
+        ["9/8","off",5,1,64,0],
+        ["3/2","on",6,2,67,80],
+        ["3/2","off",6,2,67,0],
+        ["13/8","on",7,2,67,80],
+        ["13/8","off",7,2,67,0]
+      ],
+      "rhythm": {"kind":"pattern","steps":[{"kind":"hit","duration":"1/4 beat","repeats":2},{"kind":"rest","duration":"1/4 beat"}]}
+    },
+    {
+      "name": "chance rejections preserve index pattern position",
+      "bank": "held",
+      "retrigger": "on_empty",
+      "gate": "0",
+      "selection": {"kind":"index_pattern","indices":[0,2,1,2]},
+      "actions": [
+        ["on","0",60,100],
+        ["on","0",64,90],
+        ["on","0",67,80],
+        ["advance","2"]
+      ],
+      "expected": [
+        ["0","on",0,0,60,100],
+        ["0","off",0,0,60,0],
+        ["1/4","on",1,2,67,80],
+        ["1/4","off",1,2,67,0],
+        ["1","on",2,1,64,90],
+        ["1","off",2,1,64,0],
+        ["3/2","on",3,2,67,80],
+        ["3/2","off",3,2,67,0],
+        ["7/4","on",4,0,60,100],
+        ["7/4","off",4,0,60,0],
+        ["2","on",5,2,67,80],
+        ["2","off",5,2,67,0]
+      ],
+      "probability": "2/3",
+      "seed": 42,
+      "profile_name": "weighted-walk"
+    },
+    {
+      "name": "latch clear resets index pattern position",
+      "bank": "replace",
+      "retrigger": "on_empty",
+      "gate": "0",
+      "selection": {"kind":"index_pattern","indices":[1,0]},
+      "actions": [
+        ["on","0",60,100],
+        ["on","0",64,90],
+        ["clear","1/8"],
+        ["on","1/4",67,80],
+        ["on","1/4",72,70],
+        ["advance","1/2"]
+      ],
+      "expected": [
+        ["0","on",0,1,64,90],
+        ["0","off",0,1,64,0],
+        ["1/4","on",1,3,72,70],
+        ["1/4","off",1,3,72,0],
+        ["1/2","on",2,2,67,80],
+        ["1/2","off",2,2,67,0]
+      ]
+    },
+    {
+      "name": "empty bank resets index pattern position",
+      "bank": "held",
+      "retrigger": "on_empty",
+      "gate": "0",
+      "selection": {"kind":"index_pattern","indices":[1,0]},
+      "actions": [
+        ["on","0",60,100],
+        ["on","0",64,90],
+        ["off","1/8",60],
+        ["off","1/8",64],
+        ["on","1/4",67,80],
+        ["on","1/4",72,70],
+        ["advance","1/2"]
+      ],
+      "expected": [
+        ["0","on",0,1,64,90],
+        ["0","off",0,1,64,0],
+        ["1/4","on",1,3,72,70],
+        ["1/4","off",1,3,72,0],
+        ["1/2","on",2,2,67,80],
+        ["1/2","off",2,2,67,0]
+      ]
+    }
+  ]
+}
