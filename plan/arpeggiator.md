@@ -491,6 +491,16 @@ tested explicitly; the existing tempo map is not a MIDI pulse estimator.
 
 Expose a small useful Motion interface:
 
+`capture_ready` is implemented in Python, Rust, and WebAssembly. History and
+phrase banks emit one notification before the step that publishes a changed,
+nonempty bank, carrying its exact beat, step index, and revision. Publication
+coalesces completed notes or committed takes; unfinished recording, unchanged
+banks, and empty publication do not notify. Readiness is independent of density.
+The bounded Motion buffer admits notification, step, and outcome together or
+reports exhaustion while preserving bank publication and due releases. Skipped
+notifications are not replayed. Cycle and realized note lifecycle outputs remain
+future work.
+
 Live breath, bend, and channel pressure now support per-lane `current`,
 `recorded`, and `motion` sources through `body.expression.lanes` in Python,
 Rust, and WebAssembly. Unspecified lanes inherit the global source. Motion

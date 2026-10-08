@@ -101,6 +101,30 @@ test('Motion ports return exact event coordinates and accept step-boundary contr
     }
 });
 
+test('capture readiness reports publication before the step and omits empty undo', () => {
+    const profile = readFileSync(new URL('../../../conformance/phrase-wind.toml', import.meta.url), 'utf8');
+    const player = new MidiPlayer(profile, 'internal', 120, 500_000n);
+    try {
+        player.capture(0n, 'record');
+        player.accept(0n, new Uint8Array([144, 60, 100]), 'both');
+        player.capture(10_000n, 'commit');
+        assert.deepEqual(player.take_events().events.map(e => e.port), ['step', 'rest']);
+        player.advance(125_000n);
+        assert.deepEqual(player.take_events(), { events: [
+            { at: '1/4', port: 'capture_ready', index: 1n, revision: 1n },
+            { at: '1/4', port: 'step', index: 1n, revision: 1n },
+            { at: '1/4', port: 'hit', index: 1n, revision: 1n },
+        ], exhausted: false });
+        player.advance(250_000n);
+        assert.deepEqual(player.take_events().events.map(e => e.port), ['step', 'hit']);
+        player.capture(260_000n, 'undo');
+        player.advance(375_000n);
+        assert.deepEqual(player.take_events().events.map(e => [e.port, e.revision]), [['step', 2n], ['rest', 2n]]);
+    } finally {
+        player.free();
+    }
+});
+
 test('phrase controls publish committed takes and preserve sounding output', () => {
     const profile = readFileSync(new URL('../../../conformance/phrase-wind.toml', import.meta.url), 'utf8');
     const player = new MidiPlayer(profile, 'internal', 120, 500_000n);

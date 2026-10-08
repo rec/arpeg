@@ -91,11 +91,17 @@ at the next step; sounding notes and pending repeats retain their target.
 
 Call `take_events()` after each operation to collect
 `{ events, exhausted }`. Each event is `{ at, port, index, revision }`: `at` is
-an exact beat string, `port` is `step`, `hit`, or `rest`, and the counters are
+an exact beat string, `port` is `capture_ready`, `step`, `hit`, or `rest`, and the counters are
 BigInt values. Each step emits `step` before its `hit` or `rest`; ties emit only
-`step`, and repeats share one hit event. The 4096-event buffer stops admitting
+`step`, and repeats share one hit event. History and phrase banks emit
+`capture_ready` before `step` when a changed, nonempty bank becomes eligible.
+Commit alone does not notify; unchanged and empty banks do not notify. Several
+captures published together emit one readiness event, even when density is zero.
+It carries that step's time, index, and new bank revision.
+The 4096-event buffer reserves two slots per step, or three with readiness, and stops admitting
 new steps when full while retaining release obligations; draining reports the
-exhaustion and permits future steps. Skipped attacks are not replayed.
+exhaustion and permits future steps. Skipped attacks and notifications are not replayed;
+publication still updates the bank revision reported by subsequent steps.
 Expression lanes declare their source through `body.expression.lanes`, for
 example `{ breath = "motion", bend = "recorded", pressure = "current" }`.
 Unspecified lanes inherit `body.expression.source`. Recorded lanes require a

@@ -9,6 +9,7 @@ from ufor.arpeggiator import SelectionOffset, Transposition
 
 from arpeg.live import LiveArpeggiator
 from arpeg.midi import MidiPlayer
+from arpeg.ports import PerformancePorts
 from arpeg.profile import parse_profile
 
 
@@ -211,6 +212,33 @@ def test_invalid_controls_leave_pending_music_unchanged() -> None:
         )
     assert player.model_dump_json() == snapshot
     assert [m.bytes() for m in player.advance(100_000_000)] == [[128, 60, 0]]
+
+
+@pytest.mark.parametrize("occupied,admitted", [(4093, True), (4094, False)])
+def test_capture_publication_events_reserve_space_for_the_whole_step(
+    occupied: int,
+    admitted: bool,
+) -> None:
+    ports = PerformancePorts(
+        gate=Fraction(4, 5),
+        density=Fraction(1),
+        events=[
+            arpeggiator_ports.ArpeggiatorOutput(at=0, port="step", index=0, revision=0)
+        ]
+        * occupied,
+    )
+    assert ports.begin_step(Fraction(1, 4), 1, 2, capture_ready=True) == admitted
+    if admitted:
+        ports.outcome(True)
+    batch = ports.take_events()
+    assert batch.exhausted != admitted
+    assert len(batch.events) == (4096 if admitted else occupied)
+    assert [e.port.value for e in batch.events[occupied:]] == (
+        ["capture_ready", "step", "hit"] if admitted else []
+    )
+    assert ports.begin_step(Fraction(1, 2), 2, 2)
+    ports.outcome(False)
+    assert [e.port.value for e in ports.take_events().events] == ["step", "rest"]
 
 
 def test_full_event_buffer_skips_attacks_and_still_releases_owned_notes() -> None:

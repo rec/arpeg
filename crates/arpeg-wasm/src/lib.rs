@@ -102,6 +102,7 @@ impl MidiPlayer {
                 OutputPort::Step => "step",
                 OutputPort::Hit => "hit",
                 OutputPort::Rest => "rest",
+                OutputPort::CaptureReady => "capture_ready",
             };
             for (key, value) in [
                 ("at", JsValue::from_str(&event.at.to_string())),

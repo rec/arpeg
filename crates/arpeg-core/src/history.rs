@@ -275,11 +275,14 @@ impl HistoryArpeggiator {
         output: &mut Vec<RealizedEvent>,
     ) -> Result<(), &'static str> {
         self.bank.advance(source_tick)?;
+        let revision = self.bank.revision;
         self.bank.publish_step();
-        if !self
-            .ports
-            .begin_step(at, self.step_index, self.bank.revision as u64)
-        {
+        if !self.ports.begin_step(
+            at,
+            self.step_index,
+            self.bank.revision as u64,
+            self.bank.revision != revision && !self.bank.published.is_empty(),
+        ) {
             return Ok(());
         }
         if self.bank.published.is_empty() {

@@ -456,6 +456,14 @@ Every opportunity produces `step`, then `hit` when a source note was admitted or
 exact beat time, rhythm index, and bank revision. They describe source admission;
 a MIDI destination may subsequently hand off an older output note.
 
+History and phrase banks emit `capture_ready` when a step publishes a changed,
+nonempty bank, before `step` and its outcome. The event carries the publication's
+beat, step index, and bank revision. Several captures published together emit one
+notification. Replacement, overdub, and undo can notify; unfinished recording,
+unchanged banks, and empty banks do not. Readiness is independent of density:
+even a rejected hit can publish usable captured material. Route this event to a
+Motion that should restart when a new bank becomes eligible.
+
 The host samples its Motion before the target step and routes collected events
 to other Motions. Convert sampled scalar values to explicit rational values;
 there is no hidden float rounding or embedded Motion graph evaluator. Feedback
@@ -463,10 +471,13 @@ needs an explicit delay of at least one scheduling quantum and a bounded host
 event budget.
 
 Drain after each operation. The output buffer holds 4096 events and reserves two
-slots before admitting a step. On exhaustion, new step admissions stop while due
+slots before admitting a step, or three for a publication with `capture_ready`.
+Its notification, step, and outcome are admitted together. On exhaustion, new
+step admissions and their notifications stop while due
 releases and already realized repeats continue. `batch.exhausted` reports the
 condition; draining permits future steps without replaying skipped attacks.
-Native MIDI hosts drain automatically and print a diagnostic on exhaustion.
+Skipped notifications are not replayed; subsequent steps still report the bank
+revision. Native MIDI hosts drain automatically and print a diagnostic on exhaustion.
 [Shared traces](conformance/ports.toml) cover selection offsets, target expression,
 transposition, folding, gate edits,
 density and seeded decisions, ties, repeats, captured material, pause, seeks,

@@ -1,5 +1,41 @@
 # Exact beat and wire traces for the shared Motion boundary.
 [[cases]]
+name = "capture-ready-follows-phrase-publication-even-with-zero-density"
+profile = "phrase-wind"
+actions = [
+  { at = 0, capture = "record", output = [], events = [] },
+  { at = 0, data = [144, 60, 100], output = [], events = [] },
+  { at = 10000, data = [128, 60, 0], output = [], events = [["0", "step", 0, 0], ["0", "rest", 0, 0]] },
+  { at = 20000, capture = "commit", output = [], events = [] },
+  { at = 30000, port = "density", value = "0", output = [], events = [] },
+  { at = 125000, output = [], events = [["1/4", "capture_ready", 1, 1], ["1/4", "step", 1, 1], ["1/4", "rest", 1, 1]] },
+  { at = 250000, output = [], events = [["1/2", "step", 2, 1], ["1/2", "rest", 2, 1]] },
+  { at = 260000, capture = "record", output = [], events = [] },
+  { at = 260000, data = [144, 64, 90], output = [], events = [] },
+  { at = 270000, data = [128, 64, 0], output = [], events = [] },
+  { at = 280000, capture = "overdub", output = [], events = [] },
+  { at = 375000, output = [], events = [["3/4", "capture_ready", 3, 2], ["3/4", "step", 3, 2], ["3/4", "rest", 3, 2]] },
+  { at = 400000, capture = "undo", output = [], events = [] },
+  { at = 500000, output = [], events = [["1", "capture_ready", 4, 3], ["1", "step", 4, 3], ["1", "rest", 4, 3]] },
+  { at = 510000, capture = "undo", output = [], events = [] },
+  { at = 625000, output = [], events = [["5/4", "step", 5, 4], ["5/4", "rest", 5, 4]] },
+  { at = 750000, output = [], events = [["3/2", "step", 6, 4], ["3/2", "rest", 6, 4]] },
+]
+
+[[cases]]
+name = "capture-ready-coalesces-completed-history-notes-at-publication"
+profile = "history-wind"
+actions = [
+  { at = 0, data = [144, 60, 100], output = [], events = [] },
+  { at = 10000, data = [128, 60, 0], output = [], events = [["0", "step", 0, 0], ["0", "rest", 0, 0]] },
+  { at = 20000, data = [144, 64, 90], output = [], events = [] },
+  { at = 30000, data = [128, 64, 0], output = [], events = [] },
+  { at = 125000, output = [[144, 60, 100]], events = [["1/4", "capture_ready", 1, 1], ["1/4", "step", 1, 1], ["1/4", "hit", 1, 1]] },
+  { at = 225000, output = [[128, 60, 0]], events = [] },
+  { at = 250000, output = [[144, 64, 90]], events = [["1/2", "step", 2, 1], ["1/2", "hit", 2, 1]] },
+]
+
+[[cases]]
 name = "motion-expression-is-immediate-and-restored-after-pause-and-seek"
 profile = "motion-expression"
 actions = [
@@ -34,7 +70,7 @@ actions = [
   { at = 10000, data = [224, 0, 96], output = [], events = [["0", "step", 0, 0], ["0", "rest", 0, 0]] },
   { at = 20000, data = [128, 60, 0], output = [], events = [] },
   { at = 20000, capture = "commit", output = [], events = [] },
-  { at = 125000, output = [[176, 2, 64], [208, 30], [224, 0, 64], [144, 60, 100]], events = [["1/4", "step", 1, 1], ["1/4", "hit", 1, 1]] },
+  { at = 125000, output = [[176, 2, 64], [208, 30], [224, 0, 64], [144, 60, 100]], events = [["1/4", "capture_ready", 1, 1], ["1/4", "step", 1, 1], ["1/4", "hit", 1, 1]] },
   { at = 150000, port = "breath", value = "1/4", output = [[176, 2, 32]], events = [] },
   { at = 155000, data = [176, 2, 127], output = [], events = [] },
   { at = 160000, data = [208, 70], output = [[208, 70]], events = [] },
@@ -91,7 +127,7 @@ actions = [
   { at = 30, data = [128, 64, 0], output = [], events = [] },
   { at = 30, capture = "commit", output = [], events = [] },
   { at = 30, port = "selection_offset", value = "1", output = [], events = [] },
-  { at = 125000, output = [[176, 2, 20], [144, 64, 90]], events = [["1/4", "step", 1, 1], ["1/4", "hit", 1, 1]] },
+  { at = 125000, output = [[176, 2, 20], [144, 64, 90]], events = [["1/4", "capture_ready", 1, 1], ["1/4", "step", 1, 1], ["1/4", "hit", 1, 1]] },
   { at = 225000, output = [[128, 64, 0]], events = [] },
   { at = 250000, output = [[176, 2, 10], [144, 60, 100]], events = [["1/2", "step", 2, 1], ["1/2", "hit", 2, 1]] },
 ]
@@ -135,7 +171,7 @@ actions = [
   { at = 0, data = [144, 60, 100], output = [], events = [] },
   { at = 0, capture = "commit", output = [], events = [] },
   { at = 0, port = "transposition", value = "12", output = [], events = [] },
-  { at = 0, output = [[176, 2, 50], [144, 72, 100]], events = [["0", "step", 0, 1], ["0", "hit", 0, 1]] },
+  { at = 0, output = [[176, 2, 50], [144, 72, 100]], events = [["0", "capture_ready", 0, 1], ["0", "step", 0, 1], ["0", "hit", 0, 1]] },
   { at = 10000, port = "transposition", value = "-12", output = [], events = [] },
   { at = 125000, output = [[128, 72, 0], [176, 2, 50], [144, 48, 100]], events = [["1/4", "step", 1, 1], ["1/4", "hit", 1, 1]] },
 ]
@@ -201,7 +237,7 @@ actions = [
   { at = 0, capture = "record", output = [], events = [] },
   { at = 0, data = [144, 60, 100], output = [], events = [] },
   { at = 0, capture = "commit", output = [], events = [] },
-  { at = 0, output = [[144, 60, 100]], events = [["0", "step", 0, 1], ["0", "hit", 0, 1]] },
+  { at = 0, output = [[144, 60, 100]], events = [["0", "capture_ready", 0, 1], ["0", "step", 0, 1], ["0", "hit", 0, 1]] },
   { at = 10000, port = "gate", value = "1/5", output = [], events = [] },
   { at = 20000, port = "density", value = "0", output = [], events = [] },
   { at = 125000, output = [[128, 60, 0]], events = [["1/4", "step", 1, 1], ["1/4", "rest", 1, 1]] },

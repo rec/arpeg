@@ -224,9 +224,15 @@ class LiveHistoryArpeggiator(BaseModel):
 
     def _play_step(self, at: Fraction, source_tick: int) -> list[RealizedMidiEvent]:
         self.bank.advance(source_tick)
+        revision = self.bank.revision
         self.bank.publish_step()
         assert self.ports is not None
-        if not self.ports.begin_step(at, self.step_index, self.bank.revision):
+        if not self.ports.begin_step(
+            at,
+            self.step_index,
+            self.bank.revision,
+            capture_ready=self.bank.revision != revision and bool(self.bank.published),
+        ):
             return []
         if not self.bank.published:
             self.bank.last_selected = None

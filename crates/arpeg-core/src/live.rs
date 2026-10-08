@@ -411,9 +411,9 @@ impl LiveArpeggiator {
             }
             self.release_due(next, &mut output);
             if self.next_step == next {
-                let admitted = self
-                    .ports
-                    .begin_step(next, self.step_index, self.bank_revision);
+                let admitted =
+                    self.ports
+                        .begin_step(next, self.step_index, self.bank_revision, false);
                 let decision = self.rhythm.decide_step(self.step_index, self.ports.gate);
                 if admitted {
                     let hit = self.schedule_step(next, decision)?;

@@ -36,7 +36,9 @@ class PerformancePorts(BaseModel):
         ):
             raise ValueError("density between zero and one requires an explicit seed")
 
-    def begin_step(self, at: Fraction, index: int, revision: int) -> bool:
+    def begin_step(
+        self, at: Fraction, index: int, revision: int, capture_ready: bool = False
+    ) -> bool:
         for port, value in self.pending.items():
             if port == arpeggiator_ports.ArpeggiatorInputPort.gate:
                 self.gate = value
@@ -51,9 +53,18 @@ class PerformancePorts(BaseModel):
                     update={"ranks": int(value)}
                 )
         self.pending.clear()
-        if len(self.events) > 4094:
+        if len(self.events) > 4094 - int(capture_ready):
             self.exhausted = True
             return False
+        if capture_ready:
+            self.events.append(
+                arpeggiator_ports.ArpeggiatorOutput(
+                    at=at,
+                    port=arpeggiator_ports.ArpeggiatorOutputPort.capture_ready,
+                    index=index,
+                    revision=revision,
+                )
+            )
         self.events.append(
             arpeggiator_ports.ArpeggiatorOutput(
                 at=at,
