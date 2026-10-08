@@ -382,6 +382,17 @@ inside each octave or octaves inside each note. Keep pitches unrounded in the
 musical model; a destination decides how microtonal pitches are represented.
 Out-of-range pitches require a chosen drop/fold/error policy, never silent clamp.
 
+Live held, latched, history, and committed phrase playback now supports
+`transposition = { semitones = 0, boundary = "drop" }`. The signed integer
+semitone offset defaults to zero and can change through the `transposition`
+control port at the next step. Selection remains in source order; each hit and
+all its repeats retain their realized pitch. Drop advances selection and emits
+rest, fold moves an out-of-range pitch by the fewest octaves into MIDI 0–127,
+and error reports the invalid pitch to the host, which must stop to release
+its last delivered note. Captured source pitches and controller values remain
+unchanged. Fractional offsets are rejected in this slice; microtonal realization,
+scale-degree transforms, octave expansion, and register limits remain unfinished.
+
 Algorithmic selectors include weighted choice, shuffle-once, reshuffle-per-cycle,
 no-immediate-repeat, bounded random walks, interval contours, transition tables,
 and finite grammar expansions. All must still select or derive identified notes.

@@ -20,6 +20,7 @@ from .clock import ClockMode, TransportClock
 from .gesture import RealizedMidiEvent
 from .history import LiveHistoryArpeggiator
 from .live import LiveArpeggiator, LiveEvent
+from .ports import PerformancePorts
 from .profile import parse_profile
 
 
@@ -96,7 +97,7 @@ class Play(BaseModel, frozen=True):
             print(
                 f"Playing with {self.clock} clock. "
                 "Enter start, pause, continue, tempo BPM, gate FRACTION, "
-                "density FRACTION, record, commit, "
+                "density FRACTION, transposition SEMITONES, record, commit, "
                 "overdub, undo, clear, or quit."
             )
             stopped = False
@@ -156,7 +157,9 @@ class Play(BaseModel, frozen=True):
                                 )
                             except ValueError as error:
                                 print(str(error), file=stderr)
-                        elif command.startswith(("gate ", "density ")):
+                        elif command.startswith(
+                            ("gate ", "density ", "transposition ")
+                        ):
                             try:
                                 port, value = command.split()
                                 messages.extend(
@@ -240,6 +243,11 @@ class MidiPlayer(BaseModel):
                 "captured playback requires recorded or current, fit, carry expression"
             )
         return LiveHistoryArpeggiator(
+            ports=PerformancePorts(
+                gate=body.gate,
+                density=body.probability,
+                transposition=body.transposition,
+            ),
             seed=body.seed,
             name=self.profile.name,
             step=Fraction(body.rhythm.step.removesuffix(" beat")),
@@ -432,8 +440,14 @@ class MidiPlayer(BaseModel):
     def _pause(self, tick: int) -> list[mido.Message]:
         assert self.engine is not None
         if isinstance(engine := self.engine, LiveArpeggiator):
-            return self._note_messages(engine.pause(self.clock.beat))
-        return self._history_messages(engine.pause(self.clock.beat, tick))
+            output = self._note_messages(engine.pause(self.clock.beat))
+        else:
+            output = self._history_messages(engine.pause(self.clock.beat, tick))
+        if self.output_key is not None:
+            output.append(mido.Message.from_bytes([128, self.output_key, 0]))
+            self.output_key = None
+            self.output_id = None
+        return output
 
     def _note_messages(self, events: list[LiveEvent]) -> list[mido.Message]:
         output: list[mido.Message] = []
@@ -515,14 +529,14 @@ def _read_commands(commands: SimpleQueue[str]) -> None:
             "overdub",
             "undo",
         ) or (
-            command.startswith(("tempo ", "gate ", "density "))
+            command.startswith(("tempo ", "gate ", "density ", "transposition "))
             and len(command.split()) == 2
         ):
             commands.put(command)
         else:
             print(
                 "enter start, pause, continue, tempo BPM, gate FRACTION, "
-                "density FRACTION, record, commit, "
+                "density FRACTION, transposition SEMITONES, record, commit, "
                 "overdub, undo, clear, or quit",
                 file=stderr,
             )

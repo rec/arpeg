@@ -339,6 +339,31 @@ and carried gaps, matching history playback.
 
 ### Motion control ports
 
+Live transposition changes the selected note's MIDI pitch without changing its
+source identity, selection order, or recorded controller values. Configure it
+in the preset:
+
+```toml
+[body.transposition]
+semitones = 12
+boundary = "drop"
+```
+
+`semitones` defaults to 0. `boundary` defaults to `drop`: an out-of-range
+selection advances the order and emits rest. `fold` moves an out-of-range pitch
+by the fewest octaves needed to reach MIDI 0–127, leaving in-range pitches alone.
+`error` reports an invalid selected pitch; API hosts should stop playback on
+that error to release their last delivered note. Native hosts do this on exit.
+No policy clamps pitches. Whole signed 64-bit semitone offsets are supported;
+fractional offsets are rejected. Nonzero preset transposition requires live
+playback rather than the limited file renderer.
+
+Enter `transposition -12` during live playback, or send the `transposition`
+control port from Python, Rust, or WebAssembly. The latest value takes effect
+at the next step. Sounding notes and pending repeats retain the pitch realized
+for their original step. Pause retains pending controls; Start and position
+seeks cancel them, retaining the last published value.
+
 Live held, latched, history, and phrase engines accept two scalar input ports:
 
 - `gate`: a nonnegative exact gate fraction. Values above 1 allow overlap.
@@ -388,8 +413,9 @@ slots before admitting a step. On exhaustion, new step admissions stop while due
 releases and already realized repeats continue. `batch.exhausted` reports the
 condition; draining permits future steps without replaying skipped attacks.
 Native MIDI hosts drain automatically and print a diagnostic on exhaustion.
-[Shared traces](conformance/ports.toml) cover gate edits, density and seeded
-decisions, ties, repeats, captured material, pause, seeks, and polling parity.
+[Shared traces](conformance/ports.toml) cover transposition, folding, gate edits,
+density and seeded decisions, ties, repeats, captured material, pause, seeks,
+and polling parity.
 
 ### Preset header defaults
 

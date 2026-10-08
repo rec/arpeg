@@ -6,6 +6,7 @@ use std::path::Path;
 use arpeg_core::bank::CaptureMode;
 use arpeg_core::chance::Chance;
 use arpeg_core::live::Retrigger;
+use arpeg_core::ports::PitchBoundary;
 use arpeg_core::rhythm::{PatternStep, Rhythm};
 use arpeg_core::{Bank, Beat, HeldNote, Selection, Walk, render_held};
 use midly::{
@@ -18,6 +19,8 @@ pub mod live;
 pub mod player;
 
 pub struct HeldProfile {
+    pub transposition: i64,
+    pub pitch_boundary: PitchBoundary,
     pub chance: Chance,
     pub bank: Bank,
     pub selection: Selection,
@@ -27,6 +30,8 @@ pub struct HeldProfile {
 }
 
 pub struct CapturedProfile {
+    pub transposition: i64,
+    pub pitch_boundary: PitchBoundary,
     pub chance: Chance,
     pub mode: CaptureMode,
     pub selection: Selection,
@@ -112,6 +117,7 @@ pub fn parse_profile(text: &str, path: Option<&Path>) -> Result<Profile, String>
             "expression",
             "seed",
             "probability",
+            "transposition",
         ]
         .contains(&key.as_str())
     }) {
@@ -493,8 +499,38 @@ pub fn parse_profile(text: &str, path: Option<&Path>) -> Result<Profile, String>
     if matches!(selection, Selection::Choice { .. }) && seed.is_none() {
         return Err("choice requires an explicit seed".into());
     }
+    let (transposition, pitch_boundary) = match body.get("transposition") {
+        None => (0, PitchBoundary::Drop),
+        Some(value) => {
+            let table = value.as_table().ok_or("transposition must be a table")?;
+            if table
+                .keys()
+                .any(|k| !["semitones", "boundary"].contains(&k.as_str()))
+            {
+                return Err("unsupported transposition field".into());
+            }
+            let semitones = match table.get("semitones") {
+                None => 0,
+                Some(value) => value
+                    .as_integer()
+                    .ok_or("transposition requires whole semitones")?,
+            };
+            let boundary = match table.get("boundary") {
+                None => PitchBoundary::Drop,
+                Some(value) => match value.as_str() {
+                    Some("drop") => PitchBoundary::Drop,
+                    Some("fold") => PitchBoundary::Fold,
+                    Some("error") => PitchBoundary::Error,
+                    _ => return Err("transposition boundary must be drop, fold, or error".into()),
+                },
+            };
+            (semitones, boundary)
+        }
+    };
     Ok(match bank {
         ParsedBank::Classic(bank) => Profile::Classic(HeldProfile {
+            transposition,
+            pitch_boundary,
             chance,
             bank,
             selection,
@@ -532,6 +568,8 @@ pub fn parse_profile(text: &str, path: Option<&Path>) -> Result<Profile, String>
                 return Err("captured playback currently requires grid rhythm".into());
             };
             Profile::Captured(CapturedProfile {
+                transposition,
+                pitch_boundary,
                 chance,
                 mode,
                 selection,
@@ -657,6 +695,9 @@ pub fn render_file(profile: &str, input: &[u8], path: Option<&Path>) -> Result<V
     };
     if profile.chance.probability != Beat::from_integer(1) {
         return Err("probability currently requires live input".into());
+    }
+    if profile.transposition != 0 {
+        return Err("transposition currently requires live input".into());
     }
     if profile.retrigger != Retrigger::OnEmpty {
         return Err("file rendering does not support bank-edit retrigger".into());

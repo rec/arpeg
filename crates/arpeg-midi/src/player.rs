@@ -47,14 +47,19 @@ impl MidiPlayer {
             Profile::Captured(p) => p.current_expression,
         };
         let engine = match profile {
-            Profile::Classic(p) => Engine::Held(Box::new(LiveArpeggiator::new(
-                p.bank,
-                p.selection,
-                p.rhythm,
-                p.gate,
-                p.retrigger,
-                p.chance,
-            )?)),
+            Profile::Classic(p) => {
+                let mut engine = LiveArpeggiator::new(
+                    p.bank,
+                    p.selection,
+                    p.rhythm,
+                    p.gate,
+                    p.retrigger,
+                    p.chance,
+                )?;
+                engine.ports.transposition = p.transposition;
+                engine.ports.pitch_boundary = p.pitch_boundary;
+                Engine::Held(Box::new(engine))
+            }
             Profile::Captured(p) => {
                 let mut engine = HistoryArpeggiator::new(
                     p.mode,
@@ -66,6 +71,8 @@ impl MidiPlayer {
                     p.current_expression,
                 )?;
                 engine.chance = p.chance;
+                engine.ports.transposition = p.transposition;
+                engine.ports.pitch_boundary = p.pitch_boundary;
                 Engine::History(Box::new(engine))
             }
         };
@@ -332,7 +339,7 @@ impl MidiPlayer {
     }
 
     fn pause(&mut self, tick: i64) -> Vec<Vec<u8>> {
-        match &mut self.engine {
+        let mut output = match &mut self.engine {
             Engine::Held(e) => {
                 let events = e.pause(self.clock.beat);
                 self.note_messages(events)
@@ -341,7 +348,11 @@ impl MidiPlayer {
                 let events = e.pause(self.clock.beat, tick);
                 self.history_messages(events)
             }
+        };
+        if let Some((_, key)) = self.sounding.take() {
+            output.push(vec![0x80, key, 0]);
         }
+        output
     }
 
     fn note_messages(&mut self, events: Vec<OutputEvent>) -> Vec<Vec<u8>> {

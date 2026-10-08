@@ -22,6 +22,21 @@ test('generated web bindings load and exchange MIDI messages', () => {
     }
 });
 
+test('transposition controls and preset boundaries work through web bindings', () => {
+    const profile = readFileSync(new URL('../../../conformance/transpose-fold.toml', import.meta.url), 'utf8');
+    const player = new MidiPlayer(profile, 'internal', 120, 500_000n);
+    try {
+        player.accept(0n, new Uint8Array([144, 127, 100]), 'both');
+        assert.deepEqual(player.advance(0n), [new Uint8Array([144, 127, 100])]);
+        assert.throws(() => player.control(50_000n, 'transposition', '1/2'));
+        assert.deepEqual(player.control(50_000n, 'transposition', '-128'), []);
+        assert.deepEqual(player.advance(125_000n), [new Uint8Array([128, 127, 0]), new Uint8Array([144, 11, 100])]);
+        assert.deepEqual(player.stop(150_000n), [new Uint8Array([128, 11, 0])]);
+    } finally {
+        player.free();
+    }
+});
+
 test('Motion ports return exact event coordinates and accept step-boundary controls', () => {
     const profile = readFileSync(new URL('../../../conformance/motion-ports.toml', import.meta.url), 'utf8');
     const player = new MidiPlayer(profile, 'internal', 120, 500_000n);

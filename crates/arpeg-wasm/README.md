@@ -69,8 +69,14 @@ the recording. Capturing while transport is paused is supported.
 `capture_state` returns `[recording, publishedNoteCount, bankRevision]` for
 captured banks and an empty array for held or latched banks.
 
-Motion hosts use `control(time, "gate", "1/2")` or
-`control(time, "density", "2/3")`. Values are exact rational strings. Fractional
+Motion hosts use `control(time, "gate", "1/2")`,
+`control(time, "density", "2/3")`, or `control(time, "transposition", "-12")`.
+Transposition requires whole signed 64-bit semitones. Presets configure
+`body.transposition = { semitones = 0, boundary = "drop" }`; boundary may also be
+`fold` (minimal octave folding into MIDI 0–127) or `error` (stop playback on a
+reported pitch error to release the last delivered note). Source identity and
+recorded expression are retained. Sounding notes and pending repeats keep
+their realized pitches. Values are exact rational strings. Fractional
 density requires a preset seed; it replaces the preset probability. Queued
 changes publish at the next step, preserve already realized gates and repeats,
 survive pause, and are cancelled by Start or song-position relocation.

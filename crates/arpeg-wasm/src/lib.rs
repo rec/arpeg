@@ -75,7 +75,12 @@ impl MidiPlayer {
         let port = match port {
             "gate" => InputPort::Gate,
             "density" => InputPort::Density,
-            _ => return Err(JsValue::from_str("port must be gate or density")),
+            "transposition" => InputPort::Transposition,
+            _ => {
+                return Err(JsValue::from_str(
+                    "port must be gate, density, or transposition",
+                ));
+            }
         };
         let value = value
             .parse()

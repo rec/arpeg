@@ -43,6 +43,8 @@ def render_held(
         raise ValueError("held rendering requires grid or Euclidean rhythm")
     if body.probability != 1:
         raise ValueError("probability currently requires live input")
+    if body.transposition.semitones != 0:
+        raise ValueError("transposition currently requires live input")
     if body.retrigger != "on_empty":
         raise ValueError("held rendering does not support bank-edit retrigger")
     if through < 0:

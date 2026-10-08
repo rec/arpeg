@@ -1,5 +1,49 @@
 # Exact beat and wire traces for the shared Motion boundary.
 [[cases]]
+name = "transposition-retains-source-order-and-owned-releases"
+profile = "up"
+actions = [
+  { at = 0, data = [144, 60, 100], output = [], events = [] },
+  { at = 0, data = [144, 120, 90], output = [], events = [] },
+  { at = 0, output = [[144, 60, 100]], events = [["0", "step", 0, 2], ["0", "hit", 0, 2]] },
+  { at = 50000, port = "transposition", value = "12", output = [], events = [] },
+  { at = 100000, output = [[128, 60, 0]], events = [] },
+  { at = 125000, output = [], events = [["1/4", "step", 1, 2], ["1/4", "rest", 1, 2]] },
+  { at = 250000, output = [[144, 72, 100]], events = [["1/2", "step", 2, 2], ["1/2", "hit", 2, 2]] },
+  { at = 275000, port = "transposition", value = "-12", output = [], events = [] },
+  { at = 350000, output = [[128, 72, 0]], events = [] },
+  { at = 375000, output = [[144, 108, 90]], events = [["3/4", "step", 3, 2], ["3/4", "hit", 3, 2]] },
+]
+
+[[cases]]
+name = "fold-retains-in-range-pitches-and-minimally-shifts-extremes"
+profile = "transpose-fold"
+actions = [
+  { at = 0, data = [144, 127, 100], output = [], events = [] },
+  { at = 0, output = [[144, 127, 100]], events = [["0", "step", 0, 1], ["0", "hit", 0, 1]] },
+  { at = 50000, port = "transposition", value = "-128", output = [], events = [] },
+  { at = 100000, output = [[128, 127, 0]], events = [] },
+  { at = 125000, output = [[144, 11, 100]], events = [["1/4", "step", 1, 1], ["1/4", "hit", 1, 1]] },
+  { at = 150000, port = "transposition", value = "-9223372036854775808", output = [], events = [] },
+  { at = 225000, output = [[128, 11, 0]], events = [] },
+  { at = 250000, output = [[144, 11, 100]], events = [["1/2", "step", 2, 1], ["1/2", "hit", 2, 1]] },
+]
+
+[[cases]]
+name = "phrase-transposition-preserves-recorded-expression"
+profile = "phrase-wind"
+actions = [
+  { at = 0, data = [176, 2, 50], output = [], events = [] },
+  { at = 0, capture = "record", output = [], events = [] },
+  { at = 0, data = [144, 60, 100], output = [], events = [] },
+  { at = 0, capture = "commit", output = [], events = [] },
+  { at = 0, port = "transposition", value = "12", output = [], events = [] },
+  { at = 0, output = [[176, 2, 50], [144, 72, 100]], events = [["0", "step", 0, 1], ["0", "hit", 0, 1]] },
+  { at = 10000, port = "transposition", value = "-12", output = [], events = [] },
+  { at = 125000, output = [[128, 72, 0], [176, 2, 50], [144, 48, 100]], events = [["1/4", "step", 1, 1], ["1/4", "hit", 1, 1]] },
+]
+
+[[cases]]
 name = "gate-density-boundaries-and-selection"
 profile = "up"
 actions = [
@@ -48,7 +92,9 @@ actions = [
   { at = 250000, output = [], events = [["1/2", "step", 2, 1], ["1/2", "rest", 2, 1]] },
   { at = 312500, output = [[144, 60, 100], [128, 60, 0]], events = [["5/8", "step", 3, 1], ["5/8", "hit", 3, 1]] },
   { at = 320000, port = "gate", value = "1", output = [], events = [] },
+  { at = 320000, port = "transposition", value = "12", output = [], events = [] },
   { at = 479167, output = [[144, 60, 100], [128, 60, 0], [144, 60, 100], [128, 60, 0]], events = [] },
+  { at = 562500, output = [[144, 72, 100]], events = [["9/8", "step", 4, 1], ["9/8", "hit", 4, 1]] },
 ]
 
 [[cases]]

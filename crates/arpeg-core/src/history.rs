@@ -299,6 +299,16 @@ impl HistoryArpeggiator {
         let Some(note) = self.bank.select_step()? else {
             return Ok(());
         };
+        let phrase = self.bank.source(&note.capture_id)?;
+        let source = phrase
+            .notes
+            .iter()
+            .find(|n| n.note_id == note.note_id)
+            .ok_or("missing captured note")?;
+        let Some(key) = self.ports.realize_pitch(source.key)? else {
+            self.ports.outcome(false);
+            return Ok(());
+        };
         self.ports.outcome(true);
         self.queue.clear();
         if let Some((source_note, key)) = self.sounding.take() {
@@ -325,6 +335,9 @@ impl HistoryArpeggiator {
             events
                 .into_iter()
                 .map(|mut e| {
+                    if matches!(e.data[0] & 0xf0, 0x80 | 0x90) {
+                        e.data[1] = key;
+                    }
                     e.source_note = format!("{}:{}", note.capture_id, e.source_note);
                     e
                 })

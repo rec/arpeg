@@ -108,7 +108,11 @@ class LiveArpeggiator(BaseModel):
         if not isinstance(body.rhythm, (Grid, Euclidean, Pattern)):
             raise ValueError("live mode requires grid, Euclidean, or pattern rhythm")
         if self.ports is None:
-            self.ports = PerformancePorts(gate=body.gate, density=body.probability)
+            self.ports = PerformancePorts(
+                gate=body.gate,
+                density=body.probability,
+                transposition=body.transposition,
+            )
         return self
 
     @cached_property
@@ -570,11 +574,14 @@ class LiveArpeggiator(BaseModel):
                 ordered[0],
             )
         self.previous_note = note
+        if (key := self.ports.realize_pitch(note.key)) is None:
+            return False
         interval = decision.duration / decision.repeats
         self.pending.extend(
             _Attack(
                 at=at + i * interval,
                 note=note,
+                key=key,
                 gate=decision.final_gate
                 if i == decision.repeats - 1
                 else decision.gate,
@@ -656,7 +663,7 @@ class LiveArpeggiator(BaseModel):
         events: list[LiveEvent] = []
         remaining: list[_SoundingNote] = []
         for sounding in self.sounding:
-            if sounding.key == note.key:
+            if sounding.key == attack.key:
                 events.append(
                     LiveEvent(
                         at=at,
@@ -678,7 +685,7 @@ class LiveArpeggiator(BaseModel):
                 kind="on",
                 id=output_id,
                 source_id=note.id,
-                key=note.key,
+                key=attack.key,
                 velocity=note.velocity,
             )
         )
@@ -689,13 +696,13 @@ class LiveArpeggiator(BaseModel):
                     kind="off",
                     id=output_id,
                     source_id=note.id,
-                    key=note.key,
+                    key=attack.key,
                     velocity=0,
                 )
             )
         else:
             self.sounding.append(
-                _SoundingNote(id=output_id, source_id=note.id, key=note.key, end=end)
+                _SoundingNote(id=output_id, source_id=note.id, key=attack.key, end=end)
             )
         return events
 
@@ -738,4 +745,5 @@ class _SoundingNote(BaseModel, frozen=True):
 class _Attack(BaseModel, frozen=True):
     at: Fraction
     note: _InputNote
+    key: int
     gate: Fraction

@@ -1,0 +1,6 @@
+name = "transpose-fold"
+title = "Transpose with octave folding"
+
+[body]
+rhythm = { kind = "grid", step = "1/4 beat" }
+transposition = { semitones = 12, boundary = "fold" }

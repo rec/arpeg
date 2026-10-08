@@ -56,6 +56,7 @@ struct SoundingNote {
 struct Attack {
     at: Beat,
     note: InputNote,
+    key: u8,
     gate: Beat,
 }
 
@@ -169,7 +170,7 @@ impl LiveArpeggiator {
         velocity: u8,
     ) -> Result<Vec<OutputEvent>, &'static str> {
         self.check_time(at)?;
-        let mut output = self.process_until(at, false);
+        let mut output = self.process_until(at, false)?;
         let new_chord = self.input.is_empty();
         let note = InputNote {
             id: self.next_id,
@@ -241,7 +242,7 @@ impl LiveArpeggiator {
             .iter()
             .position(|note| note.key == key)
             .ok_or("release has no matching onset")?;
-        let mut output = self.process_until(at, false);
+        let mut output = self.process_until(at, false)?;
         self.input.remove(index);
         if self.bank_mode == Bank::Held {
             self.bank_revision += 1;
@@ -264,12 +265,12 @@ impl LiveArpeggiator {
 
     pub fn advance(&mut self, through: Beat) -> Result<Vec<OutputEvent>, &'static str> {
         self.check_time(through)?;
-        Ok(self.process_until(through, true))
+        self.process_until(through, true)
     }
 
     pub fn before(&mut self, through: Beat) -> Result<Vec<OutputEvent>, &'static str> {
         self.check_time(through)?;
-        let mut output = self.process_until(through, false);
+        let mut output = self.process_until(through, false)?;
         self.release_due(through, &mut output);
         Ok(output)
     }
@@ -335,7 +336,7 @@ impl LiveArpeggiator {
 
     pub fn stop(&mut self, at: Beat) -> Result<Vec<OutputEvent>, &'static str> {
         self.check_time(at)?;
-        let mut output = self.process_until(at, false);
+        let mut output = self.process_until(at, false)?;
         output.extend(self.release_all(at));
         if !(if self.bank_mode == Bank::Held {
             &self.input
@@ -364,7 +365,7 @@ impl LiveArpeggiator {
         if self.bank_mode == Bank::Held {
             return Err("clear requires a latched bank");
         }
-        let mut output = self.process_until(at, false);
+        let mut output = self.process_until(at, false)?;
         if !self.bank.is_empty() {
             self.bank_revision += 1;
         }
@@ -397,7 +398,11 @@ impl LiveArpeggiator {
         }
     }
 
-    fn process_until(&mut self, through: Beat, inclusive: bool) -> Vec<OutputEvent> {
+    fn process_until(
+        &mut self,
+        through: Beat,
+        inclusive: bool,
+    ) -> Result<Vec<OutputEvent>, &'static str> {
         let mut output = Vec::new();
         loop {
             let next = self.next_deadline();
@@ -411,7 +416,7 @@ impl LiveArpeggiator {
                     .begin_step(next, self.step_index, self.bank_revision);
                 let decision = self.rhythm.decide_step(self.step_index, self.ports.gate);
                 if admitted {
-                    let hit = self.schedule_step(next, decision);
+                    let hit = self.schedule_step(next, decision)?;
                     if !matches!(&self.rhythm, Rhythm::Pattern { steps } if matches!(steps[self.step_index as usize % steps.len()], PatternStep::Tie { .. }))
                     {
                         self.ports.outcome(hit);
@@ -426,7 +431,7 @@ impl LiveArpeggiator {
             }
         }
         self.now = through;
-        output
+        Ok(output)
     }
 
     fn release_due(&mut self, at: Beat, output: &mut Vec<OutputEvent>) {
@@ -462,7 +467,7 @@ impl LiveArpeggiator {
             .collect()
     }
 
-    fn schedule_step(&mut self, at: Beat, decision: RhythmDecision) -> bool {
+    fn schedule_step(&mut self, at: Beat, decision: RhythmDecision) -> Result<bool, &'static str> {
         let active = if self.bank_mode == Bank::Held {
             &self.input
         } else {
@@ -473,10 +478,10 @@ impl LiveArpeggiator {
             self.pattern_position = 0;
             self.shuffle_order.clear();
             self.shuffle_position = 0;
-            return false;
+            return Ok(false);
         }
         if decision.repeats == 0 {
-            return false;
+            return Ok(false);
         }
         let chance_index = self.decision_count;
         self.decision_count += 1;
@@ -484,7 +489,7 @@ impl LiveArpeggiator {
             .chance
             .allows(self.bank_revision, chance_index, self.ports.density)
         {
-            return false;
+            return Ok(false);
         }
         let selection = &self.selection;
         let mut ordered = active.clone();
@@ -497,7 +502,7 @@ impl LiveArpeggiator {
             let index = indices[self.pattern_position];
             self.pattern_position = (self.pattern_position + 1) % indices.len();
             if *rest_outside && index >= ordered.len() as u64 {
-                return false;
+                return Ok(false);
             }
             ordered[(index % ordered.len() as u64) as usize]
         } else if let Selection::Choice {
@@ -718,17 +723,21 @@ impl LiveArpeggiator {
                 .unwrap_or(&ordered[0])
         };
         self.previous_key = Some(selection_key(&selected, selection));
+        let Some(key) = self.ports.realize_pitch(selected.key)? else {
+            return Ok(false);
+        };
         let interval = decision.duration / decision.repeats as i64;
         self.pending.extend((0..decision.repeats).map(|i| Attack {
             at: at + interval * i as i64,
             note: selected,
+            key,
             gate: if i == decision.repeats - 1 {
                 decision.final_gate
             } else {
                 decision.gate
             },
         }));
-        true
+        Ok(true)
     }
 
     fn attack(&mut self, attack: Attack, output: &mut Vec<OutputEvent>) {
@@ -738,7 +747,7 @@ impl LiveArpeggiator {
         for note in self
             .sounding
             .iter_mut()
-            .filter(|note| note.key == selected.key)
+            .filter(|note| note.key == attack.key)
         {
             output.push(OutputEvent {
                 at,
@@ -758,7 +767,7 @@ impl LiveArpeggiator {
             kind: OutputKind::NoteOn {
                 id,
                 source_id: selected.id,
-                key: selected.key,
+                key: attack.key,
                 velocity: selected.velocity,
             },
         });
@@ -768,14 +777,14 @@ impl LiveArpeggiator {
                 kind: OutputKind::NoteOff {
                     id,
                     source_id: selected.id,
-                    key: selected.key,
+                    key: attack.key,
                 },
             });
         } else {
             self.sounding.push(SoundingNote {
                 id,
                 source_id: selected.id,
-                key: selected.key,
+                key: attack.key,
                 end,
             });
         }

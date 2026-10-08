@@ -5,9 +5,68 @@ from tomllib import loads
 import mido
 import pytest
 from ufor import arpeggiator_ports, motion
+from ufor.arpeggiator import Transposition
 
+from arpeg.live import LiveArpeggiator
 from arpeg.midi import MidiPlayer
 from arpeg.profile import parse_profile
+
+
+def test_transposition_keeps_pending_repeats_and_source_identity() -> None:
+    engine = LiveArpeggiator(
+        profile=parse_profile(Path("conformance/custom-steps.toml").read_text())
+    )
+    engine.note_on(Fraction(0), 60, 100)
+    engine.advance(Fraction(5, 8))
+    engine.control(
+        Fraction(2, 3),
+        arpeggiator_ports.ArpeggiatorControl(port="transposition", value=12),
+    )
+    events = engine.advance(Fraction(9, 8))
+    assert [(e.key, e.source_id) for e in events if e.kind == "on"] == [
+        (60, 0),
+        (60, 0),
+        (72, 0),
+    ]
+    assert engine.input[0].key == 60
+
+
+@pytest.mark.parametrize("profile_name", ["up", "phrase-wind"])
+def test_pitch_range_error_still_releases_the_last_delivered_note(
+    profile_name: str,
+) -> None:
+    profile = parse_profile(Path(f"conformance/{profile_name}.toml").read_text())
+    profile = profile.model_copy(
+        update={
+            "body": profile.body.model_copy(
+                update={"transposition": Transposition(boundary="error")}
+            )
+        }
+    )
+    player = MidiPlayer(profile=profile)
+    if profile_name == "phrase-wind":
+        player.capture(0, "record")
+    player.accept(0, mido.Message.from_bytes([144, 120, 100]))
+    if profile_name == "phrase-wind":
+        player.capture(0, "commit")
+    assert [m.bytes() for m in player.advance(0)] == [[144, 120, 100]]
+    player.control(
+        50_000_000, arpeggiator_ports.ArpeggiatorControl(port="transposition", value=12)
+    )
+    with pytest.raises(ValueError, match="outside MIDI range"):
+        player.advance(250_000_000)
+    assert [m.bytes() for m in player.stop(250_000_000)] == [[128, 120, 0]]
+
+
+def test_fractional_transposition_is_rejected_before_time_or_music_changes() -> None:
+    player = MidiPlayer(profile=parse_profile(Path("conformance/up.toml").read_text()))
+    snapshot = player.model_dump_json()
+    with pytest.raises(ValueError, match="whole semitones"):
+        player.control(
+            50_000_000,
+            arpeggiator_ports.ArpeggiatorControl(port="transposition", value="1/2"),
+        )
+    assert player.model_dump_json() == snapshot
 
 
 @pytest.mark.parametrize(

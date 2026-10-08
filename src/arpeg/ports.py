@@ -4,11 +4,13 @@ from fractions import Fraction
 
 from pydantic import BaseModel, Field
 from ufor import arpeggiator_ports
+from ufor.arpeggiator import Transposition
 
 
 class PerformancePorts(BaseModel):
     gate: Fraction
     density: Fraction
+    transposition: Transposition = Transposition()
     pending: dict[arpeggiator_ports.ArpeggiatorInputPort, Fraction] = Field(
         default_factory=dict
     )
@@ -31,8 +33,12 @@ class PerformancePorts(BaseModel):
         for port, value in self.pending.items():
             if port == arpeggiator_ports.ArpeggiatorInputPort.gate:
                 self.gate = value
-            else:
+            elif port == arpeggiator_ports.ArpeggiatorInputPort.density:
                 self.density = value
+            else:
+                self.transposition = self.transposition.model_copy(
+                    update={"semitones": int(value)}
+                )
         self.pending.clear()
         if len(self.events) > 4094:
             self.exhausted = True
@@ -46,6 +52,18 @@ class PerformancePorts(BaseModel):
             )
         )
         return True
+
+    def realize_pitch(self, key: int) -> int | None:
+        pitch = key + self.transposition.semitones
+        if 0 <= pitch <= 127:
+            return pitch
+        match self.transposition.boundary:
+            case "drop":
+                return None
+            case "fold":
+                return pitch % 12 if pitch < 0 else 116 + (pitch - 116) % 12
+            case "error":
+                raise ValueError("transposed pitch is outside MIDI range 0–127")
 
     def outcome(self, hit: bool) -> None:
         step = self.events[-1]

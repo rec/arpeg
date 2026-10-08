@@ -19,6 +19,52 @@ fn player(text: &str) -> MidiPlayer {
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 #[cfg_attr(not(target_arch = "wasm32"), test)]
+fn pitch_range_errors_still_release_the_last_delivered_note() {
+    for (text, captured) in [
+        (include_str!("../../../conformance/up.toml"), false),
+        (include_str!("../../../conformance/phrase-wind.toml"), true),
+    ] {
+        let mut player = player(&format!(
+            "{text}\n[body.transposition]\nboundary = \"error\"\n"
+        ));
+        if captured {
+            player.capture(0, "record").unwrap();
+        }
+        player
+            .accept(0, &[144, 120, 100], InputSource::Both)
+            .unwrap();
+        if captured {
+            player.capture(0, "commit").unwrap();
+        }
+        assert_eq!(player.advance(0).unwrap(), [vec![144, 120, 100]]);
+        player
+            .control(50_000, InputPort::Transposition, 12.into())
+            .unwrap();
+        assert_eq!(
+            player.advance(250_000),
+            Err("transposed pitch is outside MIDI range 0–127")
+        );
+        assert_eq!(player.stop(250_000).unwrap(), [vec![128, 120, 0]]);
+    }
+}
+
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+fn fractional_transposition_preserves_time_and_pending_music() {
+    let mut player = player(include_str!("../../../conformance/up.toml"));
+    player
+        .accept(0, &[144, 60, 100], InputSource::Both)
+        .unwrap();
+    assert!(
+        player
+            .control(50_000, InputPort::Transposition, "1/2".parse().unwrap())
+            .is_err()
+    );
+    assert_eq!(player.advance(0).unwrap(), [vec![144, 60, 100]]);
+}
+
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
 fn motion_ports_match_shared_exact_traces() {
     let traces: toml::Value =
         toml::from_str(include_str!("../../../conformance/ports.toml")).unwrap();
@@ -28,6 +74,7 @@ fn motion_ports_match_shared_exact_traces() {
             "custom-steps" => include_str!("../../../conformance/custom-steps.toml"),
             "phrase-wind" => include_str!("../../../conformance/phrase-wind.toml"),
             "motion-ports" => include_str!("../../../conformance/motion-ports.toml"),
+            "transpose-fold" => include_str!("../../../conformance/transpose-fold.toml"),
             _ => panic!("unknown profile"),
         };
         for poll_us in [None, Some(1000)] {
@@ -61,6 +108,7 @@ fn motion_ports_match_shared_exact_traces() {
                     let port = match port.as_str().unwrap() {
                         "gate" => InputPort::Gate,
                         "density" => InputPort::Density,
+                        "transposition" => InputPort::Transposition,
                         _ => panic!("unknown port"),
                     };
                     player

@@ -255,6 +255,12 @@ class LiveHistoryArpeggiator(BaseModel):
         selected = self.bank.select_step()
         if selected is None:
             return []
+        phrase = self.bank.source(selected.capture_id)
+        note = next(n for n in phrase.notes if n.note_id == selected.note_id)
+        assert note.key is not None
+        if (key := self.ports.realize_pitch(note.key)) is None:
+            self.ports.outcome(False)
+            return []
         self.ports.outcome(True)
         self.queue.clear()
         output: list[RealizedMidiEvent] = []
@@ -271,7 +277,7 @@ class LiveHistoryArpeggiator(BaseModel):
             self.sounding_source = None
         self.queue.extend(
             MidiGestureRenderer(
-                phrase=self.bank.source(selected.capture_id),
+                phrase=phrase,
                 channels=[0],
                 timing="fit",
                 overlap="handoff",
@@ -288,7 +294,12 @@ class LiveHistoryArpeggiator(BaseModel):
         )
         self.queue = [
             e.model_copy(
-                update={"source_note": f"{selected.capture_id}:{e.source_note}"}
+                update={
+                    "source_note": f"{selected.capture_id}:{e.source_note}",
+                    "data": [e.data[0], key, *e.data[2:]]
+                    if e.data[0] & 0xF0 in (0x80, 0x90)
+                    else e.data,
+                }
             )
             for e in self.queue
         ]
