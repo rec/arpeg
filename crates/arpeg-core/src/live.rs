@@ -284,7 +284,7 @@ impl LiveArpeggiator {
         self.check_time(at)?;
         PerformancePorts::check_control(port, value, self.chance.seed)?;
         let output = self.before(at)?;
-        self.ports.queue(port, value);
+        self.ports.queue(port, value)?;
         Ok(output)
     }
 

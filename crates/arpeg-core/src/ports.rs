@@ -8,6 +8,9 @@ pub enum InputPort {
     Density,
     Transposition,
     SelectionOffset,
+    Breath,
+    Bend,
+    Pressure,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -76,6 +79,12 @@ impl PerformancePorts {
         value: Beat,
         seed: Option<i64>,
     ) -> Result<(), &'static str> {
+        if matches!(
+            port,
+            InputPort::Breath | InputPort::Bend | InputPort::Pressure
+        ) {
+            return Err("expression controls require the MIDI player");
+        }
         if matches!(port, InputPort::Transposition | InputPort::SelectionOffset) {
             return if value.is_integer() {
                 Ok(())
@@ -98,13 +107,17 @@ impl PerformancePorts {
         Ok(())
     }
 
-    pub fn queue(&mut self, port: InputPort, value: Beat) {
+    pub fn queue(&mut self, port: InputPort, value: Beat) -> Result<(), &'static str> {
         match port {
             InputPort::Gate => self.pending_gate = Some(value),
             InputPort::Density => self.pending_density = Some(value),
             InputPort::Transposition => self.pending_transposition = Some(value.to_integer()),
             InputPort::SelectionOffset => self.pending_selection_offset = Some(value.to_integer()),
+            InputPort::Breath | InputPort::Bend | InputPort::Pressure => {
+                return Err("expression controls require the MIDI player");
+            }
         }
+        Ok(())
     }
 
     pub fn cancel_pending(&mut self) {

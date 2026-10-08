@@ -22,6 +22,26 @@ test('generated web bindings load and exchange MIDI messages', () => {
     }
 });
 
+test('Motion expression updates immediately and restores known values at handoff', () => {
+    const profile = readFileSync(new URL('../../../conformance/motion-expression.toml', import.meta.url), 'utf8');
+    const player = new MidiPlayer(profile, 'internal', 120, 500_000n);
+    try {
+        player.accept(0n, new Uint8Array([144, 60, 100]), 'both');
+        assert.deepEqual(player.advance(0n), [new Uint8Array([144, 60, 100])]);
+        assert.throws(() => player.control(0n, 'breath', '2'));
+        assert.deepEqual(player.control(0n, 'breath', '1/2'), [new Uint8Array([176, 2, 64])]);
+        assert.deepEqual(player.control(25_000n, 'bend', '-1'), [new Uint8Array([224, 0, 0])]);
+        assert.deepEqual(player.control(50_000n, 'pressure', '1'), [new Uint8Array([208, 127])]);
+        assert.deepEqual(player.accept(75_000n, new Uint8Array([176, 2, 127]), 'both'), []);
+        assert.deepEqual(player.advance(125_000n), [
+            new Uint8Array([128, 60, 0]), new Uint8Array([176, 2, 64]),
+            new Uint8Array([224, 0, 0]), new Uint8Array([208, 127]), new Uint8Array([144, 60, 100]),
+        ]);
+    } finally {
+        player.free();
+    }
+});
+
 test('transposition controls and preset boundaries work through web bindings', () => {
     const profile = readFileSync(new URL('../../../conformance/transpose-fold.toml', import.meta.url), 'utf8');
     const player = new MidiPlayer(profile, 'internal', 120, 500_000n);

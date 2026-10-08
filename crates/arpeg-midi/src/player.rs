@@ -9,7 +9,10 @@ use arpeg_core::{
     ports::{InputPort, PerformancePorts, PortBatch},
 };
 
-use crate::Profile;
+use crate::{
+    Profile,
+    expression::{self, Lane, Source},
+};
 
 #[derive(Clone, Copy)]
 pub enum InputSource {
@@ -30,8 +33,9 @@ pub struct MidiPlayer {
     wall_us: i64,
     input_tick: i64,
     ordinal: u32,
-    current_expression: bool,
+    expression_sources: std::collections::BTreeMap<Lane, Source>,
     expression: std::collections::BTreeMap<u8, Vec<u8>>,
+    motion_expression: std::collections::BTreeMap<Lane, arpeg_core::Beat>,
     sounding: Option<(u64, u8)>,
 }
 
@@ -42,9 +46,9 @@ impl MidiPlayer {
         bpm: u32,
         timeout_us: i64,
     ) -> Result<Self, &'static str> {
-        let current_expression = match &profile {
-            Profile::Classic(_) => true,
-            Profile::Captured(p) => p.current_expression,
+        let expression_sources = match &profile {
+            Profile::Classic(p) => p.expression_sources.clone(),
+            Profile::Captured(p) => p.expression_sources.clone(),
         };
         let engine = match profile {
             Profile::Classic(p) => {
@@ -70,7 +74,7 @@ impl MidiPlayer {
                     p.step,
                     p.gate,
                     CaptureProfile::default(),
-                    p.current_expression,
+                    false,
                 )?;
                 engine.chance = p.chance;
                 engine.ports.transposition = p.transposition;
@@ -87,8 +91,9 @@ impl MidiPlayer {
             wall_us: 0,
             input_tick: -1,
             ordinal: 0,
-            current_expression,
+            expression_sources,
             expression: std::collections::BTreeMap::new(),
+            motion_expression: std::collections::BTreeMap::new(),
             sounding: None,
         })
     }
@@ -150,7 +155,11 @@ impl MidiPlayer {
                     let events = e.before(at)?;
                     output.extend(self.note_messages(events));
                     self.expression.insert(data[0], data.to_vec());
-                    if self.clock.active() && self.sounding.is_some() {
+                    let lane = expression::lane(data).expect("expressive MIDI message");
+                    if self.expression_sources[&lane] == Source::Current
+                        && self.clock.active()
+                        && self.sounding.is_some()
+                    {
                         output.push(data.to_vec());
                     }
                     return Ok(output);
@@ -187,7 +196,11 @@ impl MidiPlayer {
                 output.extend(self.history_messages(events));
                 if expressive {
                     self.expression.insert(data[0], data.to_vec());
-                    if self.current_expression && self.clock.active() && self.sounding.is_some() {
+                    let lane = expression::lane(data).expect("expressive MIDI message");
+                    if self.expression_sources[&lane] == Source::Current
+                        && self.clock.active()
+                        && self.sounding.is_some()
+                    {
                         output.push(data.to_vec());
                     }
                 }
@@ -294,10 +307,18 @@ impl MidiPlayer {
         port: InputPort,
         value: arpeg_core::Beat,
     ) -> Result<Vec<Vec<u8>>, &'static str> {
-        match &self.engine {
-            Engine::Held(e) => PerformancePorts::check_control(port, value, e.chance.seed)?,
-            Engine::History(e) => PerformancePorts::check_control(port, value, e.chance.seed)?,
-        }
+        let sample = if let Some(lane) = expression::control_lane(port) {
+            if self.expression_sources[&lane] != Source::Motion {
+                return Err("expression lane is not owned by Motion");
+            }
+            Some((lane, expression::motion_message(lane, value)?))
+        } else {
+            match &self.engine {
+                Engine::Held(e) => PerformancePorts::check_control(port, value, e.chance.seed)?,
+                Engine::History(e) => PerformancePorts::check_control(port, value, e.chance.seed)?,
+            }
+            None
+        };
         let tick = self.elapsed(at_us);
         let was_active = self.clock.active();
         let at = self.clock.advance(tick);
@@ -306,6 +327,26 @@ impl MidiPlayer {
         } else {
             Vec::new()
         };
+        if let Some((lane, data)) = sample {
+            if self.clock.active() {
+                match &mut self.engine {
+                    Engine::Held(e) => {
+                        let events = e.before(at)?;
+                        output.extend(self.note_messages(events));
+                    }
+                    Engine::History(e) if at > e.processed_to => {
+                        let events = e.before(at, tick.max(self.input_tick))?;
+                        output.extend(self.history_messages(events));
+                    }
+                    _ => {}
+                }
+            }
+            self.motion_expression.insert(lane, value);
+            if self.clock.active() && self.sounding.is_some() {
+                output.push(data);
+            }
+            return Ok(output);
+        }
         match &mut self.engine {
             Engine::Held(e) => {
                 let events = e.control(at, port, value)?;
@@ -369,11 +410,11 @@ impl MidiPlayer {
                     if let Some((_, key)) = self.sounding {
                         output.push(vec![0x80, key, 0]);
                     }
-                    for status in [0xb0, 0xe0, 0xd0] {
-                        if let Some(data) = self.expression.get(&status) {
-                            output.push(data.clone());
-                        }
-                    }
+                    output.extend(expression::entry_messages(
+                        &self.expression_sources,
+                        &self.expression,
+                        &self.motion_expression,
+                    ));
                     output.push(vec![0x90, key, velocity]);
                     self.sounding = Some((id, key));
                 }
@@ -389,16 +430,32 @@ impl MidiPlayer {
 
     fn history_messages(&mut self, events: Vec<RealizedEvent>) -> Vec<Vec<u8>> {
         let mut output = Vec::new();
+        let onsets = events
+            .iter()
+            .filter(|e| e.data[0] == 0x90 && e.data[2] > 0)
+            .map(|e| (e.at, e.source_note.clone()))
+            .collect::<std::collections::BTreeSet<_>>();
+        let mut initialized = std::collections::BTreeSet::new();
         for event in events {
             let kind = event.data[0] & 0xf0;
-            if kind == 0x90 && event.data[2] > 0 {
-                if self.current_expression {
-                    for status in [0xb0, 0xe0, 0xd0] {
-                        if let Some(data) = self.expression.get(&status) {
-                            output.push(data.clone());
-                        }
-                    }
+            let group = (event.at, event.source_note.clone());
+            if onsets.contains(&group)
+                && !initialized.contains(&group)
+                && !(kind == 0x80 || kind == 0x90 && event.data[2] == 0)
+            {
+                output.extend(expression::entry_messages(
+                    &self.expression_sources,
+                    &self.expression,
+                    &self.motion_expression,
+                ));
+                initialized.insert(group);
+            }
+            if let Some(lane) = expression::lane(&event.data) {
+                if self.expression_sources[&lane] != Source::Recorded {
+                    continue;
                 }
+            }
+            if kind == 0x90 && event.data[2] > 0 {
                 self.sounding = Some((0, event.data[1]));
             } else if kind == 0x80 || kind == 0x90 && event.data[2] == 0 {
                 self.sounding = None;

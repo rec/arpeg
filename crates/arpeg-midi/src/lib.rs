@@ -1,6 +1,6 @@
 //! File and profile adapters for the portable arpeggiator core.
 
-use std::collections::{HashMap, VecDeque};
+use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::path::Path;
 
 use arpeg_core::bank::CaptureMode;
@@ -14,11 +14,16 @@ use midly::{
     num::{u4, u7, u28},
 };
 
+use expression::{Lane, Source};
+
+pub mod expression;
+
 #[cfg(feature = "device-host")]
 pub mod live;
 pub mod player;
 
 pub struct HeldProfile {
+    pub expression_sources: BTreeMap<Lane, Source>,
     pub selection_offset: i64,
     pub offset_rest_outside: bool,
     pub transposition: i64,
@@ -32,6 +37,7 @@ pub struct HeldProfile {
 }
 
 pub struct CapturedProfile {
+    pub expression_sources: BTreeMap<Lane, Source>,
     pub selection_offset: i64,
     pub offset_rest_outside: bool,
     pub transposition: i64,
@@ -42,7 +48,6 @@ pub struct CapturedProfile {
     pub step: Beat,
     pub gate: Beat,
     pub retrigger: Retrigger,
-    pub current_expression: bool,
 }
 
 pub enum Profile {
@@ -211,7 +216,7 @@ pub fn parse_profile(text: &str, path: Option<&Path>) -> Result<Profile, String>
             if let Some(expression) = expression {
                 if expression
                     .keys()
-                    .any(|key| !["source", "timing", "gaps"].contains(&key.as_str()))
+                    .any(|key| !["source", "timing", "gaps", "lanes"].contains(&key.as_str()))
                     || expression
                         .get("source")
                         .is_some_and(|value| value.as_str() != Some("current"))
@@ -231,7 +236,7 @@ pub fn parse_profile(text: &str, path: Option<&Path>) -> Result<Profile, String>
                 expression.ok_or("captured playback requires recorded, fit, carry expression")?;
             if expression
                 .keys()
-                .any(|key| !["source", "timing", "gaps"].contains(&key.as_str()))
+                .any(|key| !["source", "timing", "gaps", "lanes"].contains(&key.as_str()))
                 || !matches!(
                     expression.get("source").and_then(toml::Value::as_str),
                     Some("recorded" | "current")
@@ -477,6 +482,43 @@ pub fn parse_profile(text: &str, path: Option<&Path>) -> Result<Profile, String>
         }
         _ => return Err("unsupported note selection".into()),
     };
+    let default_source = if expression
+        .and_then(|e| e.get("source"))
+        .and_then(toml::Value::as_str)
+        == Some("recorded")
+    {
+        Source::Recorded
+    } else {
+        Source::Current
+    };
+    let mut expression_sources = [Lane::Breath, Lane::Bend, Lane::Pressure]
+        .into_iter()
+        .map(|l| (l, default_source))
+        .collect::<BTreeMap<_, _>>();
+    if let Some(lanes) = expression.and_then(|e| e.get("lanes")) {
+        for (name, value) in lanes.as_table().ok_or("expression lanes must be a table")? {
+            let lane = match name.as_str() {
+                "breath" => Lane::Breath,
+                "bend" => Lane::Bend,
+                "pressure" => Lane::Pressure,
+                _ => return Err("unsupported expression lane".into()),
+            };
+            let source = match value.as_str() {
+                Some("current") => Source::Current,
+                Some("recorded") => Source::Recorded,
+                Some("motion") => Source::Motion,
+                _ => {
+                    return Err(
+                        "expression lane source must be current, recorded, or motion".into(),
+                    );
+                }
+            };
+            if matches!(bank, ParsedBank::Classic(_)) && source == Source::Recorded {
+                return Err("held and latched banks cannot provide recorded expression".into());
+            }
+            expression_sources.insert(lane, source);
+        }
+    }
     let rhythm = parse_rhythm(body)?;
     let gate = parse_gate(body)?;
     let probability = match body.get("probability") {
@@ -561,6 +603,7 @@ pub fn parse_profile(text: &str, path: Option<&Path>) -> Result<Profile, String>
     };
     Ok(match bank {
         ParsedBank::Classic(bank) => Profile::Classic(HeldProfile {
+            expression_sources,
             selection_offset,
             offset_rest_outside,
             transposition,
@@ -602,6 +645,7 @@ pub fn parse_profile(text: &str, path: Option<&Path>) -> Result<Profile, String>
                 return Err("captured playback currently requires grid rhythm".into());
             };
             Profile::Captured(CapturedProfile {
+                expression_sources,
                 selection_offset,
                 offset_rest_outside,
                 transposition,
@@ -612,10 +656,6 @@ pub fn parse_profile(text: &str, path: Option<&Path>) -> Result<Profile, String>
                 step,
                 gate,
                 retrigger,
-                current_expression: expression
-                    .and_then(|e| e.get("source"))
-                    .and_then(toml::Value::as_str)
-                    == Some("current"),
             })
         }
     })
@@ -737,6 +777,13 @@ pub fn render_file(profile: &str, input: &[u8], path: Option<&Path>) -> Result<V
     }
     if profile.selection_offset != 0 {
         return Err("selection offset currently requires live input".into());
+    }
+    if profile
+        .expression_sources
+        .values()
+        .any(|s| *s != Source::Current)
+    {
+        return Err("Motion expression requires live playback".into());
     }
     if profile.retrigger != Retrigger::OnEmpty {
         return Err("file rendering does not support bank-edit retrigger".into());

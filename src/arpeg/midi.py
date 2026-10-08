@@ -17,6 +17,7 @@ from ufor.events import MidiEvent
 
 from .bank import CaptureBank
 from .clock import ClockMode, TransportClock
+from .expression import entry_messages, expression_lane, motion_message
 from .gesture import RealizedMidiEvent
 from .history import LiveHistoryArpeggiator
 from .live import LiveArpeggiator, LiveEvent
@@ -98,6 +99,7 @@ class Play(BaseModel, frozen=True):
                 f"Playing with {self.clock} clock. "
                 "Enter start, pause, continue, tempo BPM, gate FRACTION, "
                 "density FRACTION, transposition SEMITONES, selection_offset RANKS, "
+                "breath FRACTION, bend FRACTION, pressure FRACTION, "
                 "record, commit, "
                 "overdub, undo, clear, or quit."
             )
@@ -159,7 +161,15 @@ class Play(BaseModel, frozen=True):
                             except ValueError as error:
                                 print(str(error), file=stderr)
                         elif command.startswith(
-                            ("gate ", "density ", "transposition ", "selection_offset ")
+                            (
+                                "gate ",
+                                "density ",
+                                "transposition ",
+                                "selection_offset ",
+                                "breath ",
+                                "bend ",
+                                "pressure ",
+                            )
                         ):
                             try:
                                 port, value = command.split()
@@ -203,6 +213,9 @@ class MidiPlayer(BaseModel):
     ordinal: int = 0
     engine: LiveArpeggiator | LiveHistoryArpeggiator | None = None
     expression: dict[int, list[int]] = Field(default_factory=dict)
+    motion_expression: dict[arpeggiator.ExpressionLane, Fraction] = Field(
+        default_factory=dict
+    )
     output_id: int | None = None
     output_key: int | None = None
 
@@ -218,6 +231,7 @@ class MidiPlayer(BaseModel):
             if (
                 body.expression.source != "current"
                 or body.expression.timing != "original"
+                or "recorded" in body.expression.lanes.values()
             ):
                 raise ValueError(
                     "held and latched playback require current, original expression"
@@ -254,7 +268,7 @@ class MidiPlayer(BaseModel):
             name=self.profile.name,
             step=Fraction(body.rhythm.step.removesuffix(" beat")),
             gate=body.gate,
-            expression_source=body.expression.source,
+            expression_source="recorded",
             bank=CaptureBank(
                 mode=body.bank.kind,
                 history_size=body.bank.notes
@@ -312,7 +326,14 @@ class MidiPlayer(BaseModel):
             if expressive:
                 output.extend(self._note_messages(engine.before(at)))
                 self.expression[data[0]] = data
-                if self.clock.active and self.output_key is not None:
+                lane = expression_lane(data)
+                assert lane is not None
+                policy = self.profile.body.expression
+                if (
+                    policy.lanes.get(lane, policy.source) == "current"
+                    and self.clock.active
+                    and self.output_key is not None
+                ):
                     output.append(message)
                 return output
             events = (
@@ -335,8 +356,13 @@ class MidiPlayer(BaseModel):
         output.extend(self._history_messages(events))
         if expressive:
             self.expression[data[0]] = data
+            lane = expression_lane(data)
+            assert lane is not None
             if (
-                self.profile.body.expression.source == "current"
+                self.profile.body.expression.lanes.get(
+                    lane, self.profile.body.expression.source
+                )
+                == "current"
                 and self.clock.active
                 and self.output_key is not None
             ):
@@ -420,11 +446,37 @@ class MidiPlayer(BaseModel):
         self, at_ns: int, control: arpeggiator_ports.ArpeggiatorControl
     ) -> list[mido.Message]:
         assert self.engine is not None and self.engine.ports is not None
-        self.engine.ports.check_control(control, self.profile.body.seed)
+        lane = (
+            arpeggiator.ExpressionLane(control.port.value)
+            if control.port.value in ("breath", "bend", "pressure")
+            else None
+        )
+        if lane is not None:
+            policy = self.profile.body.expression
+            if policy.lanes.get(lane, policy.source) != "motion":
+                raise ValueError(f"{lane} is not owned by Motion")
+        else:
+            self.engine.ports.check_control(control, self.profile.body.seed)
         tick = self._elapsed(at_ns)
         was_active = self.clock.active
         at = self.clock.advance(tick)
         output = self._pause(tick) if was_active and not self.clock.active else []
+        if lane is not None:
+            if self.clock.active:
+                if isinstance(self.engine, LiveArpeggiator):
+                    output.extend(self._note_messages(self.engine.before(at)))
+                elif at > self.engine.processed_to:
+                    output.extend(
+                        self._history_messages(
+                            self.engine.before(at, max(tick, self.input_tick))
+                        )
+                    )
+            self.motion_expression[lane] = control.value
+            if self.clock.active and self.output_key is not None:
+                output.append(
+                    mido.Message.from_bytes(motion_message(lane, control.value))
+                )
+            return output
         if isinstance(self.engine, LiveArpeggiator):
             output.extend(self._note_messages(self.engine.control(at, control)))
         else:
@@ -458,9 +510,12 @@ class MidiPlayer(BaseModel):
                 if self.output_key is not None:
                     output.append(mido.Message.from_bytes([0x80, self.output_key, 0]))
                 output.extend(
-                    mido.Message.from_bytes(self.expression[s])
-                    for s in (0xB0, 0xE0, 0xD0)
-                    if s in self.expression
+                    mido.Message.from_bytes(d)
+                    for d in entry_messages(
+                        self.profile.body.expression,
+                        self.expression,
+                        self.motion_expression,
+                    )
                 )
                 output.append(
                     mido.Message.from_bytes([0x90, event.key, event.velocity])
@@ -477,15 +532,32 @@ class MidiPlayer(BaseModel):
 
     def _history_messages(self, events: list[RealizedMidiEvent]) -> list[mido.Message]:
         output: list[mido.Message] = []
+        onsets = {
+            (e.at, e.source_note) for e in events if e.data[0] == 0x90 and e.data[2] > 0
+        }
+        initialized: set[tuple[Fraction, str | None]] = set()
         for event in events:
             kind = event.data[0] & 0xF0
-            if kind == 0x90 and event.data[2] > 0:
-                if self.profile.body.expression.source == "current":
-                    output.extend(
-                        mido.Message.from_bytes(self.expression[s])
-                        for s in (0xB0, 0xE0, 0xD0)
-                        if s in self.expression
+            group = (event.at, event.source_note)
+            if (
+                group in onsets
+                and group not in initialized
+                and not (kind == 0x80 or kind == 0x90 and event.data[2] == 0)
+            ):
+                output.extend(
+                    mido.Message.from_bytes(d)
+                    for d in entry_messages(
+                        self.profile.body.expression,
+                        self.expression,
+                        self.motion_expression,
                     )
+                )
+                initialized.add(group)
+            if (lane := expression_lane(event.data)) is not None:
+                policy = self.profile.body.expression
+                if policy.lanes.get(lane, policy.source) != "recorded":
+                    continue
+            if kind == 0x90 and event.data[2] > 0:
                 self.output_key = event.data[1]
             elif kind == 0x80 or kind == 0x90 and event.data[2] == 0:
                 self.output_key = None
@@ -532,7 +604,16 @@ def _read_commands(commands: SimpleQueue[str]) -> None:
             "undo",
         ) or (
             command.startswith(
-                ("tempo ", "gate ", "density ", "transposition ", "selection_offset ")
+                (
+                    "tempo ",
+                    "gate ",
+                    "density ",
+                    "transposition ",
+                    "selection_offset ",
+                    "breath ",
+                    "bend ",
+                    "pressure ",
+                )
             )
             and len(command.split()) == 2
         ):
@@ -541,6 +622,7 @@ def _read_commands(commands: SimpleQueue[str]) -> None:
             print(
                 "enter start, pause, continue, tempo BPM, gate FRACTION, "
                 "density FRACTION, transposition SEMITONES, selection_offset RANKS, "
+                "breath FRACTION, bend FRACTION, pressure FRACTION, "
                 "record, commit, "
                 "overdub, undo, clear, or quit",
                 file=stderr,

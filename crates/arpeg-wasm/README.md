@@ -96,6 +96,17 @@ BigInt values. Each step emits `step` before its `hit` or `rest`; ties emit only
 `step`, and repeats share one hit event. The 4096-event buffer stops admitting
 new steps when full while retaining release obligations; draining reports the
 exhaustion and permits future steps. Skipped attacks are not replayed.
+Expression lanes declare their source through `body.expression.lanes`, for
+example `{ breath = "motion", bend = "recorded", pressure = "current" }`.
+Unspecified lanes inherit `body.expression.source`. Recorded lanes require a
+history or phrase bank. `control(time, "breath", "1/2")`,
+`control(time, "bend", "-1/4")`, and `control(time, "pressure", "1")` update
+Motion-owned lanes immediately. Breath/pressure range from 0 to 1; bend ranges
+from -1 to 1 with center 0, leaving the musical interval to the synth. Values
+round to the nearest MIDI integer, ties upward. Samples are held through rests
+and pauses, restored before the next note-on, and never added to the input
+recording. An unknown lane has no invented initial value. Controls for lanes
+owned by current or recorded expression throw before changing playback state.
 The webpage owns Motion sampling, event routing, and any delayed feedback.
 
 The webpage supplies its controls, clock polling, sound or MIDI output, and any

@@ -491,6 +491,16 @@ tested explicitly; the existing tempo map is not a MIDI pulse estimator.
 
 Expose a small useful Motion interface:
 
+Live breath, bend, and channel pressure now support per-lane `current`,
+`recorded`, and `motion` sources through `body.expression.lanes` in Python,
+Rust, and WebAssembly. Unspecified lanes inherit the global source. Motion
+controls update sounding notes immediately and hold exact samples through
+rests, pauses, clear, and relocation. Breath/pressure use [0, 1]; bend uses
+normalized wheel position [-1, 1], with 0 at center. The instrument sets its
+bend interval. MIDI destination rounding is nearest integer, ties upward;
+unknown values are not initialized. Motion samples never alter the received
+MIDI capture. Each lane has one owner; source mixing remains future work.
+
 Live `selection_offset` is implemented for held, latched, history, and phrase
 banks in Python, Rust, and WebAssembly. Configure
 `selection_offset = { ranks = 0, boundary = "wrap" }` in the body. It shifts

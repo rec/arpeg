@@ -1,0 +1,18 @@
+# Exact normalized samples and destination MIDI values, nearest integer with ties upward.
+cases = [
+  { port = "breath", value = "0", data = [176, 2, 0] },
+  { port = "breath", value = "1/254", data = [176, 2, 1] },
+  { port = "breath", value = "1/2", data = [176, 2, 64] },
+  { port = "breath", value = "1", data = [176, 2, 127] },
+  { port = "pressure", value = "1/2", data = [208, 64] },
+  { port = "pressure", value = "1", data = [208, 127] },
+  { port = "bend", value = "-1", data = [224, 0, 0] },
+  { port = "bend", value = "-1/2", data = [224, 0, 32] },
+  { port = "bend", value = "0", data = [224, 0, 64] },
+  { port = "bend", value = "1/2", data = [224, 0, 96] },
+  { port = "bend", value = "1", data = [224, 127, 127] },
+  { port = "bend", value = "1/16382", data = [224, 1, 64] },
+  { port = "bend", value = "-1/16384", data = [224, 0, 64] },
+  { port = "bend", value = "1/9223372036854775807", data = [224, 0, 64] },
+  { port = "breath", value = "9223372036854775806/9223372036854775807", data = [176, 2, 127] },
+]

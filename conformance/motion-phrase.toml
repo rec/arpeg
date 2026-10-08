@@ -1,0 +1,8 @@
+name = "motion-phrase"
+title = "Motion breath, recorded bend, and live pressure"
+
+[body]
+bank = { kind = "phrase", publish = "step" }
+selection = { kind = "played" }
+rhythm = { kind = "grid", step = "1/4 beat" }
+expression = { source = "recorded", timing = "fit", gaps = "carry", lanes = { breath = "motion", pressure = "current" } }

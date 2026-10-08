@@ -339,6 +339,34 @@ and carried gaps, matching history playback.
 
 ### Motion control ports
 
+Live MIDI expression has one declared source per lane. For example:
+
+```toml
+[body.expression]
+source = "current"
+lanes = { breath = "motion", bend = "recorded" }
+```
+
+Unspecified lanes inherit `source`; each override accepts `current`, `recorded`,
+or `motion`. Recorded lanes require a history or phrase bank and the existing
+`timing = "fit", gaps = "carry"` playback policy. Held and latched banks support
+current and Motion lanes. Received MIDI remains captured regardless of ownership.
+
+Motion samples reach the sounding note immediately. Breath and channel pressure
+use exact values from 0 to 1; bend uses normalized wheel position from -1 to 1,
+with 0 at center. The synth sets the bend interval. Values round to the nearest
+MIDI integer, with ties upward. There is no interpolation or source mixing.
+Samples during rests or pauses are held for the next onset; an unsampled lane
+has no invented initial value. Current/Motion entry values precede the recorded
+entry bundle and note-on, preserving recorded event order. Motion samples are
+not added to the received MIDI recording. Python snapshots retain exact samples.
+
+Use [motion-expression](conformance/motion-expression.toml) with either native
+host and enter `breath 1/2`, `bend -1/4`, or `pressure 1`. Python uses
+`ArpeggiatorControl` with those port names; WebAssembly uses `control(time, port,
+value)`. These expression controls belong to the MIDI player; the pure step
+engines and limited file renderer reject them.
+
 Live selection offset chooses another identified note from the current bank,
 including that note's velocity and recorded expression:
 

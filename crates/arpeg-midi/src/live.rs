@@ -132,7 +132,7 @@ pub fn play(
         keyboard.store(true, Ordering::SeqCst);
     });
     println!(
-        "Playing with {mode:?} clock. Enter start, pause, continue, tempo BPM, gate FRACTION, density FRACTION, transposition SEMITONES, selection_offset RANKS, record, commit, overdub, undo, clear, or quit."
+        "Playing with {mode:?} clock. Enter start, pause, continue, tempo BPM, gate FRACTION, density FRACTION, transposition SEMITONES, selection_offset RANKS, breath FRACTION, bend FRACTION, pressure FRACTION, record, commit, overdub, undo, clear, or quit."
     );
     let origin = Instant::now();
     let elapsed = |now: Instant| {
@@ -182,7 +182,7 @@ pub fn play(
                     }
                     _ => {
                         if let Some((name, value)) = command.split_once(' ') {
-                            let port = match name { "gate" => Some(InputPort::Gate), "density" => Some(InputPort::Density), "transposition" => Some(InputPort::Transposition), "selection_offset" => Some(InputPort::SelectionOffset), _ => None };
+                            let port = match name { "gate" => Some(InputPort::Gate), "density" => Some(InputPort::Density), "transposition" => Some(InputPort::Transposition), "selection_offset" => Some(InputPort::SelectionOffset), "breath" => Some(InputPort::Breath), "bend" => Some(InputPort::Bend), "pressure" => Some(InputPort::Pressure), _ => None };
                             if let Some(port) = port {
                                 match value.parse() {
                                     Ok(value) => match player.control(at, port, value) {
@@ -205,7 +205,7 @@ pub fn play(
                                 }
                             }
                         } else {
-                            eprintln!("enter start, pause, continue, tempo BPM, gate FRACTION, density FRACTION, transposition SEMITONES, selection_offset RANKS, record, commit, overdub, undo, clear, or quit");
+                            eprintln!("enter start, pause, continue, tempo BPM, gate FRACTION, density FRACTION, transposition SEMITONES, selection_offset RANKS, breath FRACTION, bend FRACTION, pressure FRACTION, record, commit, overdub, undo, clear, or quit");
                             continue;
                         }
                     }

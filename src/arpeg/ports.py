@@ -23,6 +23,12 @@ class PerformancePorts(BaseModel):
     def check_control(
         self, control: arpeggiator_ports.ArpeggiatorControl, seed: int | None
     ) -> None:
+        if control.port in (
+            arpeggiator_ports.ArpeggiatorInputPort.breath,
+            arpeggiator_ports.ArpeggiatorInputPort.bend,
+            arpeggiator_ports.ArpeggiatorInputPort.pressure,
+        ):
+            raise ValueError("expression controls require the MIDI player")
         if (
             control.port == arpeggiator_ports.ArpeggiatorInputPort.density
             and 0 < control.value < 1

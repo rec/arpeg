@@ -77,10 +77,11 @@ impl MidiPlayer {
             "density" => InputPort::Density,
             "transposition" => InputPort::Transposition,
             "selection_offset" => InputPort::SelectionOffset,
+            "breath" => InputPort::Breath,
+            "bend" => InputPort::Bend,
+            "pressure" => InputPort::Pressure,
             _ => {
-                return Err(JsValue::from_str(
-                    "port must be gate, density, transposition, or selection_offset",
-                ));
+                return Err(JsValue::from_str("unsupported arpeggiator control port"));
             }
         };
         let value = value

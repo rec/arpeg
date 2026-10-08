@@ -103,7 +103,7 @@ impl HistoryArpeggiator {
         } else {
             Vec::new()
         };
-        self.ports.queue(port, value);
+        self.ports.queue(port, value)?;
         Ok(output)
     }
 

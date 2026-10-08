@@ -1,0 +1,7 @@
+name = "motion-expression"
+title = "Motion breath, bend, and pressure"
+
+[body]
+rhythm = { kind = "grid", step = "1/4 beat" }
+gate = "6/5"
+expression = { lanes = { breath = "motion", bend = "motion", pressure = "motion" } }

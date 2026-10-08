@@ -78,6 +78,8 @@ fn motion_ports_match_shared_exact_traces() {
             "motion-ports" => include_str!("../../../conformance/motion-ports.toml"),
             "transpose-fold" => include_str!("../../../conformance/transpose-fold.toml"),
             "offset-rest" => include_str!("../../../conformance/offset-rest.toml"),
+            "motion-expression" => include_str!("../../../conformance/motion-expression.toml"),
+            "motion-phrase" => include_str!("../../../conformance/motion-phrase.toml"),
             _ => panic!("unknown profile"),
         };
         for poll_us in [None, Some(1000)] {
@@ -113,6 +115,9 @@ fn motion_ports_match_shared_exact_traces() {
                         "density" => InputPort::Density,
                         "transposition" => InputPort::Transposition,
                         "selection_offset" => InputPort::SelectionOffset,
+                        "breath" => InputPort::Breath,
+                        "bend" => InputPort::Bend,
+                        "pressure" => InputPort::Pressure,
                         _ => panic!("unknown port"),
                     };
                     player
