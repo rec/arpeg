@@ -2,6 +2,17 @@
 
 🧬 An expressive arpeggiator 🧬
 
+## Play in a browser
+
+The [browser instrument](web/README.md) offers a built-in synth, an on-screen
+and computer keyboard, note orders, latch, tempo, gate, transpose, and pitch
+bend. It uses the existing Rust/WebAssembly player with no backend or JavaScript
+dependencies. Build with `node web/build.mjs`, then serve `dist/web` over HTTP.
+Click **Start audio** to enable sound. The initial audio host uses a 40 ms
+presentation delay to preserve note spacing through ordinary polling jitter.
+
+## Engine
+
 The project design is in [plan/arpeggiator.md](plan/arpeggiator.md). The Python
 package and the Rust event core render held and latched notes in ascending,
 descending, and played order against an exact beat grid. Both cores process

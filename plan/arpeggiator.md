@@ -511,8 +511,13 @@ space for its end in the bounded 4096-note-event list; exhaustion suppresses new
 output attacks and their gestures while releases continue. Snapshots retain
 lifecycle state, without claiming hardware reconciliation.
 
-The next requested delivery focus is a browser-friendly front end using the
-existing WebAssembly player.
+A first browser front end now uses the existing WebAssembly player with held
+and latched chords, classic note orders, on-screen/computer keyboard input,
+transport and performance controls, and a built-in oscillator/ADSR synth.
+Exact lifecycle beats schedule notes on the audio clock with a 40 ms presentation
+delay; Stop and focus loss cancel queued voices. This is a static site with no
+backend. Browser/device timing remains to be measured; capture editing, sample
+playback, and external MIDI are not part of this initial front end.
 
 `cycle` now marks the first step of each Euclidean or custom rhythm loop in
 Python, Rust, and WebAssembly, including the initial loop. Plain grids emit no

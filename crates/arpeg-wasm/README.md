@@ -134,9 +134,9 @@ continue. `exhausted` covers either list. Draining permits future attacks withou
 replaying skipped ones. The webpage owns Motion sampling, event routing, and any
 delayed feedback.
 
-The webpage supplies its controls, clock polling, sound or MIDI output, and any
-browser permissions. This crate does not open MIDI ports, produce audio, or
-provide a demo page. Returned messages are due at the supplied time; the API
+The [browser instrument](../../web/README.md) supplies controls, clock polling,
+and a built-in Web Audio synth. This crate itself does not open MIDI ports or
+produce audio. Returned messages are due at the supplied time; the API
 does not provide a future-timestamped audio queue. Browser playback timing still
 requires its own host implementation and measurement.
 
@@ -161,4 +161,5 @@ The existing GitHub workflow now runs only on **published releases**, including
 prereleases. It builds the native executable and tests Python and Rust on Mac,
 Linux, and Windows, then separately tests and builds WebAssembly. The browser
 module and generated bindings are retained as the `arpeg-webassembly` workflow
-artifact. Publishing a release does not deploy a website.
+artifact. The playable static site is also retained as `arpeg-web-instrument`.
+Publishing a release does not deploy a website.
