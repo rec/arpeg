@@ -95,7 +95,8 @@ class Play(BaseModel, frozen=True):
                 )
             print(
                 f"Playing with {self.clock} clock. "
-                "Enter start, pause, continue, tempo BPM, clear, or quit."
+                "Enter start, pause, continue, tempo BPM, record, commit, "
+                "overdub, undo, clear, or quit."
             )
             stopped = False
             try:
@@ -115,7 +116,7 @@ class Play(BaseModel, frozen=True):
                         if command == "clear":
                             if isinstance(profile.body.bank, arpeggiator.HeldBank):
                                 print(
-                                    "clear requires a latched or history bank",
+                                    "clear requires a latched, history or phrase bank",
                                     file=stderr,
                                 )
                             else:
@@ -129,6 +130,22 @@ class Play(BaseModel, frozen=True):
                                     perf_counter_ns(), mido.Message.from_bytes([status])
                                 )
                             )
+                        elif command in ("record", "commit", "overdub", "undo"):
+                            try:
+                                messages.extend(
+                                    player.capture(perf_counter_ns(), command)
+                                )
+                                assert isinstance(player.engine, LiveHistoryArpeggiator)
+                                bank = player.engine.bank
+                                recording = bank.recording is not None
+                                print(
+                                    f"{command}: recording={recording}, "
+                                    f"notes={len(bank.published)}, "
+                                    f"revision={bank.revision}. "
+                                    "Committed edits publish at the next step."
+                                )
+                            except ValueError as error:
+                                print(str(error), file=stderr)
                         elif command.startswith("tempo "):
                             try:
                                 messages.extend(
@@ -174,7 +191,7 @@ class MidiPlayer(BaseModel):
 
     def _prepare_engine(self) -> LiveArpeggiator | LiveHistoryArpeggiator:
         body = self.profile.body
-        if not isinstance(body.bank, arpeggiator.HistoryBank):
+        if not isinstance(body.bank, (arpeggiator.HistoryBank, arpeggiator.PhraseBank)):
             if (
                 body.expression.source != "current"
                 or body.expression.timing != "original"
@@ -185,29 +202,33 @@ class MidiPlayer(BaseModel):
             return LiveArpeggiator(profile=self.profile)
         if not isinstance(body.rhythm, arpeggiator.Grid) or body.probability != 1:
             raise ValueError(
-                "history playback requires grid rhythm without probability"
+                "captured playback requires grid rhythm without probability"
             )
         selection = body.selection
         if isinstance(selection, (arpeggiator.Ascending, arpeggiator.Descending)):
             if selection.key != "pitch" or (
                 isinstance(selection, arpeggiator.Ascending) and selection.repeats != 1
             ):
-                raise ValueError("history playback requires unrepeated pitch selection")
+                raise ValueError(
+                    "captured playback requires unrepeated pitch selection"
+                )
         elif not isinstance(selection, arpeggiator.Played):
-            raise ValueError("history playback requires classic selection")
+            raise ValueError("captured playback requires classic selection")
         if body.expression.source not in ("recorded", "current") or (
             body.expression.timing != "fit" or body.expression.gaps != "carry"
         ):
             raise ValueError(
-                "history playback requires recorded or current, fit, carry expression"
+                "captured playback requires recorded or current, fit, carry expression"
             )
         return LiveHistoryArpeggiator(
             step=Fraction(body.rhythm.step.removesuffix(" beat")),
             gate=body.gate,
             expression_source=body.expression.source,
             bank=CaptureBank(
-                mode="history",
-                history_size=body.bank.notes,
+                mode=body.bank.kind,
+                history_size=body.bank.notes
+                if isinstance(body.bank, arpeggiator.HistoryBank)
+                else 8,
                 selection=selection.kind,
                 direction=selection.direction
                 if isinstance(selection, arpeggiator.Played)
@@ -328,6 +349,42 @@ class MidiPlayer(BaseModel):
         self.clock.set_tempo(self._elapsed(at_ns), bpm)
         return output
 
+    def capture(self, at_ns: int, command: str) -> list[mido.Message]:
+        if (
+            not isinstance(self.engine, LiveHistoryArpeggiator)
+            or self.engine.bank.mode != "phrase"
+        ):
+            raise ValueError("capture controls require a phrase bank")
+        self.engine.bank.check_control(command)
+        if (
+            command == "record"
+            and self.engine.input_events + len(self.expression) > 1_000_000
+        ):
+            raise ValueError("live capture reached its event limit")
+        tick = max(
+            self._elapsed(at_ns),
+            self.input_tick + 1,
+            self.engine.capture_to + int(self.engine.inclusive),
+        )
+        was_active = self.clock.active
+        at = self.clock.advance(self.wall_us)
+        output = self._pause(tick) if was_active and not self.clock.active else []
+        output.extend(self._history_messages(self.engine.capture(command, at, tick)))
+        self.input_tick = tick
+        self.ordinal = 0
+        if command == "record":
+            for status in (0xB0, 0xE0, 0xD0):
+                if status in self.expression:
+                    self.engine.accept(
+                        MidiEvent(
+                            tick=tick,
+                            ordinal=self.ordinal,
+                            data=self.expression[status],
+                        )
+                    )
+                    self.ordinal += 1
+        return output
+
     def _pause(self, tick: int) -> list[mido.Message]:
         assert self.engine is not None
         if isinstance(engine := self.engine, LiveArpeggiator):
@@ -404,11 +461,20 @@ def _read_commands(commands: SimpleQueue[str]) -> None:
         if command in ("", "quit"):
             commands.put("quit")
             return
-        if command in ("clear", "start", "pause", "continue") or (
-            command.startswith("tempo ") and len(command.split()) == 2
-        ):
+        if command in (
+            "clear",
+            "start",
+            "pause",
+            "continue",
+            "record",
+            "commit",
+            "overdub",
+            "undo",
+        ) or (command.startswith("tempo ") and len(command.split()) == 2):
             commands.put(command)
         else:
             print(
-                "enter start, pause, continue, tempo BPM, clear, or quit", file=stderr
+                "enter start, pause, continue, tempo BPM, record, commit, "
+                "overdub, undo, clear, or quit",
+                file=stderr,
             )

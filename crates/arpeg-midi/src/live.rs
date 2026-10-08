@@ -132,7 +132,7 @@ pub fn play(
         keyboard.store(true, Ordering::SeqCst);
     });
     println!(
-        "Playing with {mode:?} clock. Enter start, pause, continue, tempo BPM, clear, or quit."
+        "Playing with {mode:?} clock. Enter start, pause, continue, tempo BPM, record, commit, overdub, undo, clear, or quit."
     );
     let origin = Instant::now();
     let elapsed = |now: Instant| {
@@ -163,9 +163,21 @@ pub fn play(
                     "start" => player.accept(at, &[0xfa], InputSource::Both),
                     "pause" => player.accept(at, &[0xfc], InputSource::Both),
                     "continue" => player.accept(at, &[0xfb], InputSource::Both),
+                    "record" | "commit" | "overdub" | "undo" => match player.capture(at, &command) {
+                        Ok(messages) => {
+                            if let Some((recording, notes, revision)) = player.capture_state() {
+                                println!("{command}: recording={recording}, notes={notes}, revision={revision}. Committed edits publish at the next step.");
+                            }
+                            Ok(messages)
+                        }
+                        Err(error) => {
+                            eprintln!("{error}");
+                            continue;
+                        }
+                    },
                     "clear" if !held => player.clear(at),
                     "clear" => {
-                        eprintln!("clear requires a latched or history bank");
+                        eprintln!("clear requires a latched, history or phrase bank");
                         continue;
                     }
                     _ => {
@@ -180,7 +192,7 @@ pub fn play(
                                 }
                             }
                         } else {
-                            eprintln!("enter start, pause, continue, tempo BPM, clear, or quit");
+                            eprintln!("enter start, pause, continue, tempo BPM, record, commit, overdub, undo, clear, or quit");
                             continue;
                         }
                     }

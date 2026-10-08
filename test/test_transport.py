@@ -9,6 +9,7 @@ from ufor.arpeggiator import ArpeggiatorScore
 from ufor.codec import parse_score
 
 from arpeg.clock import ClockMode, TransportClock
+from arpeg.history import LiveHistoryArpeggiator
 from arpeg.midi import MidiPlayer
 
 
@@ -16,7 +17,7 @@ from arpeg.midi import MidiPlayer
     "case",
     [
         c
-        for f in ("transport", "performance")
+        for f in ("transport", "performance", "phrase")
         for c in loads(Path(f"conformance/{f}.toml").read_text())["cases"]
     ],
     ids=lambda c: c["name"],
@@ -50,6 +51,8 @@ def test_shared_transport_trace(case: dict[str, object], poll_us: int | None) ->
             )
         elif "tempo" in action:
             output.extend(player.set_tempo(at, action["tempo"]))
+        elif "capture" in action:
+            output.extend(player.capture(at, action["capture"]))
         elif "clear" in action:
             output.extend(player.clear(at))
         else:
@@ -57,6 +60,14 @@ def test_shared_transport_trace(case: dict[str, object], poll_us: int | None) ->
         assert [m.bytes() for m in output] == action["output"], action
         assert player.clock.beat == Fraction(action["beat"]), action
         assert player.clock.active == action["active"], action
+        if "state" in action:
+            assert isinstance(player.engine, LiveHistoryArpeggiator)
+            bank = player.engine.bank
+            assert [
+                bank.recording is not None,
+                len(bank.published),
+                bank.revision,
+            ] == action["state"], action
         # Restoring the full player must preserve transport, input and owned output.
         player = MidiPlayer.model_validate_json(player.model_dump_json())
         previous_at = at

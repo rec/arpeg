@@ -3,6 +3,7 @@
 use std::collections::{HashMap, VecDeque};
 use std::path::Path;
 
+use arpeg_core::bank::CaptureMode;
 use arpeg_core::chance::Chance;
 use arpeg_core::live::Retrigger;
 use arpeg_core::rhythm::{PatternStep, Rhythm};
@@ -25,8 +26,8 @@ pub struct HeldProfile {
     pub retrigger: Retrigger,
 }
 
-pub struct HistoryProfile {
-    pub notes: usize,
+pub struct CapturedProfile {
+    pub mode: CaptureMode,
     pub selection: Selection,
     pub step: Beat,
     pub gate: Beat,
@@ -36,7 +37,7 @@ pub struct HistoryProfile {
 
 pub enum Profile {
     Classic(HeldProfile),
-    History(HistoryProfile),
+    Captured(CapturedProfile),
 }
 
 pub fn parse_profile(text: &str, path: Option<&Path>) -> Result<Profile, String> {
@@ -117,7 +118,7 @@ pub fn parse_profile(text: &str, path: Option<&Path>) -> Result<Profile, String>
     }
     enum ParsedBank {
         Classic(Bank),
-        History(usize),
+        Captured(CaptureMode),
     }
     let bank = match body.get("bank") {
         None => ParsedBank::Classic(Bank::Held),
@@ -162,9 +163,22 @@ pub fn parse_profile(text: &str, path: Option<&Path>) -> Result<Profile, String>
                     if notes <= 0 {
                         return Err("history notes must be a positive integer".into());
                     }
-                    ParsedBank::History(
+                    ParsedBank::Captured(CaptureMode::History(
                         usize::try_from(notes).map_err(|_| "history notes are too large")?,
-                    )
+                    ))
+                }
+                Some("phrase")
+                    if bank
+                        .keys()
+                        .all(|k| ["kind", "publish"].contains(&k.as_str())) =>
+                {
+                    if bank
+                        .get("publish")
+                        .is_some_and(|v| v.as_str() != Some("step"))
+                    {
+                        return Err("phrase bank must publish at steps".into());
+                    }
+                    ParsedBank::Captured(CaptureMode::Phrase)
                 }
                 _ => return Err("unsupported note bank".into()),
             }
@@ -200,9 +214,9 @@ pub fn parse_profile(text: &str, path: Option<&Path>) -> Result<Profile, String>
                 }
             }
         }
-        ParsedBank::History(_) => {
+        ParsedBank::Captured(_) => {
             let expression =
-                expression.ok_or("history playback requires recorded, fit, carry expression")?;
+                expression.ok_or("captured playback requires recorded, fit, carry expression")?;
             if expression
                 .keys()
                 .any(|key| !["source", "timing", "gaps"].contains(&key.as_str()))
@@ -214,7 +228,7 @@ pub fn parse_profile(text: &str, path: Option<&Path>) -> Result<Profile, String>
                 || expression.get("gaps").and_then(toml::Value::as_str) != Some("carry")
             {
                 return Err(
-                    "history playback requires recorded or current, fit, carry expression".into(),
+                    "captured playback requires recorded or current, fit, carry expression".into(),
                 );
             }
         }
@@ -487,7 +501,7 @@ pub fn parse_profile(text: &str, path: Option<&Path>) -> Result<Profile, String>
             gate,
             retrigger,
         }),
-        ParsedBank::History(notes) => {
+        ParsedBank::Captured(mode) => {
             if matches!(selection, Selection::Choice { .. }) {
                 return Err("choice selection currently requires a held or latched bank".into());
             }
@@ -514,10 +528,10 @@ pub fn parse_profile(text: &str, path: Option<&Path>) -> Result<Profile, String>
                 return Err("probability currently requires a held or latched bank".into());
             }
             let Rhythm::Grid { step } = rhythm else {
-                return Err("history playback currently requires grid rhythm".into());
+                return Err("captured playback currently requires grid rhythm".into());
             };
-            Profile::History(HistoryProfile {
-                notes,
+            Profile::Captured(CapturedProfile {
+                mode,
                 selection,
                 step,
                 gate,
@@ -628,8 +642,16 @@ fn parse_gate(body: &toml::map::Map<String, toml::Value>) -> Result<Beat, String
 }
 
 pub fn render_file(profile: &str, input: &[u8], path: Option<&Path>) -> Result<Vec<u8>, String> {
-    let Profile::Classic(profile) = parse_profile(profile, path)? else {
-        return Err("history profiles require live MIDI input".into());
+    let profile = match parse_profile(profile, path)? {
+        Profile::Classic(p) => p,
+        Profile::Captured(p) => {
+            return Err(if p.mode == CaptureMode::Phrase {
+                "phrase profiles require live MIDI input"
+            } else {
+                "history profiles require live MIDI input"
+            }
+            .into());
+        }
     };
     if profile.chance.probability != Beat::from_integer(1) {
         return Err("probability currently requires live input".into());

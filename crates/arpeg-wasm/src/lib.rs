@@ -60,6 +60,29 @@ impl MidiPlayer {
             .map_err(JsValue::from_str)
     }
 
+    /// Record, commit a replacement, commit an overdub, or undo the last committed take.
+    pub fn capture(&mut self, at_us: i64, command: &str) -> Result<Array, JsValue> {
+        self.player
+            .capture(at_us, command)
+            .map(messages)
+            .map_err(JsValue::from_str)
+    }
+
+    /// Recording flag, published note count, and bank revision, or an empty array for held banks.
+    #[wasm_bindgen(getter)]
+    pub fn capture_state(&self) -> Array {
+        match self.player.capture_state() {
+            Some((recording, notes, revision)) => [
+                JsValue::from_bool(recording),
+                JsValue::from_f64(notes as f64),
+                JsValue::from_f64(revision as f64),
+            ]
+            .into_iter()
+            .collect(),
+            None => Array::new(),
+        }
+    }
+
     pub fn stop(&mut self, at_us: i64) -> Result<Array, JsValue> {
         self.player
             .stop(at_us)

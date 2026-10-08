@@ -37,8 +37,7 @@ class CaptureBank(BaseModel):
     def record(
         self, capture_id: str, timebase: Timebase, profile: MidiCaptureProfile
     ) -> None:
-        if self.recording is not None:
-            raise ValueError("a capture is already recording")
+        self.check_control("record")
         if any(t.phrase.capture_id == capture_id for t in self.takes):
             raise ValueError("capture ID already exists")
         self.recording = MidiCapture(
@@ -60,8 +59,8 @@ class CaptureBank(BaseModel):
     def commit(
         self, end_tick: int, update: Literal["replace", "overdub"] | None = None
     ) -> None:
-        if self.recording is None:
-            raise ValueError("record before committing")
+        self.check_control("commit")
+        assert self.recording is not None
         phrase = self.recording.finish(end_tick)
         if update is None:
             update = "overdub" if self.mode == "history" else "replace"
@@ -70,14 +69,35 @@ class CaptureBank(BaseModel):
         self.live_snapshot = None
 
     def undo_last_capture(self) -> None:
-        if not self.takes:
-            raise ValueError("there is no committed capture to undo")
+        self.check_control("undo")
         self.takes.pop()
+
+    def check_control(self, command: str) -> None:
+        """Validate a capture edit before emitting due playback events."""
+        if command == "record":
+            if self.recording is not None:
+                raise ValueError("a capture is already recording")
+        elif command in ("commit", "overdub"):
+            if self.recording is None:
+                raise ValueError("record before committing")
+            if self.mode == "phrase" and len(self.takes) >= 128:
+                raise ValueError(
+                    "phrase reached its 128-take limit; undo or clear first"
+                )
+        elif command == "undo":
+            if not self.takes:
+                raise ValueError("there is no committed capture to undo")
+        else:
+            raise ValueError("capture command must be record, commit, overdub or undo")
 
     def clear(self) -> None:
         self.recording = None
         self.live_snapshot = None
         self.takes.clear()
+        if self.published:
+            self.revision += 1
+        self.published.clear()
+        self.last_selected = None
 
     def clear_history(self) -> None:
         """Forget selected history while preserving the live controller capture."""

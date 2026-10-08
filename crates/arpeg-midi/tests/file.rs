@@ -270,7 +270,7 @@ fn euclidean_profile_rejects_invalid_masks_and_history_use() {
     );
     assert_eq!(
         parse_profile(&history, None).err().unwrap(),
-        "history playback currently requires grid rhythm"
+        "captured playback currently requires grid rhythm"
     );
 }
 
@@ -329,10 +329,10 @@ fn native_shell_accepts_the_canonical_ufor_profile() {
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 fn history_profile_is_explicit_and_live_only() {
     let profile = include_str!("../../../conformance/history-wind.toml");
-    let Profile::History(history) = parse_profile(profile, None).unwrap() else {
+    let Profile::Captured(history) = parse_profile(profile, None).unwrap() else {
         panic!("history profile was parsed as classic");
     };
-    assert_eq!(history.notes, 8);
+    assert_eq!(history.mode, arpeg_core::bank::CaptureMode::History(8));
     assert_eq!(history.selection, arpeg_core::Selection::Ascending);
     assert_eq!(
         render_file(profile, &single_note_input(0), None).unwrap_err(),

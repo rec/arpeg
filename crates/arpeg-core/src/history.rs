@@ -1,24 +1,21 @@
-//! Stepwise history selection and owned MIDI output for completed gestures.
+//! Stepwise history and phrase selection with owned MIDI output for completed gestures.
 
 use crate::{
     Selection,
-    capture::{CapturedPhrase, MidiCapture, MidiEvent, Profile, SourceNote, Timebase},
+    bank::{CaptureBank, CaptureMode},
+    capture::{MidiEvent, Profile},
     gesture::{self, OverlapPolicy, Placement, RealizedEvent, Tick, Timing},
 };
 
 pub struct HistoryArpeggiator {
-    capture: MidiCapture,
-    history: Vec<SourceNote>,
-    capacity: usize,
-    selection: Selection,
-    retrigger_on_edit: bool,
+    pub bank: CaptureBank,
+    capture_profile: Profile,
+    next_capture_id: u64,
     step: Tick,
     gate: Tick,
     next_step: Tick,
     queue: Vec<RealizedEvent>,
     sounding: Option<(String, u8)>,
-    last_selected: Option<String>,
-    pub bank_revision: usize,
     pub processed_to: Tick,
     pub capture_to: i64,
     pub inclusive: bool,
@@ -28,7 +25,7 @@ pub struct HistoryArpeggiator {
 
 impl HistoryArpeggiator {
     pub fn new(
-        capacity: usize,
+        mode: CaptureMode,
         selection: Selection,
         retrigger_on_edit: bool,
         step: Tick,
@@ -36,48 +33,18 @@ impl HistoryArpeggiator {
         profile: Profile,
         current_expression: bool,
     ) -> Result<Self, &'static str> {
-        if matches!(selection, Selection::Walk(_)) {
-            return Err("history requires classic selection");
-        }
-        if matches!(selection, Selection::Alternating { .. }) {
-            return Err("history requires classic selection");
-        }
-        if matches!(
-            selection,
-            Selection::IndexPattern { .. } | Selection::InsideOut | Selection::OutsideIn
-        ) {
-            return Err("history requires classic selection");
-        }
-        if matches!(selection, Selection::Shuffle { .. }) {
-            return Err("history requires classic selection");
-        }
-        if matches!(selection, Selection::Choice { .. }) {
-            return Err("history requires classic selection");
-        }
-        if capacity == 0 || step <= Tick::from_integer(0) || gate < Tick::from_integer(0) {
-            return Err("history requires positive capacity and step, and nonnegative gate");
+        if step <= Tick::from_integer(0) || gate < Tick::from_integer(0) {
+            return Err("capture playback requires positive step and nonnegative gate");
         }
         Ok(Self {
-            capture: MidiCapture::new(
-                "live",
-                Timebase {
-                    name: "microseconds".into(),
-                    rate_numerator: 1_000_000,
-                    rate_denominator: 1,
-                },
-                profile,
-            )?,
-            history: Vec::new(),
-            capacity,
-            selection,
-            retrigger_on_edit,
+            bank: CaptureBank::new(mode, selection, retrigger_on_edit, profile)?,
+            capture_profile: profile,
+            next_capture_id: 0,
             step,
             gate,
             next_step: Tick::from_integer(0),
             queue: Vec::new(),
             sounding: None,
-            last_selected: None,
-            bank_revision: 0,
             processed_to: Tick::from_integer(0),
             capture_to: 0,
             inclusive: false,
@@ -87,6 +54,9 @@ impl HistoryArpeggiator {
     }
 
     pub fn accept(&mut self, event: MidiEvent) -> Result<(), &'static str> {
+        if self.bank.mode == CaptureMode::Phrase && self.bank.recording.is_none() {
+            return Ok(());
+        }
         if self.input_events >= 1_000_000 {
             return Err("live capture reached its event limit");
         }
@@ -96,7 +66,7 @@ impl HistoryArpeggiator {
         {
             return Err("MIDI input arrived after its live output time");
         }
-        self.capture.accept(event, None)?;
+        self.bank.accept(event)?;
         self.input_events += 1;
         Ok(())
     }
@@ -124,12 +94,59 @@ impl HistoryArpeggiator {
                 source_event: None,
             });
         }
-        if !self.history.is_empty() {
-            self.history.clear();
-            self.last_selected = None;
-            self.bank_revision += 1;
+        if self.bank.mode == CaptureMode::Phrase {
+            self.bank.clear();
+            self.input_events = 0;
+        } else {
+            self.bank.clear_history()?;
         }
         Ok(events)
+    }
+
+    pub fn check_control(&self, command: &str) -> Result<(), &'static str> {
+        if self.bank.mode != CaptureMode::Phrase {
+            return Err("capture controls require a phrase bank");
+        }
+        self.bank.check_control(command)
+    }
+
+    pub fn capture(
+        &mut self,
+        command: &str,
+        at: Tick,
+        tick: i64,
+    ) -> Result<Vec<RealizedEvent>, &'static str> {
+        self.check_control(command)?;
+        let events = if at > self.processed_to {
+            self.before(at, tick)?
+        } else {
+            Vec::new()
+        };
+        match command {
+            "record" => {
+                self.bank.record(
+                    &format!("take-{}", self.next_capture_id),
+                    self.capture_profile,
+                )?;
+                self.next_capture_id = self
+                    .next_capture_id
+                    .checked_add(1)
+                    .ok_or("capture identity limit reached")?;
+            }
+            "undo" => self.bank.undo()?,
+            _ => self.bank.commit(tick, command == "overdub")?,
+        }
+        self.capture_to = tick;
+        self.inclusive = false;
+        Ok(events)
+    }
+
+    pub fn check_record_budget(&self, prefix_events: usize) -> Result<(), &'static str> {
+        if self.input_events + prefix_events > 1_000_000 {
+            Err("live capture reached its event limit")
+        } else {
+            Ok(())
+        }
     }
 
     pub fn pause(&mut self, at: Tick, tick: i64) -> Vec<RealizedEvent> {
@@ -155,7 +172,7 @@ impl HistoryArpeggiator {
     pub fn relocate(&mut self, at: Tick, tick: i64) -> Vec<RealizedEvent> {
         let output = self.pause(at, tick);
         self.next_step = (at / self.step).ceil() * self.step;
-        self.last_selected = None;
+        self.bank.last_selected = None;
         self.inclusive = false;
         output
     }
@@ -225,18 +242,8 @@ impl HistoryArpeggiator {
         source_tick: i64,
         output: &mut Vec<RealizedEvent>,
     ) -> Result<(), &'static str> {
-        let ready = self.capture.advance(source_tick)?;
-        if !ready.is_empty() {
-            self.history.extend(ready);
-            if self.history.len() > self.capacity {
-                self.history.drain(..self.history.len() - self.capacity);
-            }
-            self.bank_revision += 1;
-            if self.retrigger_on_edit {
-                self.last_selected = None;
-            }
-        }
-        let Some(note) = self.select_note() else {
+        self.bank.advance(source_tick)?;
+        let Some(note) = self.bank.select_step()? else {
             return Ok(());
         };
         self.queue.clear();
@@ -248,9 +255,9 @@ impl HistoryArpeggiator {
                 source_event: None,
             });
         }
-        let phrase: CapturedPhrase = self.capture.snapshot(source_tick)?;
+        let phrase = self.bank.source(&note.capture_id)?;
         let events = gesture::render(
-            &phrase,
+            phrase,
             &[Placement {
                 note_id: note.note_id.clone(),
                 onset: at,
@@ -263,40 +270,12 @@ impl HistoryArpeggiator {
         self.queue.extend(
             events
                 .into_iter()
+                .map(|mut e| {
+                    e.source_note = format!("{}:{}", note.capture_id, e.source_note);
+                    e
+                })
                 .filter(|e| !self.current_expression || matches!(e.data[0] & 0xf0, 0x80 | 0x90)),
         );
         Ok(())
-    }
-
-    fn select_note(&mut self) -> Option<SourceNote> {
-        let mut ordered = self.history.clone();
-        match self.selection {
-            Selection::Ascending => {
-                ordered.sort_by_key(|note| (i32::from(note.key), note.note_id.clone()))
-            }
-            Selection::Descending => {
-                ordered.sort_by_key(|note| (-i32::from(note.key), note.note_id.clone()))
-            }
-            Selection::Played => {}
-            Selection::ReversePlayed => ordered.reverse(),
-            Selection::Walk(_)
-            | Selection::Alternating { .. }
-            | Selection::Choice { .. }
-            | Selection::Shuffle { .. }
-            | Selection::IndexPattern { .. }
-            | Selection::InsideOut
-            | Selection::OutsideIn => {
-                unreachable!("validated classic selection")
-            }
-        }
-        let position = self
-            .last_selected
-            .as_ref()
-            .and_then(|id| ordered.iter().position(|note| &note.note_id == id));
-        let note = ordered
-            .get(position.map_or(0, |position| (position + 1) % ordered.len()))?
-            .clone();
-        self.last_selected = Some(note.note_id.clone());
-        Some(note)
     }
 }

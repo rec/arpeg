@@ -54,11 +54,20 @@ integer timing survives the language boundary. The host chooses a time origin
 and uses it consistently; for example, convert elapsed `performance.now()`
 milliseconds with `BigInt(Math.round(elapsed * 1000))`.
 
-`accept`, `advance`, `clear`, `stop`, and `set_tempo` return an array of complete
+`accept`, `advance`, `capture`, `clear`, `stop`, and `set_tempo` return an array of complete
 MIDI messages to emit, in order. The `beat` property is an exact rational string;
 `active` reports transport state. Invalid profiles or operations throw errors.
 `clear` follows the native engine's bank restrictions. `stop` pauses and releases
 owned output; `free` only disposes the object and does not send MIDI releases.
+
+With a `bank = { kind = "phrase", publish = "step" }` profile, use
+`capture(time, "record")` to begin a take, `"commit"` to replace the bank,
+`"overdub"` to add it, or `"undo"` to remove the latest committed take.
+Recording starts and ends immediately; committed bank edits publish at the
+next grid step. Existing material plays during recording. `clear` also discards
+the recording. Capturing while transport is paused is supported.
+`capture_state` returns `[recording, publishedNoteCount, bankRevision]` for
+captured banks and an empty array for held or latched banks.
 
 The webpage supplies its controls, clock polling, sound or MIDI output, and any
 browser permissions. This crate does not open MIDI ports, produce audio, or

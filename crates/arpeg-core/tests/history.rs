@@ -17,7 +17,7 @@ fn event(tick: i64, ordinal: u32, data: &[u8]) -> MidiEvent {
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 fn completed_wind_note_plays_on_next_step_with_fitted_breath() {
     let mut arp = HistoryArpeggiator::new(
-        8,
+        arpeg_core::bank::CaptureMode::History(8),
         Selection::Ascending,
         true,
         Tick::new(1, 4),
@@ -43,7 +43,7 @@ fn completed_wind_note_plays_on_next_step_with_fitted_breath() {
             (Tick::new(1, 4), vec![144, 60, 100]),
         ]
     );
-    assert_eq!(arp.bank_revision, 1);
+    assert_eq!(arp.bank.revision, 1);
     let expression = arp.advance(Tick::new(113, 400), 113).unwrap();
     assert_eq!(expression.len(), 1);
     assert_eq!(expression[0].at, Tick::new(141, 500));
@@ -62,7 +62,7 @@ fn completed_wind_note_plays_on_next_step_with_fitted_breath() {
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 fn channel_one_handoff_cancels_old_controls_and_releases_owned_note() {
     let mut arp = HistoryArpeggiator::new(
-        8,
+        arpeg_core::bank::CaptureMode::History(8),
         Selection::Ascending,
         true,
         Tick::new(1, 4),
@@ -105,7 +105,7 @@ fn channel_one_handoff_cancels_old_controls_and_releases_owned_note() {
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 fn late_input_after_a_published_step_is_rejected() {
     let mut arp = HistoryArpeggiator::new(
-        8,
+        arpeg_core::bank::CaptureMode::History(8),
         Selection::Ascending,
         true,
         Tick::new(1, 4),
@@ -122,7 +122,7 @@ fn late_input_after_a_published_step_is_rejected() {
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 fn clear_forgets_old_notes_but_keeps_capturing_new_ones() {
     let mut arp = HistoryArpeggiator::new(
-        8,
+        arpeg_core::bank::CaptureMode::History(8),
         Selection::Ascending,
         true,
         Tick::new(1, 4),

@@ -1,4 +1,4 @@
-"""Live history captured in source microseconds and played in exact beats."""
+"""Live history and phrase takes captured in microseconds and played in exact beats."""
 
 from fractions import Fraction
 from math import ceil, floor
@@ -14,7 +14,7 @@ from .gesture import MidiGestureRenderer, MidiPlacement, RealizedMidiEvent
 
 
 class LiveHistoryArpeggiator(BaseModel):
-    """Publish completed notes at steps and fit their recorded gestures."""
+    """Play completed history notes or explicitly committed phrase gestures."""
 
     step: Fraction
     gate: Fraction = Fraction(4, 5)
@@ -29,12 +29,15 @@ class LiveHistoryArpeggiator(BaseModel):
     capture_to: int = 0
     inclusive: bool = False
     input_events: int = 0
+    next_capture_id: int = 0
 
     @model_validator(mode="after")
     def valid_history(self) -> Self:
-        if self.step <= 0 or self.gate < 0 or self.bank.mode != "history":
-            raise ValueError("history requires positive step and nonnegative gate")
-        if self.bank.recording is None:
+        if self.step <= 0 or self.gate < 0:
+            raise ValueError(
+                "capture playback requires positive step and nonnegative gate"
+            )
+        if self.bank.mode == "history" and self.bank.recording is None:
             self.bank.record(
                 "live",
                 Timebase.model_validate(
@@ -45,6 +48,8 @@ class LiveHistoryArpeggiator(BaseModel):
         return self
 
     def accept(self, event: MidiEvent) -> None:
+        if self.bank.mode == "phrase" and self.bank.recording is None:
+            return
         if self.input_events >= 1_000_000:
             raise ValueError("live capture reached its event limit")
         if event.tick < self.capture_to or (
@@ -76,7 +81,33 @@ class LiveHistoryArpeggiator(BaseModel):
             )
         self.sounding_key = None
         self.sounding_source = None
-        self.bank.clear_history()
+        if self.bank.mode == "history":
+            self.bank.clear_history()
+        else:
+            self.bank.clear()
+            self.input_events = 0
+        return events
+
+    def capture(self, command: str, at: Fraction, tick: int) -> list[RealizedMidiEvent]:
+        if self.bank.mode != "phrase":
+            raise ValueError("capture controls require a phrase bank")
+        self.bank.check_control(command)
+        events = self.before(at, tick) if at > self.processed_to else []
+        if command == "record":
+            self.bank.record(
+                f"take-{self.next_capture_id}",
+                Timebase.model_validate(
+                    {"name": "microseconds", "rate": {"numerator": 1_000_000}}
+                ),
+                self.capture_profile,
+            )
+            self.next_capture_id += 1
+        elif command == "undo":
+            self.bank.undo_last_capture()
+        else:
+            self.bank.commit(tick, "overdub" if command == "overdub" else "replace")
+        self.capture_to = tick
+        self.inclusive = False
         return events
 
     def stop(self, at: Fraction, tick: int) -> list[RealizedMidiEvent]:
@@ -198,4 +229,10 @@ class LiveHistoryArpeggiator(BaseModel):
                 ]
             )
         )
+        self.queue = [
+            e.model_copy(
+                update={"source_note": f"{selected.capture_id}:{e.source_note}"}
+            )
+            for e in self.queue
+        ]
         return output

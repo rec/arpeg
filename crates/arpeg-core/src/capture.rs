@@ -282,17 +282,10 @@ impl MidiCapture {
     }
 
     pub fn finish(mut self, end_tick: i64) -> Result<CapturedPhrase, &'static str> {
-        if end_tick < self.events.last().map_or(0, |event| event.tick)
-            || self.advanced_through.is_some_and(|tick| end_tick < tick)
-        {
-            return Err("phrase end precedes source events");
-        }
+        self.check_end(end_tick)?;
         for segment in &mut self.segments {
             segment.gate_end_tick.get_or_insert(end_tick);
             segment.cell_end_tick.get_or_insert(end_tick);
-            if segment.cell_end_tick <= Some(segment.onset_tick) {
-                return Err("cell end must follow onset");
-            }
         }
         let notes = self
             .segments
@@ -307,6 +300,24 @@ impl MidiCapture {
             notes,
             prefix_events: self.prefix_events,
         })
+    }
+
+    pub fn note_count(&self) -> usize {
+        self.segments.len()
+    }
+
+    pub fn check_end(&self, end_tick: i64) -> Result<(), &'static str> {
+        if end_tick < self.events.last().map_or(0, |event| event.tick)
+            || self.advanced_through.is_some_and(|tick| end_tick < tick)
+        {
+            return Err("phrase end precedes source events");
+        }
+        for segment in &self.segments {
+            if segment.cell_end_tick.unwrap_or(end_tick) <= segment.onset_tick {
+                return Err("cell end must follow onset");
+            }
+        }
+        Ok(())
     }
 
     fn onset(&mut self, index: usize, key: u8, velocity: u8, note_id: String) {

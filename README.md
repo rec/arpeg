@@ -164,8 +164,9 @@ For a single-channel destination, `overlap="handoff"` ends the old output note
 before initializing the new gesture on channel 1.
 
 [src/arpeg/bank.py](src/arpeg/bank.py) records history or phrase takes. Completed
-history notes wait for the declared capture tail, and replace, overdub, undo,
-and clear changes become visible at `publish_step`. `select_step` chooses a
+history notes wait for the declared capture tail, and replace, overdub, and undo
+changes become visible at `publish_step`. Clear empties the published bank
+immediately. `select_step` chooses a
 source note from the published revision; callers can place it through the
 gesture renderer at an output onset.
 
@@ -297,8 +298,44 @@ Use either preset as the `--profile` value in Python or the profile argument in
 Rust. [Shared performance traces](conformance/performance.toml) cover live and
 recorded expression, handoff, unknown state, pause and clear cleanup. The live
 hosts still have one independent expression owner on channel 1. MPE, MIDI 2.0,
-phrase record/commit controls and Motion-driven performance parameters remain
-later work.
+and Motion-driven performance parameters remain later work.
+
+### Live phrase capture
+
+Use [phrase-wind](conformance/phrase-wind.toml) as the live profile in either
+Python or Rust. The phrase bank starts empty and listens to channel 1:
+
+- `record` starts a new take immediately. The previous committed bank keeps playing.
+- `commit` ends the take and replaces the bank at the next grid step.
+- `overdub` ends the take and adds its notes to the bank at the next grid step.
+- `undo` removes the latest committed take at the next grid step, restoring the
+  preceding bank. An ongoing recording continues.
+- `clear` discards the bank and any recording and releases owned output immediately.
+
+Committing closes any still-held captured notes. An empty replacement makes
+subsequent steps silent; an already sounding gesture keeps its scheduled release.
+Capture controls do not cut off sounding gestures. New notes hand off channel 1
+at their scheduled step as usual. The preset restarts traversal on each published
+bank edit; `retrigger = "on_empty"` preserves traversal through edits.
+
+Known breath, bend, and channel pressure are sampled at the recording boundary
+and stored as entry state. Changes within the take retain their MIDI bytes and
+source timing; playback fits their gestures to the gate. Set expression
+`source = "current"` to use live expression instead. Recording works while
+transport is paused, and commits wait for a step after playback resumes.
+Input is captured material rather than MIDI through.
+
+The same controls are available through `MidiPlayer.capture(time, command)` in
+Python, Rust, and WebAssembly. Python uses nanoseconds; Rust and WebAssembly use
+microseconds. The native hosts report recording status, published note count,
+and bank revision after commands. Recording is bounded to one million events
+between clears and 128 committed takes, including undo history. Undo frees a take
+slot; clear frees both budgets. Capture identities stay unique after undo and clear.
+The raw captured source remains in the bank, independent of rendered output.
+[Shared phrase traces](conformance/phrase.toml) cover replacement, overdub, undo,
+entry state, pause, boundary timing, and cleanup with coarse and frequent polling.
+Phrase playback currently uses a grid with classic note orders, fit timing,
+and carried gaps, matching history playback.
 
 ### Preset header defaults
 

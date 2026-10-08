@@ -1,0 +1,70 @@
+# Times are microseconds. A quarter-beat step at 120 BPM lasts 125 ms.
+[[cases]]
+name = "replace-overdub-undo-clear"
+profile = "phrase-wind"
+mode = "internal"
+actions = [
+  { at = 0, capture = "record", output = [], beat = "0", active = true, state = [true, 0, 0] },
+  { at = 10000, data = [144, 60, 100], output = [], beat = "1/50", active = true },
+  { at = 30000, data = [128, 60, 0], output = [], beat = "3/50", active = true },
+  { at = 40000, capture = "commit", output = [], beat = "2/25", active = true, state = [false, 0, 0] },
+  { at = 125000, output = [[144, 60, 100]], beat = "1/4", active = true, state = [false, 1, 1] },
+  { at = 150000, capture = "record", output = [], beat = "3/10", active = true },
+  { at = 160000, data = [144, 64, 90], output = [], beat = "8/25", active = true },
+  { at = 180000, data = [128, 64, 0], output = [], beat = "9/25", active = true },
+  { at = 190000, capture = "commit", output = [], beat = "19/50", active = true, state = [false, 1, 1] },
+  { at = 225000, output = [[128, 60, 0]], beat = "9/20", active = true },
+  { at = 250000, output = [[144, 64, 90]], beat = "1/2", active = true, state = [false, 1, 2] },
+  { at = 260000, capture = "undo", output = [], beat = "13/25", active = true },
+  { at = 350000, output = [[128, 64, 0]], beat = "7/10", active = true },
+  { at = 375000, output = [[144, 60, 100]], beat = "3/4", active = true, state = [false, 1, 3] },
+  { at = 380000, capture = "record", output = [], beat = "19/25", active = true },
+  { at = 390000, data = [144, 67, 80], output = [], beat = "39/50", active = true },
+  { at = 400000, capture = "overdub", output = [], beat = "4/5", active = true },
+  { at = 475000, output = [[128, 60, 0]], beat = "19/20", active = true },
+  { at = 500000, output = [[144, 60, 100]], beat = "1", active = true, state = [false, 2, 4] },
+  { at = 600000, output = [[128, 60, 0]], beat = "6/5", active = true },
+  { at = 625000, output = [[144, 67, 80]], beat = "5/4", active = true },
+  { at = 650000, capture = "undo", output = [], beat = "13/10", active = true },
+  { at = 725000, output = [[128, 67, 0]], beat = "29/20", active = true },
+  { at = 750000, output = [[144, 60, 100]], beat = "3/2", active = true, state = [false, 1, 5] },
+  { at = 760000, capture = "record", output = [], beat = "38/25", active = true },
+  { at = 770000, capture = "commit", output = [], beat = "77/50", active = true },
+  { at = 850000, output = [[128, 60, 0]], beat = "17/10", active = true },
+  { at = 875000, output = [], beat = "7/4", active = true, state = [false, 0, 6] },
+  { at = 900000, capture = "undo", output = [], beat = "9/5", active = true },
+  { at = 1000000, output = [[144, 60, 100]], beat = "2", active = true, state = [false, 1, 7] },
+  { at = 1010000, clear = true, output = [[128, 60, 0]], beat = "101/50", active = true, state = [false, 0, 8] },
+]
+
+[[cases]]
+name = "paused-recording-samples-known-entry-state"
+profile = "phrase-wind"
+mode = "internal"
+actions = [
+  { at = 0, data = [176, 2, 70], output = [], beat = "0", active = true },
+  { at = 0, data = [224, 0, 64], output = [], beat = "0", active = true },
+  { at = 0, data = [208, 40], output = [], beat = "0", active = true },
+  { at = 10000, data = [252], output = [], beat = "1/50", active = false },
+  { at = 20000, capture = "record", output = [], beat = "1/50", active = false, state = [true, 0, 0] },
+  { at = 30000, data = [144, 62, 85], output = [], beat = "1/50", active = false },
+  { at = 50000, data = [176, 2, 90], output = [], beat = "1/50", active = false },
+  { at = 70000, capture = "commit", output = [], beat = "1/50", active = false },
+  { at = 100000, data = [251], output = [], beat = "1/50", active = true },
+  { at = 215000, output = [[176, 2, 70], [224, 0, 64], [208, 40], [144, 62, 85]], beat = "1/4", active = true, state = [false, 1, 1] },
+  { at = 265000, output = [[176, 2, 90]], beat = "7/20", active = true },
+  { at = 275000, capture = "record", output = [], beat = "37/100", active = true },
+  { at = 285000, clear = true, output = [[128, 62, 0]], beat = "39/100", active = true, state = [false, 0, 2] },
+]
+
+[[cases]]
+name = "same-timestamp-commit-does-not-move-clock"
+profile = "phrase-wind"
+mode = "internal"
+actions = [
+  { at = 0, capture = "record", output = [], beat = "0", active = true },
+  { at = 0, data = [144, 60, 100], output = [], beat = "0", active = true },
+  { at = 0, capture = "commit", output = [], beat = "0", active = true },
+  { at = 0, output = [[144, 60, 100]], beat = "0", active = true, state = [false, 1, 1] },
+  { at = 100000, output = [[128, 60, 0]], beat = "1/5", active = true },
+]

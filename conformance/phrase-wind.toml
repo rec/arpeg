@@ -1,0 +1,11 @@
+kind = "arpeggiator"
+name = "phrase-wind"
+title = "Committed wind phrases"
+
+[body]
+bank = { kind = "phrase", publish = "step" }
+selection = { kind = "played" }
+rhythm = { kind = "grid", step = "1/4 beat" }
+gate = "4/5"
+retrigger = "bank_edit"
+expression = { source = "recorded", timing = "fit", gaps = "carry" }

@@ -10,6 +10,7 @@ fn transport_matches_shared_exact_wire_traces() {
     for text in [
         include_str!("../../../conformance/transport.toml"),
         include_str!("../../../conformance/performance.toml"),
+        include_str!("../../../conformance/phrase.toml"),
     ] {
         let traces: toml::Value = toml::from_str(text).unwrap();
         for case in traces["cases"].as_array().unwrap() {
@@ -19,6 +20,7 @@ fn transport_matches_shared_exact_wire_traces() {
                 "history-wind" => include_str!("../../../conformance/history-wind.toml"),
                 "live-wind" => include_str!("../../../conformance/live-wind.toml"),
                 "history-live-wind" => include_str!("../../../conformance/history-live-wind.toml"),
+                "phrase-wind" => include_str!("../../../conformance/phrase-wind.toml"),
                 _ => panic!("unknown profile"),
             };
             let mode = if case["mode"].as_str() == Some("internal") {
@@ -64,6 +66,8 @@ fn transport_matches_shared_exact_wire_traces() {
                         player
                             .set_tempo(at, bpm.as_integer().unwrap().try_into().unwrap())
                             .unwrap()
+                    } else if let Some(command) = action.get("capture") {
+                        player.capture(at, command.as_str().unwrap()).unwrap()
                     } else if action.get("clear").is_some() {
                         player.clear(at).unwrap()
                     } else {
@@ -84,6 +88,18 @@ fn transport_matches_shared_exact_wire_traces() {
                     let beat: Beat = action["beat"].as_str().unwrap().parse().unwrap();
                     assert_eq!(output, expected, "{name}: {action}");
                     assert_eq!(player.clock.beat, beat, "{name}: {action}");
+                    if let Some(state) = action.get("state") {
+                        let state = state.as_array().unwrap();
+                        assert_eq!(
+                            player.capture_state(),
+                            Some((
+                                state[0].as_bool().unwrap(),
+                                state[1].as_integer().unwrap() as usize,
+                                state[2].as_integer().unwrap() as usize
+                            )),
+                            "{name}: {action}"
+                        );
+                    }
                     assert_eq!(
                         player.clock.active(),
                         action["active"].as_bool().unwrap(),

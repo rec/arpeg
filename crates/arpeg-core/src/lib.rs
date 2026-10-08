@@ -2,6 +2,7 @@
 
 use num_rational::Ratio;
 
+pub mod bank;
 pub mod capture;
 pub mod chance;
 pub mod clock;

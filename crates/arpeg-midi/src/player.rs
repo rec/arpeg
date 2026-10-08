@@ -18,8 +18,8 @@ pub enum InputSource {
 }
 
 enum Engine {
-    Held(LiveArpeggiator),
-    History(HistoryArpeggiator),
+    Held(Box<LiveArpeggiator>),
+    History(Box<HistoryArpeggiator>),
 }
 
 pub struct MidiPlayer {
@@ -43,26 +43,26 @@ impl MidiPlayer {
     ) -> Result<Self, &'static str> {
         let current_expression = match &profile {
             Profile::Classic(_) => true,
-            Profile::History(p) => p.current_expression,
+            Profile::Captured(p) => p.current_expression,
         };
         let engine = match profile {
-            Profile::Classic(p) => Engine::Held(LiveArpeggiator::new(
+            Profile::Classic(p) => Engine::Held(Box::new(LiveArpeggiator::new(
                 p.bank,
                 p.selection,
                 p.rhythm,
                 p.gate,
                 p.retrigger,
                 p.chance,
-            )?),
-            Profile::History(p) => Engine::History(HistoryArpeggiator::new(
-                p.notes,
+            )?)),
+            Profile::Captured(p) => Engine::History(Box::new(HistoryArpeggiator::new(
+                p.mode,
                 p.selection,
                 p.retrigger == arpeg_core::live::Retrigger::BankEdit,
                 p.step,
                 p.gate,
                 CaptureProfile::default(),
                 p.current_expression,
-            )?),
+            )?)),
         };
         Ok(Self {
             clock: TransportClock::new(mode, bpm, timeout_us)?,
@@ -220,6 +220,56 @@ impl MidiPlayer {
             }
         });
         Ok(output)
+    }
+
+    pub fn capture(&mut self, at_us: i64, command: &str) -> Result<Vec<Vec<u8>>, &'static str> {
+        let Engine::History(engine) = &self.engine else {
+            return Err("capture controls require a phrase bank");
+        };
+        engine.check_control(command)?;
+        if command == "record" {
+            engine.check_record_budget(self.expression.len())?;
+        }
+        let capture_to = engine.capture_to + i64::from(engine.inclusive);
+        let tick = self.elapsed(at_us).max(self.input_tick + 1).max(capture_to);
+        let was_active = self.clock.active();
+        let at = self.clock.advance(self.wall_us);
+        let mut output = if was_active && !self.clock.active() {
+            self.pause(tick)
+        } else {
+            Vec::new()
+        };
+        let Engine::History(engine) = &mut self.engine else {
+            unreachable!()
+        };
+        let events = engine.capture(command, at, tick)?;
+        self.input_tick = tick;
+        self.ordinal = 0;
+        if command == "record" {
+            for status in [0xb0, 0xe0, 0xd0] {
+                if let Some(data) = self.expression.get(&status) {
+                    engine.accept(MidiEvent {
+                        tick,
+                        ordinal: self.ordinal,
+                        data: data.clone(),
+                    })?;
+                    self.ordinal += 1;
+                }
+            }
+        }
+        output.extend(self.history_messages(events));
+        Ok(output)
+    }
+
+    pub fn capture_state(&self) -> Option<(bool, usize, usize)> {
+        match &self.engine {
+            Engine::History(e) => Some((
+                e.bank.recording.is_some(),
+                e.bank.published.len(),
+                e.bank.revision,
+            )),
+            Engine::Held(_) => None,
+        }
     }
 
     pub fn stop(&mut self, at_us: i64) -> Result<Vec<Vec<u8>>, &'static str> {
