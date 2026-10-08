@@ -90,7 +90,8 @@ out-of-bank targets while advancing selection. Whole signed 64-bit ranks publish
 at the next step; sounding notes and pending repeats retain their target.
 
 Call `take_events()` after each operation to collect
-`{ events, exhausted }`. Each event is `{ at, port, index, revision }`: `at` is
+`{ events, notes, exhausted }`. Each decision event is
+`{ at, port, index, revision }`: `at` is
 an exact beat string, `port` is `capture_ready`, `cycle`, `step`, `hit`, or `rest`, and the counters are
 BigInt values. Each step emits `step` before its `hit` or `rest`; ties emit only
 `step`, and repeats share one hit event. History and phrase banks emit
@@ -120,7 +121,18 @@ round to the nearest MIDI integer, ties upward. Samples are held through rests
 and pauses, restored before the next note-on, and never added to the input
 recording. An unknown lane has no invented initial value. Controls for lanes
 owned by current or recorded expression throw before changing playback state.
-The webpage owns Motion sampling, event routing, and any delayed feedback.
+The `notes` list reports actual output `note_start`/`note_end` with exact beat
+`at`, BigInt `occurrence`, string `source`, and numeric MIDI `key`/`velocity`.
+Held/latched sources use `input:ID`; captured sources use `CAPTURE:NOTE`.
+Repeated pitches and attacks have distinct occurrences. Handoffs end the old
+occurrence before starting another; zero gates start then end at the same beat.
+Pause, clear, empty bank, and seeks retire owned notes once. An end means a
+returned MIDI release, not the end of a synth's audible tail or confirmation of
+physical delivery. Each undrained start reserves room for its end in this
+4096-event list; exhaustion suppresses new attacks and gestures while releases
+continue. `exhausted` covers either list. Draining permits future attacks without
+replaying skipped ones. The webpage owns Motion sampling, event routing, and any
+delayed feedback.
 
 The webpage supplies its controls, clock polling, sound or MIDI output, and any
 browser permissions. This crate does not open MIDI ports, produce audio, or

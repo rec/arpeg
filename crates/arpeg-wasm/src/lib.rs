@@ -2,7 +2,7 @@
 
 use arpeg_core::{
     clock::ClockMode,
-    ports::{InputPort, OutputPort},
+    ports::{InputPort, NotePort, OutputPort},
 };
 use arpeg_midi::{parse_profile, player::InputSource};
 use js_sys::{Array, BigInt, Object, Reflect, Uint8Array};
@@ -117,6 +117,26 @@ impl MidiPlayer {
         }
         let result = Object::new();
         Reflect::set(&result, &JsValue::from_str("events"), &events)?;
+        let notes = Array::new();
+        for note in batch.notes {
+            let object = Object::new();
+            let port = match note.port {
+                NotePort::NoteStart => "note_start",
+                NotePort::NoteEnd => "note_end",
+            };
+            for (key, value) in [
+                ("at", JsValue::from_str(&note.at.to_string())),
+                ("port", JsValue::from_str(port)),
+                ("occurrence", BigInt::from(note.occurrence).into()),
+                ("source", JsValue::from_str(&note.source)),
+                ("key", JsValue::from(note.key)),
+                ("velocity", JsValue::from(note.velocity)),
+            ] {
+                Reflect::set(&object, &JsValue::from_str(key), &value)?;
+            }
+            notes.push(&object);
+        }
+        Reflect::set(&result, &JsValue::from_str("notes"), &notes)?;
         Reflect::set(
             &result,
             &JsValue::from_str("exhausted"),

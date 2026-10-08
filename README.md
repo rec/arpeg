@@ -474,6 +474,24 @@ boundaries. Each cycle event carries its step's beat, index, and bank revision,
 before `step` and its outcome. This describes rhythm loops independently of note
 selector traversal. Hosts can use it to restart a Motion once per rhythm loop.
 
+The MIDI player's batch also has `notes`: realized `note_start` and `note_end`
+notifications with exact beat `at`, player-local `occurrence`, source identity
+`source`, delivered `key`, and attack/release `velocity`. Held/latched sources
+use `input:ID`; captured sources use `CAPTURE:NOTE`. Repeated attacks and pitches
+have distinct occurrences; each end retains its start's identity. Handoffs emit
+old end before new start. Zero gates emit start then end at the same beat.
+Pause, clear, empty-bank release, and seeks close owned occurrences once; stale
+scheduled releases produce no duplicate notification. A note end reports a MIDI
+release, rather than the end of a synth's audible tail. Pure engines leave this
+list empty. Python snapshots retain sounding and undrained lifecycle state.
+
+Each list holds at most 4096 events. A delivered start reserves a slot for its
+end. If `notes` fills, new output attacks and their gestures are suppressed while
+owned releases continue; draining permits future attacks without replaying
+skipped ones. `batch.exhausted` reports either list's exhaustion. Drain both
+lists using the same `take_events()` call. This describes returned MIDI output;
+it does not confirm delivery to hardware or reconcile a restored synth.
+
 The host samples its Motion before the target step and routes collected events
 to other Motions. Convert sampled scalar values to explicit rational values;
 there is no hidden float rounding or embedded Motion graph evaluator. Feedback
@@ -482,8 +500,8 @@ event budget.
 
 Drain after each operation. The output buffer holds 4096 events and reserves two
 slots before admitting a step, plus one for each `capture_ready` or `cycle`.
-Notifications, step, and outcome are admitted together. On exhaustion, new
-step admissions and their notifications stop while due
+Notifications, step, and outcome are admitted together. When this decision list
+fills, new step admissions and their notifications stop while due
 releases and already realized repeats continue. `batch.exhausted` reports the
 condition; draining permits future steps without replaying skipped attacks.
 Skipped notifications are not replayed; subsequent steps still report the bank

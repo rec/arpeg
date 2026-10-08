@@ -220,7 +220,7 @@ pub fn play(
                     .map_err(str::to_owned)?,
             )?;
             if player.take_events().exhausted {
-                eprintln!("Motion output event buffer exhausted; skipped new steps");
+                eprintln!("Arpeggiator event buffers exhausted; skipped attacks or steps");
             }
             thread::sleep(Duration::from_millis(1));
         }

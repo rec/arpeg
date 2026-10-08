@@ -40,7 +40,24 @@ pub struct PortEvent {
 
 pub struct PortBatch {
     pub events: Vec<PortEvent>,
+    pub notes: Vec<NoteEvent>,
     pub exhausted: bool,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NotePort {
+    NoteStart,
+    NoteEnd,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct NoteEvent {
+    pub at: Beat,
+    pub port: NotePort,
+    pub occurrence: u64,
+    pub source: String,
+    pub key: u8,
+    pub velocity: u8,
 }
 
 pub struct PerformancePorts {
@@ -217,6 +234,7 @@ impl PerformancePorts {
     pub fn take_events(&mut self) -> PortBatch {
         PortBatch {
             events: std::mem::take(&mut self.events),
+            notes: Vec::new(),
             exhausted: std::mem::take(&mut self.exhausted),
         }
     }

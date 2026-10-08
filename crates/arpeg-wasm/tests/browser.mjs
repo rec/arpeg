@@ -85,7 +85,7 @@ test('Motion ports return exact event coordinates and accept step-boundary contr
         assert.deepEqual(player.take_events(), { events: [
             { at: '0', port: 'step', index: 0n, revision: 1n },
             { at: '0', port: 'hit', index: 0n, revision: 1n },
-        ], exhausted: false });
+        ], notes: [{ at: '0', port: 'note_start', occurrence: 0n, source: 'input:0', key: 60, velocity: 100 }], exhausted: false });
         assert.throws(() => player.control(10_000n, 'density', '2'));
         assert.throws(() => player.control(10_000n, 'other', '1'));
         assert.throws(() => player.control(10_000n, 'gate', '0.5'));
@@ -95,7 +95,29 @@ test('Motion ports return exact event coordinates and accept step-boundary contr
         assert.deepEqual(player.take_events(), { events: [
             { at: '1/4', port: 'step', index: 1n, revision: 1n },
             { at: '1/4', port: 'rest', index: 1n, revision: 1n },
-        ], exhausted: false });
+        ], notes: [{ at: '1/20', port: 'note_end', occurrence: 0n, source: 'input:0', key: 60, velocity: 0 }], exhausted: false });
+    } finally {
+        player.free();
+    }
+});
+
+test('note lifecycle identifies delivered pitches and cleanup releases', () => {
+    const profile = readFileSync(new URL('../../../conformance/up.toml', import.meta.url), 'utf8');
+    const player = new MidiPlayer(profile, 'internal', 120, 500_000n);
+    try {
+        player.accept(0n, new Uint8Array([144, 60, 100]), 'both');
+        player.advance(0n);
+        assert.deepEqual(player.take_events().notes, [{ at: '0', port: 'note_start', occurrence: 0n, source: 'input:0', key: 60, velocity: 100 }]);
+        player.control(50_000n, 'transposition', '12');
+        player.advance(125_000n);
+        assert.deepEqual(player.take_events().notes, [
+            { at: '1/5', port: 'note_end', occurrence: 0n, source: 'input:0', key: 60, velocity: 0 },
+            { at: '1/4', port: 'note_start', occurrence: 1n, source: 'input:0', key: 72, velocity: 100 },
+        ]);
+        player.stop(150_000n);
+        assert.deepEqual(player.take_events().notes, [{ at: '3/10', port: 'note_end', occurrence: 1n, source: 'input:0', key: 72, velocity: 0 }]);
+        player.stop(160_000n);
+        assert.deepEqual(player.take_events().notes, []);
     } finally {
         player.free();
     }
@@ -133,7 +155,7 @@ test('capture readiness reports publication before the step and omits empty undo
             { at: '1/4', port: 'capture_ready', index: 1n, revision: 1n },
             { at: '1/4', port: 'step', index: 1n, revision: 1n },
             { at: '1/4', port: 'hit', index: 1n, revision: 1n },
-        ], exhausted: false });
+        ], notes: [{ at: '1/4', port: 'note_start', occurrence: 0n, source: 'take-0:note-0', key: 60, velocity: 100 }], exhausted: false });
         player.advance(250_000n);
         assert.deepEqual(player.take_events().events.map(e => e.port), ['step', 'hit']);
         player.capture(260_000n, 'undo');

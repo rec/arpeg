@@ -1,0 +1,5 @@
+name = "lifecycle-repeats"
+title = "Repeated attacks with zero gates"
+[body]
+gate = "0"
+rhythm = { kind = "pattern", steps = [{ kind = "hit", duration = "1/4 beat", repeats = 3 }] }

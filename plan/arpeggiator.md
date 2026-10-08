@@ -498,7 +498,21 @@ coalesces completed notes or committed takes; unfinished recording, unchanged
 banks, and empty publication do not notify. Readiness is independent of density.
 The bounded Motion buffer admits notification, step, and outcome together or
 reports exhaustion while preserving bank publication and due releases. Skipped
-notifications are not replayed. Realized note lifecycle outputs remain future work.
+notifications are not replayed.
+
+Realized `note_start`/`note_end` outputs are implemented by the MIDI player in
+Python, Rust, and WebAssembly. `take_events()` returns them in a typed `notes`
+list alongside rhythm decisions. Each includes exact beat, unique player-local
+occurrence, source identity, delivered key, and attack/release velocity. Repeats
+and repeated pitches retain distinct occurrence identities; handoffs and
+stop/clear/seek/empty-bank cleanup emit one end for each owned start. A release
+notification does not claim a synth's audible tail has ended. Each start reserves
+space for its end in the bounded 4096-note-event list; exhaustion suppresses new
+output attacks and their gestures while releases continue. Snapshots retain
+lifecycle state, without claiming hardware reconciliation.
+
+The next requested delivery focus is a browser-friendly front end using the
+existing WebAssembly player.
 
 `cycle` now marks the first step of each Euclidean or custom rhythm loop in
 Python, Rust, and WebAssembly, including the initial loop. Plain grids emit no

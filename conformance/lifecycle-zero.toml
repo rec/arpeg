@@ -1,0 +1,5 @@
+name = "lifecycle-zero"
+title = "Zero-gate MIDI lifecycle"
+[body]
+gate = "0"
+rhythm = { kind = "grid", step = "1/4 beat" }

@@ -6,7 +6,7 @@ use arpeg_core::{
     gesture::RealizedEvent,
     history::HistoryArpeggiator,
     live::{LiveArpeggiator, OutputEvent, OutputKind},
-    ports::{InputPort, PerformancePorts, PortBatch},
+    ports::{InputPort, NoteEvent, NotePort, PerformancePorts, PortBatch},
 };
 
 use crate::{
@@ -37,6 +37,11 @@ pub struct MidiPlayer {
     expression: std::collections::BTreeMap<u8, Vec<u8>>,
     motion_expression: std::collections::BTreeMap<Lane, arpeg_core::Beat>,
     sounding: Option<(u64, u8)>,
+    next_occurrence: u64,
+    output_note: Option<NoteEvent>,
+    notes: Vec<NoteEvent>,
+    notes_exhausted: bool,
+    suppressed_note: bool,
 }
 
 impl MidiPlayer {
@@ -95,6 +100,11 @@ impl MidiPlayer {
             expression: std::collections::BTreeMap::new(),
             motion_expression: std::collections::BTreeMap::new(),
             sounding: None,
+            next_occurrence: 0,
+            output_note: None,
+            notes: Vec::new(),
+            notes_exhausted: false,
+            suppressed_note: false,
         })
     }
 
@@ -361,10 +371,13 @@ impl MidiPlayer {
     }
 
     pub fn take_events(&mut self) -> PortBatch {
-        match &mut self.engine {
+        let mut batch = match &mut self.engine {
             Engine::Held(e) => e.ports.take_events(),
             Engine::History(e) => e.ports.take_events(),
-        }
+        };
+        batch.notes = std::mem::take(&mut self.notes);
+        batch.exhausted |= std::mem::take(&mut self.notes_exhausted);
+        batch
     }
 
     pub fn stop(&mut self, at_us: i64) -> Result<Vec<Vec<u8>>, &'static str> {
@@ -396,6 +409,7 @@ impl MidiPlayer {
         };
         if let Some((_, key)) = self.sounding.take() {
             output.push(vec![0x80, key, 0]);
+            self.end_note(self.clock.beat, 0);
         }
         output
     }
@@ -405,10 +419,17 @@ impl MidiPlayer {
         for event in events {
             match event.kind {
                 OutputKind::NoteOn {
-                    id, key, velocity, ..
+                    id,
+                    source_id,
+                    key,
+                    velocity,
                 } => {
-                    if let Some((_, key)) = self.sounding {
+                    if let Some((_, key)) = self.sounding.take() {
                         output.push(vec![0x80, key, 0]);
+                        self.end_note(event.at, 0);
+                    }
+                    if !self.start_note(event.at, format!("input:{source_id}"), key, velocity) {
+                        continue;
                     }
                     output.extend(expression::entry_messages(
                         &self.expression_sources,
@@ -420,6 +441,7 @@ impl MidiPlayer {
                 }
                 OutputKind::NoteOff { id, key, .. } if self.sounding.is_some_and(|s| s.0 == id) => {
                     output.push(vec![0x80, key, 0]);
+                    self.end_note(event.at, 0);
                     self.sounding = None;
                 }
                 _ => {}
@@ -430,25 +452,33 @@ impl MidiPlayer {
 
     fn history_messages(&mut self, events: Vec<RealizedEvent>) -> Vec<Vec<u8>> {
         let mut output = Vec::new();
-        let onsets = events
+        let attacks = events
             .iter()
             .filter(|e| e.data[0] == 0x90 && e.data[2] > 0)
-            .map(|e| (e.at, e.source_note.clone()))
-            .collect::<std::collections::BTreeSet<_>>();
+            .map(|e| ((e.at, e.source_note.clone()), (e.data[1], e.data[2])))
+            .collect::<std::collections::BTreeMap<_, _>>();
         let mut initialized = std::collections::BTreeSet::new();
         for event in events {
             let kind = event.data[0] & 0xf0;
             let group = (event.at, event.source_note.clone());
-            if onsets.contains(&group)
+            if attacks.contains_key(&group)
                 && !initialized.contains(&group)
                 && !(kind == 0x80 || kind == 0x90 && event.data[2] == 0)
             {
+                let (key, velocity) = attacks[&group];
+                self.start_note(event.at, event.source_note.clone(), key, velocity);
+                initialized.insert(group);
+                if self.suppressed_note {
+                    continue;
+                }
                 output.extend(expression::entry_messages(
                     &self.expression_sources,
                     &self.expression,
                     &self.motion_expression,
                 ));
-                initialized.insert(group);
+            }
+            if self.suppressed_note {
+                continue;
             }
             if let Some(lane) = expression::lane(&event.data) {
                 if self.expression_sources[&lane] != Source::Recorded {
@@ -458,11 +488,42 @@ impl MidiPlayer {
             if kind == 0x90 && event.data[2] > 0 {
                 self.sounding = Some((0, event.data[1]));
             } else if kind == 0x80 || kind == 0x90 && event.data[2] == 0 {
+                self.end_note(event.at, event.data[2]);
                 self.sounding = None;
             }
             output.push(event.data);
         }
         output
+    }
+
+    fn start_note(&mut self, at: arpeg_core::Beat, source: String, key: u8, velocity: u8) -> bool {
+        if self.notes.len() > 4094 {
+            self.notes_exhausted = true;
+            self.suppressed_note = true;
+            return false;
+        }
+        let note = NoteEvent {
+            at,
+            port: NotePort::NoteStart,
+            occurrence: self.next_occurrence,
+            source,
+            key,
+            velocity,
+        };
+        self.next_occurrence += 1;
+        self.output_note = Some(note.clone());
+        self.notes.push(note);
+        self.suppressed_note = false;
+        true
+    }
+
+    fn end_note(&mut self, at: arpeg_core::Beat, velocity: u8) {
+        if let Some(mut note) = self.output_note.take() {
+            note.at = at;
+            note.port = NotePort::NoteEnd;
+            note.velocity = velocity;
+            self.notes.push(note);
+        }
     }
 
     fn elapsed(&mut self, at_us: i64) -> i64 {

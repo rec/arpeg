@@ -191,7 +191,8 @@ class Play(BaseModel, frozen=True):
                         output.send(message)
                     if player.take_events().exhausted:
                         print(
-                            "Motion output event buffer exhausted; skipped new steps",
+                            "Arpeggiator event buffers exhausted; "
+                            "skipped attacks or steps",
                             file=stderr,
                         )
                     sleep(0.001)
@@ -218,6 +219,13 @@ class MidiPlayer(BaseModel):
     )
     output_id: int | None = None
     output_key: int | None = None
+    next_occurrence: int = 0
+    output_note: arpeggiator_ports.ArpeggiatorNoteEvent | None = None
+    notes: list[arpeggiator_ports.ArpeggiatorNoteEvent] = Field(
+        default_factory=list, max_length=4096
+    )
+    notes_exhausted: bool = False
+    suppressed_note: bool = False
 
     @model_validator(mode="after")
     def supported_profile(self) -> Self:
@@ -489,7 +497,48 @@ class MidiPlayer(BaseModel):
 
     def take_events(self) -> arpeggiator_ports.ArpeggiatorPortBatch:
         assert self.engine is not None and self.engine.ports is not None
-        return self.engine.ports.take_events()
+        batch = self.engine.ports.take_events()
+        batch = batch.model_copy(
+            update={
+                "notes": self.notes,
+                "exhausted": batch.exhausted or self.notes_exhausted,
+            }
+        )
+        self.notes = []
+        self.notes_exhausted = False
+        return batch
+
+    def _start_note(self, at: Fraction, source: str, key: int, velocity: int) -> bool:
+        if len(self.notes) > 4094:
+            self.notes_exhausted = True
+            self.suppressed_note = True
+            return False
+        note = arpeggiator_ports.ArpeggiatorNoteEvent(
+            at=at,
+            port="note_start",
+            occurrence=self.next_occurrence,
+            source=source,
+            key=key,
+            velocity=velocity,
+        )
+        self.next_occurrence += 1
+        self.output_note = note
+        self.notes.append(note)
+        self.suppressed_note = False
+        return True
+
+    def _end_note(self, at: Fraction, velocity: int) -> None:
+        if self.output_note is not None:
+            self.notes.append(
+                self.output_note.model_copy(
+                    update={
+                        "at": at,
+                        "port": arpeggiator_ports.ArpeggiatorNotePort.note_end,
+                        "velocity": velocity,
+                    }
+                )
+            )
+            self.output_note = None
 
     def _pause(self, tick: int) -> list[mido.Message]:
         assert self.engine is not None
@@ -499,6 +548,7 @@ class MidiPlayer(BaseModel):
             output = self._history_messages(engine.pause(self.clock.beat, tick))
         if self.output_key is not None:
             output.append(mido.Message.from_bytes([128, self.output_key, 0]))
+            self._end_note(self.clock.beat, 0)
             self.output_key = None
             self.output_id = None
         return output
@@ -509,6 +559,13 @@ class MidiPlayer(BaseModel):
             if event.kind == "on":
                 if self.output_key is not None:
                     output.append(mido.Message.from_bytes([0x80, self.output_key, 0]))
+                    self._end_note(event.at, 0)
+                    self.output_id = None
+                    self.output_key = None
+                if not self._start_note(
+                    event.at, f"input:{event.source_id}", event.key, event.velocity
+                ):
+                    continue
                 output.extend(
                     mido.Message.from_bytes(d)
                     for d in entry_messages(
@@ -526,24 +583,35 @@ class MidiPlayer(BaseModel):
                 output.append(
                     mido.Message.from_bytes([0x80, event.key, event.velocity])
                 )
+                self._end_note(event.at, event.velocity)
                 self.output_id = None
                 self.output_key = None
         return output
 
     def _history_messages(self, events: list[RealizedMidiEvent]) -> list[mido.Message]:
         output: list[mido.Message] = []
-        onsets = {
-            (e.at, e.source_note) for e in events if e.data[0] == 0x90 and e.data[2] > 0
-        }
         initialized: set[tuple[Fraction, str | None]] = set()
+        attacks = {
+            (e.at, e.source_note): e
+            for e in events
+            if e.data[0] == 0x90 and e.data[2] > 0
+        }
         for event in events:
             kind = event.data[0] & 0xF0
             group = (event.at, event.source_note)
             if (
-                group in onsets
+                group in attacks
                 and group not in initialized
                 and not (kind == 0x80 or kind == 0x90 and event.data[2] == 0)
             ):
+                attack = attacks[group]
+                assert attack.source_note is not None
+                self._start_note(
+                    attack.at, attack.source_note, attack.data[1], attack.data[2]
+                )
+                initialized.add(group)
+                if self.suppressed_note:
+                    continue
                 output.extend(
                     mido.Message.from_bytes(d)
                     for d in entry_messages(
@@ -552,7 +620,8 @@ class MidiPlayer(BaseModel):
                         self.motion_expression,
                     )
                 )
-                initialized.add(group)
+            if self.suppressed_note:
+                continue
             if (lane := expression_lane(event.data)) is not None:
                 policy = self.profile.body.expression
                 if policy.lanes.get(lane, policy.source) != "recorded":
@@ -560,6 +629,7 @@ class MidiPlayer(BaseModel):
             if kind == 0x90 and event.data[2] > 0:
                 self.output_key = event.data[1]
             elif kind == 0x80 or kind == 0x90 and event.data[2] == 0:
+                self._end_note(event.at, event.data[2])
                 self.output_key = None
             output.append(mido.Message.from_bytes(event.data))
         return output
