@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#f5f3ed">
+    <title>arpeg · Play a little differently</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <main>
+        <header>
+            <a class="wordmark" href="./">arpeg<span>.</span></a>
+            <span class="tag">A small instrument for curious hands</span>
+        </header>
+        <section class="intro">
+            <p class="eyebrow">YOUR CHORD, IN MOTION</p>
+            <h1>Play a little<br><em>differently.</em></h1>
+            <p>Hold a few notes. Let them find their own way.</p>
+        </section>
+        <section class="instrument" aria-label="Arpeggiator">
+            <div class="transport">
+                <div><span class="lamp" id="lamp"></span><span id="status" role="status">Loading instrument…</span></div>
+                <div class="actions">
+                    <button id="clear" disabled>Clear notes</button>
+                    <button id="play" class="primary" disabled>Start audio</button>
+                </div>
+            </div>
+            <fieldset id="controls" disabled>
+                <legend class="sr-only">Performance controls</legend>
+                <div class="performance">
+                    <label>Note order<select id="order"></select></label>
+                    <label>Tempo <span class="unit">BPM</span><input id="tempo" type="number" min="30" max="300" value="120"></label>
+                    <label>Step<select id="step"><option value="1">Quarter note</option><option value="1/2">Eighth note</option><option value="1/4" selected>Sixteenth note</option><option value="1/3">Eighth-note triplet</option></select></label>
+                    <label class="check"><input id="latch" type="checkbox">Latch <small>Keep the chord after release</small></label>
+                </div>
+                <div class="performance secondary">
+                    <label>Gate <output id="gate-value">80%</output><input id="gate" type="range" min="0" max="150" value="80"></label>
+                    <label>Transpose <output id="transpose-value">0</output><input id="transpose" type="range" min="-24" max="24" value="0"></label>
+                    <label>Velocity <output id="velocity-value">100</output><input id="velocity" type="range" min="1" max="127" value="100"></label>
+                    <label>Pitch bend <output id="bend-value">0</output><input id="bend" type="range" min="-100" max="100" value="0"><small>±2 semitones</small></label>
+                </div>
+            </fieldset>
+            <div class="keyboard-wrap"><div id="keyboard" class="keyboard" aria-label="Piano keyboard"></div></div>
+            <div class="note-display">
+                <div><span class="eyebrow">HELD</span><span id="held">None</span></div>
+                <div><span class="eyebrow">PLAYING</span><span id="sounding">None</span></div>
+            </div>
+            <p class="hint">Use the keys below, or type A W S E D F T G Y H U J K. Hold several at once.</p>
+        </section>
+        <section class="sound" aria-labelledby="sound-heading">
+            <div><p class="eyebrow">BUILT-IN SYNTH</p><h2 id="sound-heading">Give it a voice.</h2></div>
+            <fieldset id="sound-controls" disabled>
+                <legend class="sr-only">Synth controls</legend>
+                <label>Waveform<select id="waveform"><option value="triangle">Triangle</option><option value="sine">Sine</option><option value="sawtooth">Sawtooth</option><option value="square">Square</option></select></label>
+                <label>Volume <output id="volume-value">20%</output><input id="volume" type="range" min="0" max="100" value="20"></label>
+                <label>Attack <output id="attack-value">10 ms</output><input id="attack" type="range" min="1" max="500" value="10"></label>
+                <label>Decay <output id="decay-value">100 ms</output><input id="decay" type="range" min="1" max="1000" value="100"></label>
+                <label>Sustain <output id="sustain-value">60%</output><input id="sustain" type="range" min="0" max="100" value="60"></label>
+                <label>Release <output id="release-value">120 ms</output><input id="release" type="range" min="1" max="1500" value="120"></label>
+            </fieldset>
+        </section>
+        <p id="error" role="alert" hidden></p>
+        <footer>Made for live exploration. Audio pauses when you leave this page.</footer>
+    </main>
+    <script type="module" src="app.mjs"></script>
+</body>
+</html>
