@@ -34,3 +34,5 @@ boundary = "wrap"
 source = "current"
 timing = "original"
 gaps = "omit"
+
+[body.expression.lanes]
