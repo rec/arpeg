@@ -1,3 +1,4 @@
+use std::path::Path;
 use std::{env, fs, process};
 
 use arpeg_midi::{parse_profile, render_file};
@@ -17,19 +18,19 @@ fn run() -> Result<(), String> {
     match args.as_slice() {
         [_, command, profile] if command == "validate" => {
             let text = fs::read_to_string(profile).map_err(|e| e.to_string())?;
-            parse_profile(&text)?;
+            parse_profile(&text, Some(Path::new(profile)))?;
             println!("supported arpeggiator profile");
         }
         [_, command, profile, input, output] if command == "render-file" => {
             let text = fs::read_to_string(profile).map_err(|e| e.to_string())?;
             let input = fs::read(input).map_err(|e| e.to_string())?;
-            let rendered = render_file(&text, &input)?;
+            let rendered = render_file(&text, &input, Some(Path::new(profile)))?;
             fs::write(output, rendered).map_err(|e| e.to_string())?;
         }
         [_, command] if command == "list-ports" => list_ports()?,
         [_, command, profile, source, destination, bpm, options @ ..] if command == "play" => {
             let text = fs::read_to_string(profile).map_err(|e| e.to_string())?;
-            let profile = parse_profile(&text)?;
+            let profile = parse_profile(&text, Some(Path::new(profile)))?;
             let source = source
                 .parse()
                 .map_err(|_| "source index must be an integer")?;

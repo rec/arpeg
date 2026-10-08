@@ -7,7 +7,7 @@ use midly::{
 #[test]
 fn file_render_preserves_tempo_and_emits_classic_note_order() {
     let profile = include_str!("../../../conformance/up.toml");
-    parse_profile(profile).expect("supported profile");
+    parse_profile(profile, None).expect("supported profile");
     let channel = u4::from(0);
     let mut track = vec![TrackEvent {
         delta: u28::from(0),
@@ -48,7 +48,7 @@ fn file_render_preserves_tempo_and_emits_classic_note_order() {
     let mut bytes = Vec::new();
     input.write_std(&mut bytes).expect("input MIDI file");
 
-    let output = render_file(profile, &bytes).expect("render MIDI file");
+    let output = render_file(profile, &bytes, None).expect("render MIDI file");
     let output = Smf::parse(&output).expect("valid output MIDI file");
     let mut tick = 0;
     let mut onsets = Vec::new();
@@ -109,7 +109,7 @@ fn incomplete_walk_profile_fails_explicitly() {
         "selection = { kind = \"ascending\" }",
         "selection = { kind = \"walk\" }",
     );
-    assert!(parse_profile(&profile).is_err());
+    assert!(parse_profile(&profile, None).is_err());
 }
 
 #[test]
@@ -121,7 +121,7 @@ fn alternating_profile_validates_endpoint_policy_and_is_live_only() {
         (", repeat_endpoints = true", true),
     ] {
         let text = profile.replace(", repeat_endpoints = false", policy);
-        let Profile::Classic(parsed) = parse_profile(&text).unwrap() else {
+        let Profile::Classic(parsed) = parse_profile(&text, None).unwrap() else {
             panic!("expected live note profile");
         };
         assert_eq!(
@@ -132,7 +132,7 @@ fn alternating_profile_validates_endpoint_policy_and_is_live_only() {
         );
     }
     assert_eq!(
-        render_file(profile, &single_note_input(0)).unwrap_err(),
+        render_file(profile, &single_note_input(0), None).unwrap_err(),
         "alternating selection currently requires live input"
     );
     for value in ["1", "\"true\""] {
@@ -140,10 +140,10 @@ fn alternating_profile_validates_endpoint_policy_and_is_live_only() {
             "repeat_endpoints = false",
             &format!("repeat_endpoints = {value}"),
         );
-        assert!(parse_profile(&text).is_err());
+        assert!(parse_profile(&text, None).is_err());
     }
     let history = profile.replace("[body]", "[body]\nbank = { kind = \"history\" }");
-    assert!(parse_profile(&history).is_err());
+    assert!(parse_profile(&history, None).is_err());
 }
 
 #[test]
@@ -158,25 +158,25 @@ fn center_edge_profiles_are_live_only_and_have_no_extra_options() {
             arpeg_core::Selection::OutsideIn,
         ),
     ] {
-        let Profile::Classic(parsed) = parse_profile(profile).unwrap() else {
+        let Profile::Classic(parsed) = parse_profile(profile, None).unwrap() else {
             panic!("expected live note profile");
         };
         assert_eq!(parsed.selection, selection);
         assert_eq!(
-            render_file(profile, &single_note_input(0)).unwrap_err(),
+            render_file(profile, &single_note_input(0), None).unwrap_err(),
             "center/edge selection currently requires live input"
         );
         let history = profile.replace("[body]", "[body]\nbank = { kind = \"history\" }");
-        assert!(parse_profile(&history).is_err());
+        assert!(parse_profile(&history, None).is_err());
         let extra = profile.replace("selection = {", "selection = { repeats = 2,");
-        assert!(parse_profile(&extra).is_err());
+        assert!(parse_profile(&extra, None).is_err());
     }
 }
 
 #[test]
 fn weighted_walk_profile_validates_choices_and_requires_live_input() {
     let profile = include_str!("../../../conformance/weighted-walk.toml");
-    let Profile::Classic(parsed) = parse_profile(profile).unwrap() else {
+    let Profile::Classic(parsed) = parse_profile(profile, None).unwrap() else {
         panic!("expected live note profile");
     };
     let arpeg_core::Selection::Walk(walk) = parsed.selection else {
@@ -187,7 +187,7 @@ fn weighted_walk_profile_validates_choices_and_requires_live_input() {
     let changed = profile
         .replace("start = \"lowest\"", "start = \"move\"")
         .replace("on_remove = \"lowest\"", "on_remove = \"rank\"");
-    let Profile::Classic(parsed) = parse_profile(&changed).unwrap() else {
+    let Profile::Classic(parsed) = parse_profile(&changed, None).unwrap() else {
         panic!("expected live note profile");
     };
     let arpeg_core::Selection::Walk(walk) = parsed.selection else {
@@ -196,7 +196,7 @@ fn weighted_walk_profile_validates_choices_and_requires_live_input() {
     assert!(walk.start_move);
     assert!(walk.keep_rank);
     assert_eq!(
-        render_file(profile, &single_note_input(0)).unwrap_err(),
+        render_file(profile, &single_note_input(0), None).unwrap_err(),
         "probability currently requires live input"
     );
     for (original, replacement) in [
@@ -207,14 +207,14 @@ fn weighted_walk_profile_validates_choices_and_requires_live_input() {
         ("start = \"lowest\"", "start = \"unknown\""),
         ("on_remove = \"lowest\"", "on_remove = \"unknown\""),
     ] {
-        assert!(parse_profile(&profile.replace(original, replacement)).is_err());
+        assert!(parse_profile(&profile.replace(original, replacement), None).is_err());
     }
 }
 
 #[test]
 fn euclidean_profile_renders_hits_with_independent_releases() {
     let profile = include_str!("../../../conformance/euclidean.toml");
-    let output = render_file(profile, &single_note_input(0)).unwrap();
+    let output = render_file(profile, &single_note_input(0), None).unwrap();
     let output = Smf::parse(&output).unwrap();
     let mut tick = 0;
     let mut notes = Vec::new();
@@ -241,9 +241,10 @@ fn euclidean_profile_rejects_invalid_masks_and_history_use() {
         ("rotation = 0", "rotation = 0.5"),
         ("1/4 beat", "0 beat"),
     ] {
-        assert!(parse_profile(&profile.replace(original, replacement)).is_err());
+        assert!(parse_profile(&profile.replace(original, replacement), None).is_err());
     }
-    let Profile::Classic(parsed) = parse_profile(&profile.replace(", rotation = 0", "")).unwrap()
+    let Profile::Classic(parsed) =
+        parse_profile(&profile.replace(", rotation = 0", ""), None).unwrap()
     else {
         panic!("expected classic profile");
     };
@@ -261,7 +262,7 @@ fn euclidean_profile_rejects_invalid_masks_and_history_use() {
         "kind = \"euclidean\", step = \"1/4 beat\", steps = 8, pulses = 3",
     );
     assert_eq!(
-        parse_profile(&history).err().unwrap(),
+        parse_profile(&history, None).err().unwrap(),
         "history playback currently requires grid rhythm"
     );
 }
@@ -269,14 +270,14 @@ fn euclidean_profile_rejects_invalid_masks_and_history_use() {
 #[test]
 fn custom_pattern_profile_is_live_only_and_validates_steps() {
     let profile = include_str!("../../../conformance/custom-steps.toml");
-    let Profile::Classic(parsed) = parse_profile(profile).unwrap() else {
+    let Profile::Classic(parsed) = parse_profile(profile, None).unwrap() else {
         panic!("expected classic profile");
     };
     let decision = parsed.rhythm.decide_step(0, parsed.gate);
     assert_eq!(decision.duration, arpeg_core::Beat::new(1, 4));
     assert_eq!(decision.final_gate, arpeg_core::Beat::new(9, 20));
     assert_eq!(
-        render_file(profile, &single_note_input(0)).unwrap_err(),
+        render_file(profile, &single_note_input(0), None).unwrap_err(),
         "pattern rhythm currently requires live input"
     );
     for (original, replacement) in [
@@ -289,51 +290,51 @@ fn custom_pattern_profile_is_live_only_and_validates_steps() {
         ),
         ("kind = \"rest\"", "kind = \"unknown\""),
     ] {
-        assert!(parse_profile(&profile.replace(original, replacement)).is_err());
+        assert!(parse_profile(&profile.replace(original, replacement), None).is_err());
     }
     let empty = "kind = 'arpeggiator'\nname = 'empty'\ntitle = 'Empty'\n[body]\nrhythm = { kind = 'pattern', steps = [] }";
-    assert!(parse_profile(empty).is_err());
+    assert!(parse_profile(empty, None).is_err());
 }
 
 #[test]
 fn bank_edit_retrigger_is_live_only() {
     let profile = include_str!("../../../conformance/up.toml")
         .replace("[body]", "[body]\nretrigger = \"bank_edit\"");
-    parse_profile(&profile).expect("supported live profile");
+    parse_profile(&profile, None).expect("supported live profile");
     assert_eq!(
-        render_file(&profile, &single_note_input(0)).unwrap_err(),
+        render_file(&profile, &single_note_input(0), None).unwrap_err(),
         "file rendering does not support bank-edit retrigger"
     );
 }
 
 #[test]
 fn native_shell_accepts_the_canonical_ufor_profile() {
-    parse_profile(include_str!("../../../conformance/up-expanded.toml"))
+    parse_profile(include_str!("../../../conformance/up-expanded.toml"), None)
         .expect("uFor-serialized profile");
-    parse_profile(include_str!("../../../conformance/live-latch.toml"))
+    parse_profile(include_str!("../../../conformance/live-latch.toml"), None)
         .expect("live latch profile");
 }
 
 #[test]
 fn history_profile_is_explicit_and_live_only() {
     let profile = include_str!("../../../conformance/history-wind.toml");
-    let Profile::History(history) = parse_profile(profile).unwrap() else {
+    let Profile::History(history) = parse_profile(profile, None).unwrap() else {
         panic!("history profile was parsed as classic");
     };
     assert_eq!(history.notes, 8);
     assert_eq!(history.selection, arpeg_core::Selection::Ascending);
     assert_eq!(
-        render_file(profile, &single_note_input(0)).unwrap_err(),
+        render_file(profile, &single_note_input(0), None).unwrap_err(),
         "history profiles require live MIDI input"
     );
     let unsupported = profile.replace("source = \"recorded\"", "source = \"motion\"");
-    assert!(parse_profile(&unsupported).is_err());
+    assert!(parse_profile(&unsupported, None).is_err());
 }
 
 #[test]
 fn velocity_zero_releases_keep_their_wire_encoding() {
     let bytes = single_note_input(0);
-    let output = render_file(include_str!("../../../conformance/up.toml"), &bytes)
+    let output = render_file(include_str!("../../../conformance/up.toml"), &bytes, None)
         .expect("render MIDI file");
     let output = Smf::parse(&output).expect("valid output MIDI file");
     let mut releases = 0;
@@ -360,7 +361,7 @@ fn latched_file_keeps_playing_after_source_release() {
         "[body]\nbank = { kind = \"latched\", update = \"replace\" }",
     );
     let bytes = single_note_input(480);
-    let output = render_file(&profile, &bytes).expect("render latched MIDI file");
+    let output = render_file(&profile, &bytes, None).expect("render latched MIDI file");
     let output = Smf::parse(&output).expect("valid output MIDI file");
     let onsets = output.tracks[0]
         .iter()
@@ -376,7 +377,7 @@ fn latched_file_keeps_playing_after_source_release() {
 #[test]
 fn index_pattern_defaults_to_wrap_and_validates_live_only_options() {
     let profile = include_str!("../../../conformance/index-pattern.toml");
-    let Profile::Classic(parsed) = parse_profile(profile).unwrap() else {
+    let Profile::Classic(parsed) = parse_profile(profile, None).unwrap() else {
         panic!("expected live held profile");
     };
     assert_eq!(
@@ -390,7 +391,7 @@ fn index_pattern_defaults_to_wrap_and_validates_live_only_options() {
         "indices = [0, 2, 1, 2]",
         "indices = [0, 2, 1, 2], boundary = \"rest\"",
     );
-    let Profile::Classic(parsed) = parse_profile(&explicit).unwrap() else {
+    let Profile::Classic(parsed) = parse_profile(&explicit, None).unwrap() else {
         panic!("expected live held profile");
     };
     assert_eq!(
@@ -401,23 +402,26 @@ fn index_pattern_defaults_to_wrap_and_validates_live_only_options() {
         }
     );
     for indices in ["[]", "[-1]", "[1.5]", "[true]", "[\"1\"]"] {
-        assert!(parse_profile(&profile.replace("[0, 2, 1, 2]", indices)).is_err());
+        assert!(parse_profile(&profile.replace("[0, 2, 1, 2]", indices), None).is_err());
     }
     for option in ["boundary = \"clamp\"", "boundary = true", "unknown = 1"] {
         assert!(
-            parse_profile(&profile.replace(
-                "indices = [0, 2, 1, 2]",
-                &format!("indices = [0], {option}")
-            ))
+            parse_profile(
+                &profile.replace(
+                    "indices = [0, 2, 1, 2]",
+                    &format!("indices = [0], {option}")
+                ),
+                None
+            )
             .is_err()
         );
     }
     assert_eq!(
-        render_file(profile, &single_note_input(0)).unwrap_err(),
+        render_file(profile, &single_note_input(0), None).unwrap_err(),
         "index pattern selection currently requires live input"
     );
     let history = profile.replace("[body]", "[body]\nbank = { kind = \"history\", notes = 8 }");
-    assert!(parse_profile(&history).is_err());
+    assert!(parse_profile(&history, None).is_err());
 }
 
 #[test]
@@ -436,7 +440,7 @@ fn shuffle_profile_requires_seed_and_validates_live_only_policies() {
             "kind = \"shuffle\"",
             &format!("kind = \"shuffle\"{options}"),
         );
-        let Profile::Classic(parsed) = parse_profile(&text).unwrap() else {
+        let Profile::Classic(parsed) = parse_profile(&text, None).unwrap() else {
             panic!("expected live held profile");
         };
         assert_eq!(
@@ -458,21 +462,21 @@ fn shuffle_profile_requires_seed_and_validates_live_only_policies() {
             "kind = \"shuffle\"",
             &format!("kind = \"shuffle\", {option}"),
         );
-        assert!(parse_profile(&text).is_err());
+        assert!(parse_profile(&text, None).is_err());
     }
-    assert!(parse_profile(&profile.replace("seed = 42", "")).is_err());
+    assert!(parse_profile(&profile.replace("seed = 42", ""), None).is_err());
     assert_eq!(
-        render_file(profile, &single_note_input(0)).unwrap_err(),
+        render_file(profile, &single_note_input(0), None).unwrap_err(),
         "shuffle selection currently requires live input"
     );
     let history = profile.replace("[body]", "[body]\nbank = { kind = \"history\" }");
-    assert!(parse_profile(&history).is_err());
+    assert!(parse_profile(&history, None).is_err());
 }
 
 #[test]
 fn choice_profile_requires_seed_and_validates_weights_and_policies() {
     let profile = include_str!("../../../conformance/choice.toml");
-    let Profile::Classic(parsed) = parse_profile(profile).unwrap() else {
+    let Profile::Classic(parsed) = parse_profile(profile, None).unwrap() else {
         panic!("expected live held profile");
     };
     assert_eq!(
@@ -484,7 +488,7 @@ fn choice_profile_requires_seed_and_validates_weights_and_policies() {
         }
     );
     let uniform = profile.replace(", weights = [4, 1]", "");
-    let Profile::Classic(parsed) = parse_profile(&uniform).unwrap() else {
+    let Profile::Classic(parsed) = parse_profile(&uniform, None).unwrap() else {
         panic!("expected live held profile");
     };
     assert_eq!(
@@ -499,7 +503,7 @@ fn choice_profile_requires_seed_and_validates_weights_and_policies() {
         "weights = [4, 1]",
         "weights = [4, 1], extend = \"repeat\", no_repeat = true",
     );
-    let Profile::Classic(parsed) = parse_profile(&options).unwrap() else {
+    let Profile::Classic(parsed) = parse_profile(&options, None).unwrap() else {
         panic!("expected live held profile");
     };
     assert_eq!(
@@ -520,19 +524,19 @@ fn choice_profile_requires_seed_and_validates_weights_and_policies() {
         "[4294967296]",
         "1",
     ] {
-        assert!(parse_profile(&profile.replace("[4, 1]", weights)).is_err());
+        assert!(parse_profile(&profile.replace("[4, 1]", weights), None).is_err());
     }
     for option in ["extend = \"last\"", "no_repeat = 1", "unknown = 1"] {
         let text = profile.replace("weights = [4, 1]", &format!("weights = [4, 1], {option}"));
-        assert!(parse_profile(&text).is_err());
+        assert!(parse_profile(&text, None).is_err());
     }
-    assert!(parse_profile(&profile.replace("seed = 42", "")).is_err());
+    assert!(parse_profile(&profile.replace("seed = 42", ""), None).is_err());
     assert_eq!(
-        render_file(profile, &single_note_input(0)).unwrap_err(),
+        render_file(profile, &single_note_input(0), None).unwrap_err(),
         "choice selection currently requires live input"
     );
     let history = profile.replace("[body]", "[body]\nbank = { kind = \"history\" }");
-    assert!(parse_profile(&history).is_err());
+    assert!(parse_profile(&history, None).is_err());
 }
 
 fn single_note_input(end_delay: u32) -> Vec<u8> {

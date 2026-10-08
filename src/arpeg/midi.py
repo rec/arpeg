@@ -13,7 +13,6 @@ import mido
 import tyro
 from pydantic import BaseModel, Field, model_validator
 from ufor import arpeggiator
-from ufor.codec import parse_score
 from ufor.events import MidiEvent
 
 from .bank import CaptureBank
@@ -21,6 +20,7 @@ from .clock import ClockMode, TransportClock
 from .gesture import RealizedMidiEvent
 from .history import LiveHistoryArpeggiator
 from .live import LiveArpeggiator, LiveEvent
+from .profile import parse_profile
 
 
 class ListPorts(BaseModel, frozen=True):
@@ -48,9 +48,7 @@ class Play(BaseModel, frozen=True):
     clock_timeout_ms: int = Field(default=500, gt=0)
 
     def run(self) -> None:
-        profile = parse_score(self.profile.read_text())
-        if not isinstance(profile, arpeggiator.ArpeggiatorScore):
-            raise ValueError("play requires an arpeggiator profile")
+        profile = parse_profile(self.profile.read_text(), self.profile)
         if self.clock_source is not None and self.clock != ClockMode.external:
             raise ValueError("clock source requires external clock")
         player = MidiPlayer(

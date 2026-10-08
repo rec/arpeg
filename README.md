@@ -300,6 +300,29 @@ hosts still have one independent expression owner on channel 1. MPE, MIDI 2.0,
 phrase record/commit controls and Motion-driven performance parameters remain
 later work.
 
+### Preset header defaults
+
+Presets may omit `kind`; it defaults to `"arpeggiator"`. They may also omit
+`name` when loaded from a file: `presets/bright.v2.toml` becomes `"bright.v2"`.
+An explicit name takes precedence. In-memory presets still require a name,
+and invalid explicit names or kinds remain errors.
+
+The Python preset reader is `arpeg.profile.parse_profile(text, path=None)`;
+pass the source `Path` when reading a file. Rust's `parse_profile(text, path)`
+accepts `Some(path)` for file content or `None` for in-memory content. Both live
+hosts supply the profile path, as do Rust's validation and file-rendering commands.
+The resulting Python score retains its resolved name and kind when serialized.
+
+For example, `up.toml` can contain:
+
+```toml
+title = "Up"
+
+[body]
+selection = { kind = "ascending" }
+rhythm = { kind = "grid", step = "1/4 beat" }
+```
+
 ## Development
 
 Building the Rust MIDI host on Linux requires ALSA development headers and

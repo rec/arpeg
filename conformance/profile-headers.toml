@@ -1,0 +1,85 @@
+[[cases]]
+name = "kind defaults for an in-memory preset"
+text = '''name = "explicit"
+title = "Preset"
+[body]
+rhythm = { kind = "grid", step = "1/4 beat" }
+'''
+expected_name = "explicit"
+
+[[cases]]
+name = "both headers default from a file with several dots"
+path = "presets/bright.v2.toml"
+text = '''title = "Preset"
+[body]
+rhythm = { kind = "grid", step = "1/4 beat" }
+'''
+expected_name = "bright.v2"
+
+[[cases]]
+name = "an explicit name overrides the filename"
+path = "other.toml"
+text = '''name = "explicit"
+title = "Preset"
+[body]
+rhythm = { kind = "grid", step = "1/4 beat" }
+'''
+expected_name = "explicit"
+
+[[cases]]
+name = "name defaults when kind is explicit"
+path = "presets/bright.toml"
+text = '''kind = "arpeggiator"
+title = "Preset"
+[body]
+rhythm = { kind = "grid", step = "1/4 beat" }
+'''
+expected_name = "bright"
+
+[[cases]]
+name = "an in-memory preset cannot infer its name"
+text = '''kind = "arpeggiator"
+title = "Preset"
+[body]
+rhythm = { kind = "grid", step = "1/4 beat" }
+'''
+error = "name"
+
+[[cases]]
+name = "default kind does not supply an in-memory name"
+text = '''title = "Preset"
+[body]
+rhythm = { kind = "grid", step = "1/4 beat" }
+'''
+error = "name"
+
+[[cases]]
+name = "an empty explicit name remains an error"
+path = "valid.toml"
+text = '''name = ""
+title = "Preset"
+[body]
+rhythm = { kind = "grid", step = "1/4 beat" }
+'''
+error = "name"
+
+[[cases]]
+name = "a non-string name remains an error"
+path = "valid.toml"
+text = '''name = 42
+title = "Preset"
+[body]
+rhythm = { kind = "grid", step = "1/4 beat" }
+'''
+error = "name"
+
+[[cases]]
+name = "an explicit non-arpeggiator kind remains an error"
+path = "valid.toml"
+text = '''kind = "slideshow"
+name = "explicit"
+title = "Preset"
+[body]
+rhythm = { kind = "grid", step = "1/4 beat" }
+'''
+error = "kind"

@@ -1,6 +1,7 @@
 //! File and profile adapters for the portable arpeggiator core.
 
 use std::collections::{HashMap, VecDeque};
+use std::path::Path;
 
 use arpeg_core::chance::Chance;
 use arpeg_core::live::Retrigger;
@@ -37,7 +38,7 @@ pub enum Profile {
     History(HistoryProfile),
 }
 
-pub fn parse_profile(text: &str) -> Result<Profile, String> {
+pub fn parse_profile(text: &str, path: Option<&Path>) -> Result<Profile, String> {
     let score: toml::Value = toml::from_str(text).map_err(|e| e.to_string())?;
     let score = score.as_table().ok_or("profile must be a TOML table")?;
     if score.keys().any(|key| {
@@ -51,13 +52,20 @@ pub fn parse_profile(text: &str) -> Result<Profile, String> {
     {
         return Err("unsupported arpeggiator document header".into());
     }
-    if score.get("kind").and_then(toml::Value::as_str) != Some("arpeggiator") {
+    if score
+        .get("kind")
+        .is_some_and(|v| v.as_str() != Some("arpeggiator"))
+    {
         return Err("profile kind must be arpeggiator".into());
     }
-    let name = score
-        .get("name")
-        .and_then(toml::Value::as_str)
-        .ok_or("profile requires name")?;
+    let name = match score.get("name") {
+        Some(value) => value.as_str().ok_or("profile name must be a string")?,
+        None => path
+            .ok_or("profile requires name when no source file is supplied")?
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .ok_or("profile requires a UTF-8 filename stem")?,
+    };
     if name.is_empty()
         || name != name.trim()
         || name.contains([':', '#', '/'])
@@ -618,8 +626,8 @@ fn parse_gate(body: &toml::map::Map<String, toml::Value>) -> Result<Beat, String
     Ok(gate)
 }
 
-pub fn render_file(profile: &str, input: &[u8]) -> Result<Vec<u8>, String> {
-    let Profile::Classic(profile) = parse_profile(profile)? else {
+pub fn render_file(profile: &str, input: &[u8], path: Option<&Path>) -> Result<Vec<u8>, String> {
+    let Profile::Classic(profile) = parse_profile(profile, path)? else {
         return Err("history profiles require live MIDI input".into());
     };
     if profile.chance.probability != Beat::from_integer(1) {

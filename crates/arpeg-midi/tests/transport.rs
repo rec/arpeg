@@ -27,7 +27,7 @@ fn transport_matches_shared_exact_wire_traces() {
             };
             for poll_us in [None, Some(1000)] {
                 let mut player = MidiPlayer::new(
-                    parse_profile(text).unwrap(),
+                    parse_profile(text, None).unwrap(),
                     mode,
                     120,
                     case.get("timeout_us")
