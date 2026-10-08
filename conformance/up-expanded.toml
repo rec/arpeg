@@ -26,6 +26,10 @@ step = "1/4 beat"
 semitones = 0
 boundary = "drop"
 
+[body.selection_offset]
+ranks = 0
+boundary = "wrap"
+
 [body.expression]
 source = "current"
 timing = "original"
