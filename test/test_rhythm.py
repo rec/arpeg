@@ -3,13 +3,14 @@ from pathlib import Path
 
 from ufor.arpeggiator import Euclidean
 
-from arpeg.rhythm import allows_step
+from arpeg.rhythm import allows_step, starts_cycle
 
 
 def test_euclidean_rotations_match_canonical_masks() -> None:
     masks = json.loads(Path("conformance/euclidean.json").read_text())["masks"]
     for rotation in range(-8, 16):
         rhythm = Euclidean(steps=8, pulses=3, rotation=rotation, step="1/4 beat")
+        assert [i for i in range(16) if starts_cycle(rhythm, i)] == [0, 8]
         assert "".join(str(int(allows_step(rhythm, i))) for i in range(16)) == (
             masks[rotation % 8] * 2
         )

@@ -101,6 +101,25 @@ test('Motion ports return exact event coordinates and accept step-boundary contr
     }
 });
 
+test('rhythm cycle notifications keep their exact phase through rests and seeks', () => {
+    const profile = readFileSync(new URL('../../../conformance/cycle-rests.toml', import.meta.url), 'utf8');
+    const player = new MidiPlayer(profile, 'internal', 120, 500_000n);
+    try {
+        player.control(0n, 'density', '0');
+        assert.deepEqual(player.advance(0n), []);
+        assert.deepEqual(player.take_events().events.map(e => [e.port, e.index]), [['cycle', 0n], ['step', 0n], ['rest', 0n]]);
+        player.advance(375_000n);
+        assert.deepEqual(player.take_events().events.filter(e => e.port === 'cycle'), [
+            { at: '3/4', port: 'cycle', index: 3n, revision: 0n },
+        ]);
+        player.accept(400_000n, new Uint8Array([242, 6, 0]), 'both');
+        player.advance(400_000n);
+        assert.deepEqual(player.take_events().events.map(e => [e.port, e.index]), [['cycle', 6n], ['step', 6n], ['rest', 6n]]);
+    } finally {
+        player.free();
+    }
+});
+
 test('capture readiness reports publication before the step and omits empty undo', () => {
     const profile = readFileSync(new URL('../../../conformance/phrase-wind.toml', import.meta.url), 'utf8');
     const player = new MidiPlayer(profile, 'internal', 120, 500_000n);

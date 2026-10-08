@@ -464,6 +464,16 @@ unchanged banks, and empty banks do not. Readiness is independent of density:
 even a rejected hit can publish usable captured material. Route this event to a
 Motion that should restart when a new bank becomes eligible.
 
+`cycle` marks the first step of an authored rhythm loop, including the first
+loop. Euclidean loops contain `steps` opportunities; custom patterns loop after
+their final cell, using the cells' exact durations. Plain grids emit no cycle
+event. Rotation moves Euclidean hits without moving the cycle boundary. Empty
+banks, rests, ties, density rejection, and chord edits preserve rhythm phase.
+Pause preserves phase; Start and seeks relocate it without replaying crossed
+boundaries. Each cycle event carries its step's beat, index, and bank revision,
+before `step` and its outcome. This describes rhythm loops independently of note
+selector traversal. Hosts can use it to restart a Motion once per rhythm loop.
+
 The host samples its Motion before the target step and routes collected events
 to other Motions. Convert sampled scalar values to explicit rational values;
 there is no hidden float rounding or embedded Motion graph evaluator. Feedback
@@ -471,8 +481,8 @@ needs an explicit delay of at least one scheduling quantum and a bounded host
 event budget.
 
 Drain after each operation. The output buffer holds 4096 events and reserves two
-slots before admitting a step, or three for a publication with `capture_ready`.
-Its notification, step, and outcome are admitted together. On exhaustion, new
+slots before admitting a step, plus one for each `capture_ready` or `cycle`.
+Notifications, step, and outcome are admitted together. On exhaustion, new
 step admissions and their notifications stop while due
 releases and already realized repeats continue. `batch.exhausted` reports the
 condition; draining permits future steps without replaying skipped attacks.

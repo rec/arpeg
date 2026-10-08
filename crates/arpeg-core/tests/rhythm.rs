@@ -16,6 +16,12 @@ fn euclidean_rotations_match_canonical_masks() {
         let actual: String = (0..16)
             .map(|i| if rhythm.allows_step(i) { '1' } else { '0' })
             .collect();
+        assert_eq!(
+            (0..16)
+                .filter(|i| rhythm.starts_cycle(*i))
+                .collect::<Vec<_>>(),
+            [0, 8]
+        );
         let expected = fixture["masks"][rotation.rem_euclid(8) as usize]
             .as_str()
             .unwrap()

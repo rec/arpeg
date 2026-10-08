@@ -214,8 +214,20 @@ def test_invalid_controls_leave_pending_music_unchanged() -> None:
     assert [m.bytes() for m in player.advance(100_000_000)] == [[128, 60, 0]]
 
 
-@pytest.mark.parametrize("occupied,admitted", [(4093, True), (4094, False)])
-def test_capture_publication_events_reserve_space_for_the_whole_step(
+@pytest.mark.parametrize(
+    "capture_ready,cycle,occupied,admitted",
+    [
+        (True, False, 4093, True),
+        (True, False, 4094, False),
+        (False, True, 4093, True),
+        (False, True, 4094, False),
+        (True, True, 4092, True),
+        (True, True, 4093, False),
+    ],
+)
+def test_step_notifications_reserve_space_for_the_whole_step(
+    capture_ready: bool,
+    cycle: bool,
     occupied: int,
     admitted: bool,
 ) -> None:
@@ -227,14 +239,22 @@ def test_capture_publication_events_reserve_space_for_the_whole_step(
         ]
         * occupied,
     )
-    assert ports.begin_step(Fraction(1, 4), 1, 2, capture_ready=True) == admitted
+    assert (
+        ports.begin_step(Fraction(1, 4), 1, 2, capture_ready=capture_ready, cycle=cycle)
+        == admitted
+    )
     if admitted:
         ports.outcome(True)
     batch = ports.take_events()
     assert batch.exhausted != admitted
     assert len(batch.events) == (4096 if admitted else occupied)
+    expected = (
+        (["capture_ready"] if capture_ready else [])
+        + (["cycle"] if cycle else [])
+        + ["step", "hit"]
+    )
     assert [e.port.value for e in batch.events[occupied:]] == (
-        ["capture_ready", "step", "hit"] if admitted else []
+        expected if admitted else []
     )
     assert ports.begin_step(Fraction(1, 2), 2, 2)
     ports.outcome(False)

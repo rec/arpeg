@@ -41,6 +41,15 @@ def decide_step(
     )
 
 
+def starts_cycle(rhythm: Grid | Euclidean | Pattern, index: int) -> bool:
+    """An authored rhythm loop starts at cell zero, independently of its hits."""
+    if isinstance(rhythm, Euclidean):
+        return index % rhythm.steps == 0
+    if isinstance(rhythm, Pattern):
+        return index % len(rhythm.steps) == 0
+    return False
+
+
 def allows_step(rhythm: Grid | Euclidean, index: int) -> bool:
     """Positive rotation moves hits later; zero pulses produces silence."""
     if isinstance(rhythm, Grid):

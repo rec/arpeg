@@ -35,7 +35,7 @@ from ufor.arpeggiator import (
 
 from .chance import draw_below
 from .ports import PerformancePorts
-from .rhythm import RhythmDecision, decide_step
+from .rhythm import RhythmDecision, decide_step, starts_cycle
 
 
 class LiveEvent(BaseModel, frozen=True):
@@ -358,7 +358,10 @@ class LiveArpeggiator(BaseModel):
                 assert isinstance(rhythm, (Grid, Euclidean, Pattern))
                 assert self.ports is not None
                 admitted = self.ports.begin_step(
-                    at, self.step_index, self.bank_revision
+                    at,
+                    self.step_index,
+                    self.bank_revision,
+                    cycle=starts_cycle(rhythm, self.step_index),
                 )
                 decision = decide_step(rhythm, self.step_index, self.ports.gate)
                 if admitted:

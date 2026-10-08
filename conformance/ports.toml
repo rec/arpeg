@@ -1,5 +1,38 @@
 # Exact beat and wire traces for the shared Motion boundary.
 [[cases]]
+name = "variable-duration-cycles-begin-on-ties-without-invented-hits"
+profile = "cycle-ties"
+actions = [
+  { at = 0, port = "gate", value = "4/5", output = [], events = [] },
+  { at = 0, output = [], events = [["0", "cycle", 0, 0], ["0", "step", 0, 0]] },
+  { at = 125000, output = [], events = [["1/4", "step", 1, 0], ["1/4", "rest", 1, 0]] },
+  { at = 187500, output = [], events = [["3/8", "cycle", 2, 0], ["3/8", "step", 2, 0]] },
+  { at = 312500, output = [], events = [["5/8", "step", 3, 0], ["5/8", "rest", 3, 0]] },
+  { at = 375000, output = [], events = [["3/4", "cycle", 4, 0], ["3/4", "step", 4, 0]] },
+]
+
+[[cases]]
+name = "rhythm-cycles-keep-phase-through-empty-bank-density-pause-and-seek"
+profile = "cycle-rests"
+actions = [
+  { at = 0, port = "density", value = "0", output = [], events = [] },
+  { at = 0, output = [], events = [["0", "cycle", 0, 0], ["0", "step", 0, 0], ["0", "rest", 0, 0]] },
+  { at = 125000, output = [], events = [["1/4", "step", 1, 0], ["1/4", "rest", 1, 0]] },
+  { at = 150000, data = [144, 60, 100], output = [], events = [] },
+  { at = 250000, output = [], events = [["1/2", "step", 2, 1], ["1/2", "rest", 2, 1]] },
+  { at = 275000, data = [252], output = [], events = [] },
+  { at = 500000, output = [], events = [] },
+  { at = 500000, data = [251], output = [], events = [] },
+  { at = 600000, output = [], events = [["3/4", "cycle", 3, 1], ["3/4", "step", 3, 1], ["3/4", "rest", 3, 1]] },
+  { at = 610000, data = [242, 4, 0], output = [], events = [] },
+  { at = 610000, output = [], events = [["1", "step", 4, 1], ["1", "rest", 4, 1]] },
+  { at = 620000, data = [242, 6, 0], output = [], events = [] },
+  { at = 620000, output = [], events = [["3/2", "cycle", 6, 1], ["3/2", "step", 6, 1], ["3/2", "rest", 6, 1]] },
+  { at = 630000, data = [250], output = [], events = [] },
+  { at = 630000, output = [], events = [["0", "cycle", 0, 1], ["0", "step", 0, 1], ["0", "rest", 0, 1]] },
+]
+
+[[cases]]
 name = "capture-ready-follows-phrase-publication-even-with-zero-density"
 profile = "phrase-wind"
 actions = [
@@ -218,7 +251,7 @@ name = "ties-and-repeats-keep-their-realized-gates"
 profile = "custom-steps"
 actions = [
   { at = 0, data = [144, 60, 100], output = [], events = [] },
-  { at = 0, output = [[144, 60, 100]], events = [["0", "step", 0, 1], ["0", "hit", 0, 1]] },
+  { at = 0, output = [[144, 60, 100]], events = [["0", "cycle", 0, 1], ["0", "step", 0, 1], ["0", "hit", 0, 1]] },
   { at = 10000, port = "gate", value = "0", output = [], events = [] },
   { at = 125000, output = [], events = [["1/4", "step", 1, 1]] },
   { at = 225000, output = [[128, 60, 0]], events = [] },
@@ -227,7 +260,7 @@ actions = [
   { at = 320000, port = "gate", value = "1", output = [], events = [] },
   { at = 320000, port = "transposition", value = "12", output = [], events = [] },
   { at = 479167, output = [[144, 60, 100], [128, 60, 0], [144, 60, 100], [128, 60, 0]], events = [] },
-  { at = 562500, output = [[144, 72, 100]], events = [["9/8", "step", 4, 1], ["9/8", "hit", 4, 1]] },
+  { at = 562500, output = [[144, 72, 100]], events = [["9/8", "cycle", 4, 1], ["9/8", "step", 4, 1], ["9/8", "hit", 4, 1]] },
 ]
 
 [[cases]]

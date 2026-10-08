@@ -24,6 +24,7 @@ pub enum PitchBoundary {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum OutputPort {
     CaptureReady,
+    Cycle,
     Step,
     Hit,
     Rest,
@@ -128,7 +129,14 @@ impl PerformancePorts {
         self.pending_selection_offset = None;
     }
 
-    pub fn begin_step(&mut self, at: Beat, index: i64, revision: u64, capture_ready: bool) -> bool {
+    pub fn begin_step(
+        &mut self,
+        at: Beat,
+        index: i64,
+        revision: u64,
+        capture_ready: bool,
+        cycle: bool,
+    ) -> bool {
         if let Some(value) = self.pending_gate.take() {
             self.gate = value;
         }
@@ -141,7 +149,7 @@ impl PerformancePorts {
         if let Some(value) = self.pending_selection_offset.take() {
             self.selection_offset = value;
         }
-        if self.events.len() > 4094 - usize::from(capture_ready) {
+        if self.events.len() > 4094 - usize::from(capture_ready) - usize::from(cycle) {
             self.exhausted = true;
             return false;
         }
@@ -149,6 +157,14 @@ impl PerformancePorts {
             self.events.push(PortEvent {
                 at,
                 port: OutputPort::CaptureReady,
+                index,
+                revision,
+            });
+        }
+        if cycle {
+            self.events.push(PortEvent {
+                at,
+                port: OutputPort::Cycle,
                 index,
                 revision,
             });

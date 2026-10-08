@@ -44,6 +44,15 @@ impl PatternStep {
 }
 
 impl Rhythm {
+    /// The first cell of an authored rhythm loop, independently of hits and rotation.
+    pub fn starts_cycle(&self, index: i64) -> bool {
+        match self {
+            Self::Grid { .. } => false,
+            Self::Euclidean { steps, .. } => index % steps == 0,
+            Self::Pattern { steps } => index as usize % steps.len() == 0,
+        }
+    }
+
     pub fn validate(&self) -> Result<(), &'static str> {
         match self {
             Self::Grid { step } | Self::Euclidean { step, .. }

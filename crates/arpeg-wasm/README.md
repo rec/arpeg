@@ -91,14 +91,21 @@ at the next step; sounding notes and pending repeats retain their target.
 
 Call `take_events()` after each operation to collect
 `{ events, exhausted }`. Each event is `{ at, port, index, revision }`: `at` is
-an exact beat string, `port` is `capture_ready`, `step`, `hit`, or `rest`, and the counters are
+an exact beat string, `port` is `capture_ready`, `cycle`, `step`, `hit`, or `rest`, and the counters are
 BigInt values. Each step emits `step` before its `hit` or `rest`; ties emit only
 `step`, and repeats share one hit event. History and phrase banks emit
 `capture_ready` before `step` when a changed, nonempty bank becomes eligible.
 Commit alone does not notify; unchanged and empty banks do not notify. Several
 captures published together emit one readiness event, even when density is zero.
 It carries that step's time, index, and new bank revision.
-The 4096-event buffer reserves two slots per step, or three with readiness, and stops admitting
+`cycle` precedes `step` at the first cell of each Euclidean or custom rhythm
+loop, including the first loop. Euclidean rotation changes hits rather than
+boundaries; custom cell durations determine exact cycle times. Plain grids have
+no explicit loop and emit no cycle. Rests, ties, empty banks, and density
+rejection preserve cycle phase. Pause preserves it; Start and seeks relocate
+the rhythm without replaying crossed boundaries. Events carry the boundary
+step's time, index, and revision. Selector traversal is independent.
+The 4096-event buffer reserves two slots per step, plus one for each readiness or cycle notification, and stops admitting
 new steps when full while retaining release obligations; draining reports the
 exhaustion and permits future steps. Skipped attacks and notifications are not replayed;
 publication still updates the bank revision reported by subsequent steps.

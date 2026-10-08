@@ -80,6 +80,8 @@ fn motion_ports_match_shared_exact_traces() {
             "transpose-fold" => include_str!("../../../conformance/transpose-fold.toml"),
             "offset-rest" => include_str!("../../../conformance/offset-rest.toml"),
             "motion-expression" => include_str!("../../../conformance/motion-expression.toml"),
+            "cycle-rests" => include_str!("../../../conformance/cycle-rests.toml"),
+            "cycle-ties" => include_str!("../../../conformance/cycle-ties.toml"),
             "motion-phrase" => include_str!("../../../conformance/motion-phrase.toml"),
             _ => panic!("unknown profile"),
         };
@@ -156,6 +158,7 @@ fn motion_ports_match_shared_exact_traces() {
                                 "hit" => OutputPort::Hit,
                                 "rest" => OutputPort::Rest,
                                 "capture_ready" => OutputPort::CaptureReady,
+                                "cycle" => OutputPort::Cycle,
                                 _ => panic!("unknown output port"),
                             },
                             index: a[2].as_integer().unwrap(),

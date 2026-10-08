@@ -1,0 +1,5 @@
+name = "cycle-rests"
+title = "Three-step rhythm loop through rests and transport changes"
+
+[body]
+rhythm = { kind = "euclidean", steps = 3, pulses = 2, rotation = 1, step = "1/4 beat" }

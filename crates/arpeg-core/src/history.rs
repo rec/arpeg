@@ -282,6 +282,7 @@ impl HistoryArpeggiator {
             self.step_index,
             self.bank.revision as u64,
             self.bank.revision != revision && !self.bank.published.is_empty(),
+            false,
         ) {
             return Ok(());
         }

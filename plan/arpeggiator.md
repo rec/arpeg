@@ -498,8 +498,17 @@ coalesces completed notes or committed takes; unfinished recording, unchanged
 banks, and empty publication do not notify. Readiness is independent of density.
 The bounded Motion buffer admits notification, step, and outcome together or
 reports exhaustion while preserving bank publication and due releases. Skipped
-notifications are not replayed. Cycle and realized note lifecycle outputs remain
-future work.
+notifications are not replayed. Realized note lifecycle outputs remain future work.
+
+`cycle` now marks the first step of each Euclidean or custom rhythm loop in
+Python, Rust, and WebAssembly, including the initial loop. Plain grids emit no
+cycle event. Rotation changes Euclidean hits without shifting loop boundaries;
+custom cells' durations define exact cycle times. Rests, ties, empty banks,
+density, and chord edits leave phase intact. Pause preserves it; Start and seeks
+relocate the rhythm without replaying crossed boundaries. Cycle events precede
+step/outcome events and carry the boundary's beat, index, and bank revision.
+They describe rhythm loops independently of note selector traversal. The bounded
+buffer admits notifications and their step together or reports exhaustion.
 
 Live breath, bend, and channel pressure now support per-lane `current`,
 `recorded`, and `motion` sources through `body.expression.lanes` in Python,
