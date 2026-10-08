@@ -1,5 +1,11 @@
-//! A portable MIDI host for classic and recorded-history presets.
+//! Portable MIDI host using the device-independent transport player.
 
+use crate::{
+    Profile,
+    player::{InputSource, MidiPlayer},
+};
+use arpeg_core::{Bank, clock::ClockMode};
+use midir::{Ignore, MidiInput, MidiOutput, MidiOutputConnection};
 use std::{
     io,
     sync::{
@@ -10,17 +16,6 @@ use std::{
     thread,
     time::{Duration, Instant},
 };
-
-use arpeg_core::{
-    Bank, Beat,
-    capture::{MidiEvent, Profile as CaptureProfile},
-    gesture::{RealizedEvent, Tick},
-    history::HistoryArpeggiator,
-    live::{LiveArpeggiator, OutputEvent, OutputKind},
-};
-use midir::{Ignore, MidiInput, MidiOutput, MidiOutputConnection};
-
-use crate::{HeldProfile, HistoryProfile, Profile};
 
 pub fn list_ports() -> Result<(), String> {
     let input = MidiInput::new("arpeg input").map_err(|e| format!("MIDI input: {e}"))?;
@@ -47,10 +42,15 @@ pub fn play(
     source_index: usize,
     destination_index: usize,
     bpm: u32,
+    mode: ClockMode,
+    clock_source: Option<usize>,
+    timeout_us: i64,
 ) -> Result<(), String> {
-    if bpm == 0 || bpm > 1000 {
-        return Err("BPM must be between 1 and 1000".into());
+    if clock_source.is_some() && mode != ClockMode::External {
+        return Err("clock source requires external clock".into());
     }
+    let held = matches!(&profile, Profile::Classic(p) if p.bank == Bank::Held);
+    let mut player = MidiPlayer::new(profile, mode, bpm, timeout_us).map_err(str::to_owned)?;
     let mut input = MidiInput::new("arpeg input").map_err(|e| format!("MIDI input: {e}"))?;
     input.ignore(Ignore::None);
     let output = MidiOutput::new("arpeg output").map_err(|e| format!("MIDI output: {e}"))?;
@@ -58,273 +58,157 @@ pub fn play(
     let source = sources
         .get(source_index)
         .ok_or("MIDI source index is unavailable")?;
+    if clock_source.is_some_and(|i| i >= sources.len()) {
+        return Err("MIDI clock source index is unavailable".into());
+    }
     let destinations = output.ports();
     let destination = destinations
         .get(destination_index)
         .ok_or("MIDI destination index is unavailable")?;
-    let mut output_connection = output
-        .connect(destination, "arpeg output")
-        .map_err(|e| format!("connect MIDI destination: {e}"))?;
+    let separate = clock_source.is_some_and(|i| i != source_index);
     let (sender, receiver) = mpsc::channel();
+    let clock_sender = sender.clone();
     let _input_connection = input
         .connect(
             source,
             "arpeg input",
             move |_timestamp, data, sender| {
-                let _ = sender.send((Instant::now(), data.to_vec()));
+                let source = if separate {
+                    InputSource::Notes
+                } else {
+                    InputSource::Both
+                };
+                let _ = sender.send((Instant::now(), data.to_vec(), source));
             },
             sender,
         )
         .map_err(|e| format!("connect MIDI source: {e}"))?;
+    let _clock_connection = if separate {
+        let mut input =
+            MidiInput::new("arpeg clock").map_err(|e| format!("MIDI clock input: {e}"))?;
+        input.ignore(Ignore::None);
+        let ports = input.ports();
+        let port = ports
+            .get(clock_source.expect("separate clock input"))
+            .ok_or("MIDI clock source index is unavailable")?;
+        Some(
+            input
+                .connect(
+                    port,
+                    "arpeg clock",
+                    move |_timestamp, data, sender| {
+                        let _ = sender.send((Instant::now(), data.to_vec(), InputSource::Clock));
+                    },
+                    clock_sender,
+                )
+                .map_err(|e| format!("connect MIDI clock: {e}"))?,
+        )
+    } else {
+        None
+    };
+    let mut output = output
+        .connect(destination, "arpeg output")
+        .map_err(|e| format!("connect MIDI destination: {e}"))?;
     let stopped = Arc::new(AtomicBool::new(false));
     let signal = Arc::clone(&stopped);
     ctrlc::set_handler(move || signal.store(true, Ordering::SeqCst)).map_err(|e| e.to_string())?;
     let keyboard = Arc::clone(&stopped);
-    let (command_sender, command_receiver) = mpsc::channel();
+    let (command_sender, commands) = mpsc::channel();
     thread::spawn(move || {
         let mut line = String::new();
         loop {
             line.clear();
-            match io::stdin().read_line(&mut line) {
-                Ok(0) | Err(_) => break,
-                Ok(_) if line.trim() == "clear" => {
-                    if command_sender.send(()).is_err() {
-                        break;
-                    }
-                }
-                Ok(_) if line.trim().is_empty() || line.trim() == "quit" => {
-                    keyboard.store(true, Ordering::SeqCst);
-                    break;
-                }
-                Ok(_) => eprintln!("enter clear, quit, or an empty line"),
+            if io::stdin().read_line(&mut line).unwrap_or(0) == 0 {
+                break;
+            }
+            let command = line.trim();
+            if command.is_empty() || command == "quit" {
+                break;
+            }
+            if command_sender.send(command.to_owned()).is_err() {
+                return;
             }
         }
+        keyboard.store(true, Ordering::SeqCst);
     });
-    match profile {
-        Profile::Classic(profile) => run_classic(
-            profile,
-            bpm,
-            &receiver,
-            &command_receiver,
-            &mut output_connection,
-            &stopped,
-        ),
-        Profile::History(profile) => run_history(
-            profile,
-            bpm,
-            &receiver,
-            &command_receiver,
-            &mut output_connection,
-            &stopped,
-        ),
-    }
-}
-
-fn run_classic(
-    profile: HeldProfile,
-    bpm: u32,
-    receiver: &mpsc::Receiver<(Instant, Vec<u8>)>,
-    commands: &mpsc::Receiver<()>,
-    output: &mut MidiOutputConnection,
-    stopped: &AtomicBool,
-) -> Result<(), String> {
-    let mut arp = LiveArpeggiator::new(
-        profile.bank,
-        profile.selection,
-        profile.rhythm,
-        profile.gate,
-        profile.retrigger,
-        profile.chance,
-    )
-    .map_err(str::to_owned)?;
     println!(
-        "Playing arpeggio at {bpm} BPM. Enter clear for a latch, or press Enter or Ctrl-C to stop."
+        "Playing with {mode:?} clock. Enter start, pause, continue, tempo BPM, clear, or quit."
     );
-    let mut start = None;
-    let mut parser = MidiMessages::default();
-    let mut last = Beat::from_integer(0);
+    let origin = Instant::now();
+    let elapsed = |now: Instant| {
+        i64::try_from(now.saturating_duration_since(origin).as_micros()).unwrap_or(i64::MAX)
+    };
+    let mut notes = MidiMessages::default();
+    let mut clocks = MidiMessages::default();
     let result = (|| -> Result<(), String> {
         while !stopped.load(Ordering::SeqCst) {
-            while let Ok((arrival, data)) = receiver.try_recv() {
-                let notes: Vec<_> = parser
-                    .feed(&data)
-                    .iter()
-                    .filter_map(|message| NoteInput::decode(message))
-                    .collect();
-                if notes.is_empty() {
-                    continue;
+            while let Ok((arrival, data, source)) = receiver.try_recv() {
+                let parser = if matches!(source, InputSource::Clock) {
+                    &mut clocks
+                } else {
+                    &mut notes
+                };
+                for data in parser.feed(&data) {
+                    send(
+                        &mut output,
+                        player
+                            .accept(elapsed(arrival), &data, source)
+                            .map_err(str::to_owned)?,
+                    )?;
                 }
-                let origin = *start.get_or_insert(arrival);
-                let at = elapsed_beat(origin, arrival, bpm).max(last);
-                last = at;
-                for note in notes {
-                    let events = match note {
-                        NoteInput::On(key, velocity) => arp.note_on(at, key, velocity),
-                        NoteInput::Off(key) => arp.note_off(at, key),
+            }
+            while let Ok(command) = commands.try_recv() {
+                let at = elapsed(Instant::now());
+                let messages = match command.as_str() {
+                    "start" => player.accept(at, &[0xfa], InputSource::Both),
+                    "pause" => player.accept(at, &[0xfc], InputSource::Both),
+                    "continue" => player.accept(at, &[0xfb], InputSource::Both),
+                    "clear" if !held => player.clear(at),
+                    "clear" => {
+                        eprintln!("clear requires a latched or history bank");
+                        continue;
                     }
-                    .map_err(str::to_owned)?;
-                    send_events(output, &events)?;
+                    _ => {
+                        if let Some(bpm) =
+                            command.strip_prefix("tempo ").and_then(|s| s.parse().ok())
+                        {
+                            match player.set_tempo(at, bpm) {
+                                Ok(messages) => Ok(messages),
+                                Err(error) => {
+                                    eprintln!("{error}");
+                                    continue;
+                                }
+                            }
+                        } else {
+                            eprintln!("enter start, pause, continue, tempo BPM, clear, or quit");
+                            continue;
+                        }
+                    }
                 }
+                .map_err(str::to_owned)?;
+                send(&mut output, messages)?;
             }
-            while commands.try_recv().is_ok() {
-                if profile.bank == Bank::Held {
-                    eprintln!("clear requires a latched bank");
-                    continue;
-                }
-                let at = start.map_or(last, |origin| {
-                    elapsed_beat(origin, Instant::now(), bpm).max(last)
-                });
-                last = at;
-                send_events(output, &arp.clear(at).map_err(str::to_owned)?)?;
-            }
-            if let Some(origin) = start {
-                let now = elapsed_beat(origin, Instant::now(), bpm).max(last);
-                last = now;
-                send_events(output, &arp.advance(now).map_err(str::to_owned)?)?;
-            }
+            send(
+                &mut output,
+                player
+                    .advance(elapsed(Instant::now()))
+                    .map_err(str::to_owned)?,
+            )?;
             thread::sleep(Duration::from_millis(1));
         }
         Ok(())
     })();
-    let at = start.map_or(last, |origin| {
-        elapsed_beat(origin, Instant::now(), bpm).max(last)
-    });
-    if let Ok(events) = arp.stop(at) {
-        let _ = send_events(output, &events);
+    if let Ok(messages) = player.stop(elapsed(Instant::now())) {
+        let _ = send(&mut output, messages);
     }
     result
 }
 
-fn run_history(
-    profile: HistoryProfile,
-    bpm: u32,
-    receiver: &mpsc::Receiver<(Instant, Vec<u8>)>,
-    commands: &mpsc::Receiver<()>,
-    output: &mut MidiOutputConnection,
-    stopped: &AtomicBool,
-) -> Result<(), String> {
-    let step = profile.step * Tick::new(60_000_000, i64::from(bpm));
-    let mut arp = HistoryArpeggiator::new(
-        profile.notes,
-        profile.selection,
-        profile.retrigger == arpeg_core::live::Retrigger::BankEdit,
-        step,
-        profile.gate,
-        CaptureProfile::default(),
-    )
-    .map_err(str::to_owned)?;
-    println!(
-        "Playing recorded note history on MIDI channel 1 at {bpm} BPM. Enter clear, or press Enter or Ctrl-C to stop."
-    );
-    let mut start = None;
-    let mut parser = MidiMessages::default();
-    let mut last_published = -1i64;
-    let mut last_input = -1i64;
-    let mut ordinal = 0u32;
-    let mut reported_late = false;
-    let result = (|| -> Result<(), String> {
-        while !stopped.load(Ordering::SeqCst) {
-            while let Ok((arrival, data)) = receiver.try_recv() {
-                let messages = parser.feed(&data);
-                if messages.is_empty() {
-                    continue;
-                }
-                let origin = *start.get_or_insert(arrival);
-                let source_tick = elapsed_micros(origin, arrival);
-                let tick = source_tick
-                    .max(last_published.saturating_add(1))
-                    .max(last_input);
-                if tick != source_tick && !reported_late {
-                    eprintln!("late MIDI input moved to the next capture tick");
-                    reported_late = true;
-                }
-                send_realized(output, &arp.before(tick).map_err(str::to_owned)?)?;
-                if tick != last_input {
-                    ordinal = 0;
-                    last_input = tick;
-                }
-                for data in messages {
-                    arp.accept(MidiEvent {
-                        tick,
-                        ordinal,
-                        data,
-                    })
-                    .map_err(str::to_owned)?;
-                    ordinal = ordinal
-                        .checked_add(1)
-                        .ok_or("too many simultaneous MIDI messages")?;
-                }
-            }
-            while commands.try_recv().is_ok() {
-                let tick = start
-                    .map_or(0, |origin| elapsed_micros(origin, Instant::now()))
-                    .max(last_published);
-                send_realized(output, &arp.clear(tick).map_err(str::to_owned)?)?;
-            }
-            if let Some(origin) = start {
-                let now = elapsed_micros(origin, Instant::now()).max(last_published);
-                send_realized(output, &arp.advance(now).map_err(str::to_owned)?)?;
-                last_published = now;
-            }
-            thread::sleep(Duration::from_millis(1));
-        }
-        Ok(())
-    })();
-    let at = start
-        .map_or(0, |origin| elapsed_micros(origin, Instant::now()))
-        .max(last_published);
-    if let Ok(events) = arp.clear(at) {
-        let _ = send_realized(output, &events);
-    }
-    result
-}
-
-fn elapsed_micros(start: Instant, now: Instant) -> i64 {
-    i64::try_from(now.saturating_duration_since(start).as_micros()).unwrap_or(i64::MAX)
-}
-
-fn elapsed_beat(start: Instant, now: Instant, bpm: u32) -> Beat {
-    let micros =
-        i64::try_from(now.saturating_duration_since(start).as_micros()).unwrap_or(i64::MAX);
-    Beat::new(micros, 60_000_000) * i64::from(bpm)
-}
-
-fn send_events(port: &mut MidiOutputConnection, events: &[OutputEvent]) -> Result<(), String> {
-    for event in events {
-        let bytes = match event.kind {
-            OutputKind::NoteOn { key, velocity, .. } => [0x90, key, velocity],
-            OutputKind::NoteOff { key, .. } => [0x80, key, 0],
-        };
-        port.send(&bytes).map_err(|e| format!("MIDI send: {e}"))?;
+fn send(port: &mut MidiOutputConnection, messages: Vec<Vec<u8>>) -> Result<(), String> {
+    for data in messages {
+        port.send(&data).map_err(|e| format!("MIDI send: {e}"))?;
     }
     Ok(())
-}
-
-fn send_realized(port: &mut MidiOutputConnection, events: &[RealizedEvent]) -> Result<(), String> {
-    for event in events {
-        port.send(&event.data)
-            .map_err(|error| format!("MIDI send: {error}"))?;
-    }
-    Ok(())
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum NoteInput {
-    On(u8, u8),
-    Off(u8),
-}
-
-impl NoteInput {
-    fn decode(message: &[u8]) -> Option<Self> {
-        if message.len() != 3 || message[0] & 0x0f != 0 {
-            return None;
-        }
-        match message[0] & 0xf0 {
-            0x90 if message[2] > 0 => Some(Self::On(message[1], message[2])),
-            0x80 | 0x90 => Some(Self::Off(message[1])),
-            _ => None,
-        }
-    }
 }
 
 #[derive(Default)]
@@ -388,24 +272,15 @@ impl MidiMessages {
 
 #[cfg(test)]
 mod tests {
-    use super::{MidiMessages, NoteInput};
+    use super::MidiMessages;
 
     #[test]
     fn decodes_running_status_and_velocity_zero_releases() {
         let mut parser = MidiMessages::default();
         assert!(parser.feed(&[0x90, 60]).is_empty());
-        let notes: Vec<_> = parser
-            .feed(&[100, 64, 90, 60, 0])
-            .iter()
-            .filter_map(|message| NoteInput::decode(message))
-            .collect();
         assert_eq!(
-            notes,
-            [
-                NoteInput::On(60, 100),
-                NoteInput::On(64, 90),
-                NoteInput::Off(60)
-            ]
+            parser.feed(&[100, 64, 90, 60, 0]),
+            [vec![0x90, 60, 100], vec![0x90, 64, 90], vec![0x90, 60, 0]]
         );
     }
 

@@ -4,6 +4,7 @@ use num_rational::Ratio;
 
 pub mod capture;
 pub mod chance;
+pub mod clock;
 pub mod gesture;
 pub mod history;
 pub mod live;

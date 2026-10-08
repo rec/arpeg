@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from fractions import Fraction
 from functools import cached_property
+from math import ceil
 from typing import Literal, Self
 
 from pydantic import BaseModel, Field, model_validator
@@ -270,6 +271,49 @@ class LiveArpeggiator(BaseModel):
                 *(n.at for n in self.pending),
             ]
         )
+
+    def pause(self, at: Fraction) -> list[LiveEvent]:
+        """Cancel output while retaining input notes and selector position."""
+        events = self._release_all(at)
+        self.now = at
+        rhythm = self.profile.body.rhythm
+        assert isinstance(rhythm, (Grid, Euclidean, Pattern))
+        while self.next_step < at:
+            self.next_step += decide_step(
+                rhythm, self.step_index, self.profile.body.gate
+            ).duration
+            self.step_index += 1
+        return events
+
+    def relocate(self, at: Fraction) -> list[LiveEvent]:
+        """Seek the rhythm and restart traversal without forgetting held notes."""
+        events = self._release_all(at)
+        rhythm = self.profile.body.rhythm
+        if isinstance(rhythm, Pattern):
+            cycle = sum(
+                (Fraction(s.duration.removesuffix(" beat")) for s in rhythm.steps),
+                Fraction(0),
+            )
+            cycles = at // cycle
+            self.next_step = cycles * cycle
+            self.step_index = cycles * len(rhythm.steps)
+            while self.next_step < at:
+                self.next_step += decide_step(
+                    rhythm, self.step_index, self.profile.body.gate
+                ).duration
+                self.step_index += 1
+        else:
+            assert isinstance(rhythm, (Grid, Euclidean))
+            step = Fraction(rhythm.step.removesuffix(" beat"))
+            self.step_index = ceil(at / step)
+            self.next_step = self.step_index * step
+        self.now = at
+        self.previous_note = None
+        self.rising = True
+        self.pattern_position = 0
+        self.shuffle_order.clear()
+        self.shuffle_position = 0
+        return events
 
     def _check_time(self, at: Fraction) -> None:
         if at < self.now:

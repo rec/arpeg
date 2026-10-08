@@ -1,0 +1,91 @@
+# Each action checks wire output, exact beat position, and acquired clock state.
+[[cases]]
+name = "internal tempo, pause, continue, restart and seek"
+profile = "up"
+mode = "internal"
+actions = [
+  { at = 0, data = [144, 60, 100], beat = "0", active = true, output = [] },
+  { at = 0, data = [144, 64, 90], beat = "0", active = true, output = [] },
+  { at = 0, beat = "0", active = true, output = [[144, 60, 100]] },
+  { at = 50000, tempo = 60, beat = "1/10", active = true, output = [] },
+  { at = 150000, beat = "1/5", active = true, output = [[128, 60, 0]] },
+  { at = 200000, beat = "1/4", active = true, output = [[144, 64, 90]] },
+  { at = 210000, data = [252], beat = "13/50", active = false, output = [[128, 64, 0]] },
+  { at = 210001, data = [128, 60, 0], beat = "13/50", active = false, output = [] },
+  { at = 500000, data = [251], beat = "13/50", active = true, output = [] },
+  { at = 740000, beat = "1/2", active = true, output = [[144, 64, 90]] },
+  { at = 750000, data = [250], beat = "0", active = true, output = [[128, 64, 0]] },
+  { at = 750000, beat = "0", active = true, output = [[144, 64, 90]] },
+  { at = 760000, data = [242, 10, 0], beat = "5/2", active = true, output = [[128, 64, 0]] },
+  { at = 760000, beat = "5/2", active = true, output = [[144, 64, 90]] },
+]
+
+[[cases]]
+name = "external acquisition, interpolation, loss and reacquisition"
+profile = "up"
+mode = "external"
+timeout_us = 50000
+actions = [
+  { at = 0, data = [144, 60, 100], beat = "0", active = false, output = [] },
+  { at = 0, data = [144, 64, 90], beat = "0", active = false, output = [] },
+  { at = 10000, beat = "0", active = false, output = [] },
+  { at = 10000, data = [250], beat = "0", active = false, output = [] },
+  { at = 10000, data = [248], beat = "0", active = true, output = [] },
+  { at = 10000, beat = "0", active = true, output = [[144, 60, 100]] },
+  { at = 20000, data = [248], beat = "1/24", active = true, output = [] },
+  { at = 20000, data = [248], beat = "1/24", active = true, output = [] },
+  { at = 25000, beat = "1/16", active = true, output = [] },
+  { at = 35000, beat = "1/12", active = true, output = [] },
+  { at = 40000, data = [248], beat = "1/12", active = true, output = [] },
+  { at = 45000, data = [252], beat = "3/32", active = false, output = [[128, 60, 0]] },
+  { at = 46000, data = [128, 60, 0], beat = "3/32", active = false, output = [] },
+  { at = 50000, data = [251], beat = "3/32", active = false, output = [] },
+  { at = 50000, data = [248], beat = "3/32", active = true, output = [] },
+  { at = 60000, data = [248], beat = "13/96", active = true, output = [] },
+  { at = 110000, beat = "17/96", active = false, output = [] },
+  { at = 120000, data = [248], beat = "17/96", active = false, output = [] },
+  { at = 130000, data = [251], beat = "17/96", active = false, output = [] },
+  { at = 130000, data = [248], beat = "17/96", active = true, output = [] },
+  { at = 140000, data = [248], beat = "7/32", active = true, output = [] },
+  { at = 150000, beat = "25/96", active = true, output = [[144, 64, 90]] },
+  { at = 160000, data = [242, 10, 0], beat = "5/2", active = false, output = [[128, 64, 0]] },
+  { at = 160000, data = [248], beat = "5/2", active = true, output = [] },
+  { at = 160000, beat = "5/2", active = true, output = [[144, 64, 90]] },
+]
+
+[[cases]]
+name = "history capture remains in microseconds through tempo and transport changes"
+profile = "history-wind"
+mode = "internal"
+actions = [
+  { at = 0, data = [176, 2, 0], beat = "0", active = true, output = [] },
+  { at = 0, data = [144, 60, 100], beat = "0", active = true, output = [] },
+  { at = 15625, data = [176, 2, 80], beat = "1/32", active = true, output = [] },
+  { at = 62500, data = [128, 60, 20], beat = "1/8", active = true, output = [] },
+  { at = 125000, beat = "1/4", active = true, output = [[176, 2, 0], [144, 60, 100]] },
+  { at = 125000, tempo = 60, beat = "1/4", active = true, output = [] },
+  { at = 175000, beat = "3/10", active = true, output = [[176, 2, 80]] },
+  { at = 200000, data = [252], beat = "13/40", active = false, output = [[128, 60, 0]] },
+  { at = 220000, data = [144, 67, 90], beat = "13/40", active = false, output = [] },
+  { at = 240000, data = [128, 67, 0], beat = "13/40", active = false, output = [] },
+  { at = 300000, data = [251], beat = "13/40", active = true, output = [] },
+  { at = 475000, beat = "1/2", active = true, output = [[176, 2, 0], [144, 60, 100]] },
+  { at = 525000, beat = "11/20", active = true, output = [[176, 2, 80]] },
+  { at = 675000, beat = "7/10", active = true, output = [[128, 60, 20]] },
+  { at = 725000, beat = "3/4", active = true, output = [[176, 2, 80], [144, 67, 90]] },
+]
+
+[[cases]]
+name = "separate clock input excludes notes and note input excludes transport"
+profile = "up"
+mode = "external"
+actions = [
+  { at = 0, data = [250], source = "notes", beat = "0", active = false, output = [] },
+  { at = 0, data = [144, 70, 100], source = "clock", beat = "0", active = false, output = [] },
+  { at = 0, data = [144, 60, 100], source = "notes", beat = "0", active = false, output = [] },
+  { at = 0, data = [250], source = "clock", beat = "0", active = false, output = [] },
+  { at = 0, data = [248], source = "clock", beat = "0", active = true, output = [] },
+  { at = 0, beat = "0", active = true, output = [[144, 60, 100]] },
+  { at = 10000, data = [248], source = "clock", beat = "1/24", active = true, output = [] },
+  { at = 510000, beat = "1/12", active = false, output = [[128, 60, 0]] },
+]

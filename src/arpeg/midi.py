@@ -1,13 +1,13 @@
 """Portable mido host for the Python reference engines."""
 
+from contextlib import ExitStack
 from fractions import Fraction
-from functools import cached_property
 from pathlib import Path
 from queue import Empty, SimpleQueue
 from sys import exit, stderr
 from threading import Thread
 from time import perf_counter_ns, sleep
-from typing import Annotated, Self
+from typing import Annotated, Literal, Self
 
 import mido
 import tyro
@@ -17,6 +17,7 @@ from ufor.codec import parse_score
 from ufor.events import MidiEvent
 
 from .bank import CaptureBank
+from .clock import ClockMode, TransportClock
 from .history import LiveHistoryArpeggiator
 from .live import LiveArpeggiator, LiveEvent
 
@@ -41,12 +42,22 @@ class Play(BaseModel, frozen=True):
     source: int = Field(ge=0)
     destination: int = Field(ge=0)
     bpm: int = Field(default=120, ge=1, le=1000)
+    clock: ClockMode = ClockMode.internal
+    clock_source: int | None = Field(default=None, ge=0)
+    clock_timeout_ms: int = Field(default=500, gt=0)
 
     def run(self) -> None:
         profile = parse_score(self.profile.read_text())
         if not isinstance(profile, arpeggiator.ArpeggiatorScore):
             raise ValueError("play requires an arpeggiator profile")
-        player = MidiPlayer(profile=profile, bpm=self.bpm)
+        if self.clock_source is not None and self.clock != ClockMode.external:
+            raise ValueError("clock source requires external clock")
+        player = MidiPlayer(
+            profile=profile,
+            clock=TransportClock(
+                mode=self.clock, bpm=self.bpm, timeout_us=self.clock_timeout_ms * 1000
+            ),
+        )
         backend = mido.Backend("mido.backends.rtmidi")
         sources = backend.get_input_names()
         destinations = backend.get_output_names()
@@ -54,28 +65,49 @@ class Play(BaseModel, frozen=True):
             raise ValueError("MIDI source index is unavailable")
         if self.destination >= len(destinations):
             raise ValueError("MIDI destination index is unavailable")
-        incoming: SimpleQueue[tuple[int, mido.Message]] = SimpleQueue()
+        if self.clock_source is not None and self.clock_source >= len(sources):
+            raise ValueError("MIDI clock source index is unavailable")
+        separate = self.clock_source is not None and self.clock_source != self.source
+        incoming: SimpleQueue[
+            tuple[int, mido.Message, Literal["notes", "clock", "both"]]
+        ] = SimpleQueue()
         commands: SimpleQueue[str] = SimpleQueue()
 
         def receive(message: mido.Message) -> None:
-            incoming.put((perf_counter_ns(), message))
+            incoming.put((perf_counter_ns(), message, "notes" if separate else "both"))
+
+        def receive_clock(message: mido.Message) -> None:
+            incoming.put((perf_counter_ns(), message, "clock"))
 
         Thread(target=_read_commands, args=(commands,), daemon=True).start()
-        with (
-            backend.open_output(destinations[self.destination]) as output,
-            backend.open_input(sources[self.source], callback=receive),
-        ):
-            print(f"Playing at {self.bpm} BPM. Enter clear, quit, or an empty line.")
+        with ExitStack() as stack:
+            output = stack.enter_context(
+                backend.open_output(destinations[self.destination])
+            )
+            stack.enter_context(
+                backend.open_input(sources[self.source], callback=receive)
+            )
+            if separate:
+                assert self.clock_source is not None
+                stack.enter_context(
+                    backend.open_input(
+                        sources[self.clock_source], callback=receive_clock
+                    )
+                )
+            print(
+                f"Playing with {self.clock} clock. "
+                "Enter start, pause, continue, tempo BPM, clear, or quit."
+            )
             stopped = False
             try:
                 while not stopped:
                     messages: list[mido.Message] = []
                     while True:
                         try:
-                            at, message = incoming.get_nowait()
+                            at, message, source = incoming.get_nowait()
                         except Empty:
                             break
-                        messages.extend(player.accept(at, message))
+                        messages.extend(player.accept(at, message, source=source))
                     while True:
                         try:
                             command = commands.get_nowait()
@@ -89,6 +121,24 @@ class Play(BaseModel, frozen=True):
                                 )
                             else:
                                 messages.extend(player.clear(perf_counter_ns()))
+                        elif command in ("start", "pause", "continue"):
+                            status = {"start": 0xFA, "pause": 0xFC, "continue": 0xFB}[
+                                command
+                            ]
+                            messages.extend(
+                                player.accept(
+                                    perf_counter_ns(), mido.Message.from_bytes([status])
+                                )
+                            )
+                        elif command.startswith("tempo "):
+                            try:
+                                messages.extend(
+                                    player.set_tempo(
+                                        perf_counter_ns(), int(command.split()[1])
+                                    )
+                                )
+                            except ValueError as error:
+                                print(str(error), file=stderr)
                         else:
                             stopped = True
                     if not stopped:
@@ -104,24 +154,23 @@ class Play(BaseModel, frozen=True):
 
 
 class MidiPlayer(BaseModel):
-    """Convert timestamped mido messages into reference-engine output."""
+    """Convert source microseconds and transport beats into owned MIDI output."""
 
     profile: arpeggiator.ArpeggiatorScore = Field(frozen=True)
-    bpm: int = Field(default=120, ge=1, le=1000, frozen=True)
+    clock: TransportClock = Field(default_factory=TransportClock)
     origin_ns: int | None = None
-    last: Fraction = Fraction(0)
-    published_tick: int = -1
+    wall_us: int = 0
     input_tick: int = -1
     ordinal: int = 0
+    engine: LiveArpeggiator | LiveHistoryArpeggiator | None = None
 
     @model_validator(mode="after")
     def supported_profile(self) -> Self:
-        # Prepare and validate the engine before opening any MIDI devices.
-        _ = self.engine
+        if self.engine is None:
+            self.engine = self._prepare_engine()
         return self
 
-    @cached_property
-    def engine(self) -> LiveArpeggiator | LiveHistoryArpeggiator:
+    def _prepare_engine(self) -> LiveArpeggiator | LiveHistoryArpeggiator:
         body = self.profile.body
         if not isinstance(body.bank, arpeggiator.HistoryBank):
             if (
@@ -151,9 +200,7 @@ class MidiPlayer(BaseModel):
                 "history playback requires recorded, fit, carry expression"
             )
         return LiveHistoryArpeggiator(
-            step=Fraction(body.rhythm.step.removesuffix(" beat"))
-            * 60_000_000
-            / self.bpm,
+            step=Fraction(body.rhythm.step.removesuffix(" beat")),
             gate=body.gate,
             bank=CaptureBank(
                 mode="history",
@@ -166,60 +213,119 @@ class MidiPlayer(BaseModel):
             ),
         )
 
-    def accept(self, at_ns: int, message: mido.Message) -> list[mido.Message]:
-        engine = self.engine
+    def accept(
+        self,
+        at_ns: int,
+        message: mido.Message,
+        *,
+        source: Literal["notes", "clock", "both"] = "both",
+    ) -> list[mido.Message]:
+        assert self.engine is not None
         data = message.bytes()
+        transport = data[0] in (0xF8, 0xFA, 0xFB, 0xFC, 0xF2)
+        if transport:
+            if (
+                source == "notes"
+                or data[0] == 0xF8
+                and self.clock.mode == ClockMode.internal
+            ):
+                return []
+            tick = self._elapsed(at_ns)
+            relocated = self.clock.accept(tick, data)
+            if relocated:
+                if isinstance(engine := self.engine, LiveArpeggiator):
+                    return _note_messages(engine.relocate(self.clock.beat))
+                return [
+                    mido.Message.from_bytes(e.data)
+                    for e in engine.relocate(self.clock.beat, tick)
+                ]
+            if not self.clock.active:
+                return self._pause(tick)
+            return []
+        if source == "clock":
+            return []
+        engine = self.engine
         if isinstance(engine, LiveArpeggiator) and (
             len(data) != 3 or data[0] not in (0x80, 0x90)
         ):
             return []
-        if self.origin_ns is None:
-            self.origin_ns = at_ns
-        at = self._time(at_ns)
+        tick = self._elapsed(at_ns)
+        was_active = self.clock.active
+        at = self.clock.advance(tick)
+        output = self._pause(tick) if was_active and not self.clock.active else []
         if isinstance(engine, LiveArpeggiator):
-            if data[0] == 0x90 and data[2] > 0:
-                events = engine.note_on(at, data[1], data[2])
-            else:
-                events = engine.note_off(at, data[1])
-            return _note_messages(events)
-        tick = max(int(at), self.published_tick + 1, self.input_tick)
-        events = engine.before(tick)
+            events = (
+                engine.note_on(at, data[1], data[2])
+                if data[0] == 0x90 and data[2] > 0
+                else engine.note_off(at, data[1])
+            )
+            return output + _note_messages(events)
+        tick = max(tick, engine.capture_to + int(engine.inclusive), self.input_tick)
+        events = (
+            engine.before(at, tick)
+            if self.clock.active and at > engine.processed_to
+            else []
+        )
         if tick != self.input_tick:
             self.input_tick = tick
             self.ordinal = 0
         engine.accept(MidiEvent(tick=tick, ordinal=self.ordinal, data=data))
         self.ordinal += 1
-        self.last = Fraction(tick)
-        return [mido.Message.from_bytes(e.data) for e in events]
+        return output + [mido.Message.from_bytes(e.data) for e in events]
 
     def advance(self, at_ns: int) -> list[mido.Message]:
+        assert self.engine is not None
         if self.origin_ns is None:
             return []
-        at = self._time(at_ns)
+        tick = self._elapsed(at_ns)
+        was_active = self.clock.active
+        at = self.clock.advance(tick)
+        if was_active and not self.clock.active:
+            return self._pause(tick)
+        if not self.clock.active:
+            return []
         if isinstance(engine := self.engine, LiveArpeggiator):
             return _note_messages(engine.advance(at))
-        self.published_tick = int(at)
-        return [mido.Message.from_bytes(e.data) for e in engine.advance(int(at))]
+        tick = max(tick, self.input_tick)
+        return [mido.Message.from_bytes(e.data) for e in engine.advance(at, tick)]
 
     def clear(self, at_ns: int) -> list[mido.Message]:
-        at = self._time(at_ns)
+        assert self.engine is not None
+        output = self.advance(at_ns)
+        tick = self._elapsed(at_ns)
+        at = self.clock.advance(tick)
         if isinstance(engine := self.engine, LiveArpeggiator):
-            return _note_messages(engine.clear(at))
-        return [mido.Message.from_bytes(e.data) for e in engine.clear(int(at))]
+            return output + _note_messages(engine.clear(at))
+        return output + [
+            mido.Message.from_bytes(e.data) for e in engine.clear(at, tick)
+        ]
 
     def stop(self, at_ns: int) -> list[mido.Message]:
-        at = self._time(at_ns)
-        if isinstance(engine := self.engine, LiveArpeggiator):
-            return _note_messages(engine.stop(at))
-        return [mido.Message.from_bytes(e.data) for e in engine.stop(int(at))]
+        tick = self._elapsed(at_ns)
+        self.clock.halt(tick)
+        return self._pause(tick)
 
-    def _time(self, at_ns: int) -> Fraction:
-        elapsed = max(0, at_ns - self.origin_ns) if self.origin_ns is not None else 0
-        at = Fraction(elapsed, 1000)
-        if isinstance(self.engine, LiveArpeggiator):
-            at = at * self.bpm / 60_000_000
-        self.last = max(at, self.last)
-        return self.last
+    def set_tempo(self, at_ns: int, bpm: int) -> list[mido.Message]:
+        if self.clock.mode != ClockMode.internal or not 1 <= bpm <= 1000:
+            raise ValueError("tempo requires internal clock and BPM between 1 and 1000")
+        output = self.advance(at_ns)
+        self.clock.set_tempo(self._elapsed(at_ns), bpm)
+        return output
+
+    def _pause(self, tick: int) -> list[mido.Message]:
+        assert self.engine is not None
+        if isinstance(engine := self.engine, LiveArpeggiator):
+            return _note_messages(engine.pause(self.clock.beat))
+        return [
+            mido.Message.from_bytes(e.data) for e in engine.pause(self.clock.beat, tick)
+        ]
+
+    def _elapsed(self, at_ns: int) -> int:
+        if self.origin_ns is None:
+            self.origin_ns = at_ns
+            self.clock.anchor_us = 0
+        self.wall_us = max(self.wall_us, (at_ns - self.origin_ns) // 1000)
+        return self.wall_us
 
 
 def main() -> None:
@@ -250,7 +356,11 @@ def _read_commands(commands: SimpleQueue[str]) -> None:
         if command in ("", "quit"):
             commands.put("quit")
             return
-        if command == "clear":
+        if command in ("clear", "start", "pause", "continue") or (
+            command.startswith("tempo ") and len(command.split()) == 2
+        ):
             commands.put(command)
         else:
-            print("enter clear, quit, or an empty line", file=stderr)
+            print(
+                "enter start, pause, continue, tempo BPM, clear, or quit", file=stderr
+            )

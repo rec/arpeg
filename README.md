@@ -191,7 +191,8 @@ single-track metrical MIDI files containing note and tempo events, and plays
 classic or recorded-history arpeggios through midir on Linux, Windows, and macOS.
 The Python `arpeg-python` host uses mido and its RtMidi backend to run the
 reference engines with the same presets on those platforms. Both hosts read MIDI
-channel 1, output on channel 1, and use an internal BPM clock. They timestamp
+channel 1 and output on channel 1. The default clock uses internal BPM; both
+hosts also accept external MIDI Clock and transport. They timestamp
 messages when the input callback runs, poll every millisecond, and send events
 immediately when due. Driver timestamps and future output timestamps are not
 used yet. Hardware timing and device behavior have not been verified.
@@ -225,8 +226,41 @@ cargo run -p arpeg-midi -- play conformance/alternating.toml SOURCE_INDEX DESTIN
 cargo run -p arpeg-midi -- play conformance/history-wind.toml SOURCE_INDEX DESTINATION_INDEX 120
 ```
 
-Enter `clear` to empty a latched or history bank and release its owned output notes. Press
-Enter or Ctrl-C to stop live playback. The default `retrigger = "on_empty"`
+### Live clock and transport
+
+For external synchronization, add `--clock external` to either play command.
+Clock and transport come from the note input by default. Add `--clock-source INDEX`
+to use a separate input; that port accepts only Clock, Start, Continue, Stop and
+Song Position Pointer, while the note port supplies performance events. Selecting
+the note port's own index opens it once.
+
+MIDI Clock uses [24 pulses per quarter note](https://midi.org/about-midi-part-3midi-messages).
+External playback initially waits for Start or Continue, then the first pulse
+anchors the current beat. The second pulse establishes an interval. Between
+pulses, the clock interpolates using the latest interval, capped at the next
+expected pulse. Late pulses never move playback backwards. This conservative
+estimator can stall with jitter; it does not extrapolate through missing pulses.
+After `--clock-timeout-ms` (default 500), it stops and releases owned notes.
+Fresh pulses alone do not restart it: send Start or Continue to reacquire.
+
+Enter `start` to restart rhythm and traversal while retaining the source bank;
+`pause` releases output and freezes beats and traversal; `continue` resumes them.
+The corresponding MIDI transport messages do the same. Song Position Pointer
+uses sixteenth-note units, releases output, resets traversal, and resumes at the
+next eligible rhythm boundary. Seeks discard pending repeats and gestures rather
+than emitting crossed attacks. Random counters remain intact across transport
+changes. External Continue and seeks wait for a pulse before resuming.
+
+With the internal clock, enter `tempo 90` to change BPM without changing beat
+phase. Recorded source timestamps remain microseconds; fitted gestures and gates
+follow playback beats, including through tempo changes and pauses. Capture remains
+available while playback is stopped. Python player snapshots retain both engine
+and clock state, including clock observations; observation storage is capped at
+one million messages. [Shared transport traces](conformance/transport.toml) check
+the same beats and MIDI bytes in both implementations.
+
+Enter `clear` to empty a latched or history bank and release its owned output notes.
+Press Enter or Ctrl-C to exit live playback. The default `retrigger = "on_empty"`
 continues selection through chord edits; `retrigger = "bank_edit"` restarts
 selection at the first note on the next grid step without moving the grid.
 File rendering rejects `bank_edit` until it can reproduce the same live

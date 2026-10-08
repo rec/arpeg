@@ -19,8 +19,9 @@ pub struct HistoryArpeggiator {
     sounding: Option<(String, u8)>,
     last_selected: Option<String>,
     pub bank_revision: usize,
-    processed_to: Tick,
-    inclusive: bool,
+    pub processed_to: Tick,
+    pub capture_to: i64,
+    pub inclusive: bool,
     input_events: usize,
 }
 
@@ -76,6 +77,7 @@ impl HistoryArpeggiator {
             last_selected: None,
             bank_revision: 0,
             processed_to: Tick::from_integer(0),
+            capture_to: 0,
             inclusive: false,
             input_events: 0,
         })
@@ -86,7 +88,9 @@ impl HistoryArpeggiator {
             return Err("live capture reached its event limit");
         }
         let at = Tick::from_integer(event.tick);
-        if at < self.processed_to || at == self.processed_to && self.inclusive {
+        if at < Tick::from_integer(self.capture_to)
+            || at == Tick::from_integer(self.capture_to) && self.inclusive
+        {
             return Err("MIDI input arrived after its live output time");
         }
         self.capture.accept(event, None)?;
@@ -94,24 +98,24 @@ impl HistoryArpeggiator {
         Ok(())
     }
 
-    pub fn before(&mut self, tick: i64) -> Result<Vec<RealizedEvent>, &'static str> {
-        self.process(Tick::from_integer(tick), false)
+    pub fn before(&mut self, at: Tick, tick: i64) -> Result<Vec<RealizedEvent>, &'static str> {
+        self.process(at, tick, false)
     }
 
-    pub fn advance(&mut self, tick: i64) -> Result<Vec<RealizedEvent>, &'static str> {
-        self.process(Tick::from_integer(tick), true)
+    pub fn advance(&mut self, at: Tick, tick: i64) -> Result<Vec<RealizedEvent>, &'static str> {
+        self.process(at, tick, true)
     }
 
-    pub fn clear(&mut self, tick: i64) -> Result<Vec<RealizedEvent>, &'static str> {
-        let mut events = if Tick::from_integer(tick) == self.processed_to && self.inclusive {
+    pub fn clear(&mut self, at: Tick, tick: i64) -> Result<Vec<RealizedEvent>, &'static str> {
+        let mut events = if at == self.processed_to && self.inclusive {
             Vec::new()
         } else {
-            self.before(tick)?
+            self.before(at, tick)?
         };
         self.queue.clear();
         if let Some((source_note, key)) = self.sounding.take() {
             events.push(RealizedEvent {
-                at: Tick::from_integer(tick),
+                at,
                 data: vec![0x80, key, 0],
                 source_note,
                 source_event: None,
@@ -125,9 +129,38 @@ impl HistoryArpeggiator {
         Ok(events)
     }
 
+    pub fn pause(&mut self, at: Tick, tick: i64) -> Vec<RealizedEvent> {
+        self.queue.clear();
+        let output = self
+            .sounding
+            .take()
+            .map_or(Vec::new(), |(source_note, key)| {
+                vec![RealizedEvent {
+                    at,
+                    data: vec![0x80, key, 0],
+                    source_note,
+                    source_event: None,
+                }]
+            });
+        self.processed_to = at;
+        self.capture_to = tick;
+        self.inclusive = true;
+        self.next_step = self.next_step.max((at / self.step).ceil() * self.step);
+        output
+    }
+
+    pub fn relocate(&mut self, at: Tick, tick: i64) -> Vec<RealizedEvent> {
+        let output = self.pause(at, tick);
+        self.next_step = (at / self.step).ceil() * self.step;
+        self.last_selected = None;
+        self.inclusive = false;
+        output
+    }
+
     fn process(
         &mut self,
         through: Tick,
+        tick: i64,
         inclusive: bool,
     ) -> Result<Vec<RealizedEvent>, &'static str> {
         if through < self.processed_to
@@ -145,7 +178,15 @@ impl HistoryArpeggiator {
                 break;
             }
             if self.next_step == deadline {
-                self.play_step(deadline, &mut output)?;
+                let source_at = if through == self.processed_to {
+                    Tick::from_integer(tick)
+                } else {
+                    Tick::from_integer(self.capture_to)
+                        + Tick::from_integer(tick - self.capture_to)
+                            * (deadline - self.processed_to)
+                            / (through - self.processed_to)
+                };
+                self.play_step(deadline, source_at.floor().to_integer(), &mut output)?;
                 self.next_step += self.step;
             } else {
                 let event = self.queue.remove(0);
@@ -159,13 +200,18 @@ impl HistoryArpeggiator {
                 output.push(event);
             }
         }
+        self.capture_to = tick;
         self.processed_to = through;
         self.inclusive = inclusive;
         Ok(output)
     }
 
-    fn play_step(&mut self, at: Tick, output: &mut Vec<RealizedEvent>) -> Result<(), &'static str> {
-        let source_tick = at.floor().to_integer();
+    fn play_step(
+        &mut self,
+        at: Tick,
+        source_tick: i64,
+        output: &mut Vec<RealizedEvent>,
+    ) -> Result<(), &'static str> {
         let ready = self.capture.advance(source_tick)?;
         if !ready.is_empty() {
             self.history.extend(ready);

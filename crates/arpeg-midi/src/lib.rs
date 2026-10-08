@@ -12,6 +12,7 @@ use midly::{
 };
 
 pub mod live;
+pub mod player;
 
 pub struct HeldProfile {
     pub chance: Chance,

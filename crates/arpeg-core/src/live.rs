@@ -265,6 +265,45 @@ impl LiveArpeggiator {
         Ok(self.process_until(through, true))
     }
 
+    pub fn pause(&mut self, at: Beat) -> Vec<OutputEvent> {
+        let output = self.release_all(at);
+        self.now = at;
+        while self.next_step < at {
+            self.next_step += self.rhythm.decide_step(self.step_index, self.gate).duration;
+            self.step_index += 1;
+        }
+        output
+    }
+
+    pub fn relocate(&mut self, at: Beat) -> Vec<OutputEvent> {
+        let output = self.release_all(at);
+        match &self.rhythm {
+            Rhythm::Grid { step } | Rhythm::Euclidean { step, .. } => {
+                self.step_index = (at / step).ceil().to_integer();
+                self.next_step = *step * self.step_index;
+            }
+            Rhythm::Pattern { steps } => {
+                let cycle: Beat = (0..steps.len())
+                    .map(|i| self.rhythm.decide_step(i as i64, self.gate).duration)
+                    .sum();
+                let cycles = (at / cycle).floor().to_integer();
+                self.next_step = cycle * cycles;
+                self.step_index = cycles * steps.len() as i64;
+                while self.next_step < at {
+                    self.next_step += self.rhythm.decide_step(self.step_index, self.gate).duration;
+                    self.step_index += 1;
+                }
+            }
+        }
+        self.now = at;
+        self.previous_key = None;
+        self.rising = true;
+        self.pattern_position = 0;
+        self.shuffle_order.clear();
+        self.shuffle_position = 0;
+        output
+    }
+
     pub fn stop(&mut self, at: Beat) -> Result<Vec<OutputEvent>, &'static str> {
         self.check_time(at)?;
         let mut output = self.process_until(at, false);
