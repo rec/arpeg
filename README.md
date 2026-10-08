@@ -297,8 +297,8 @@ not extend that cell or become part of its gesture.
 Use either preset as the `--profile` value in Python or the profile argument in
 Rust. [Shared performance traces](conformance/performance.toml) cover live and
 recorded expression, handoff, unknown state, pause and clear cleanup. The live
-hosts still have one independent expression owner on channel 1. MPE, MIDI 2.0,
-and Motion-driven performance parameters remain later work.
+hosts still have one independent expression owner on channel 1. MPE and MIDI 2.0
+remain later work.
 
 ### Live phrase capture
 
@@ -336,6 +336,60 @@ The raw captured source remains in the bank, independent of rendered output.
 entry state, pause, boundary timing, and cleanup with coarse and frequent polling.
 Phrase playback currently uses a grid with classic note orders, fit timing,
 and carried gaps, matching history playback.
+
+### Motion control ports
+
+Live held, latched, history, and phrase engines accept two scalar input ports:
+
+- `gate`: a nonnegative exact gate fraction. Values above 1 allow overlap.
+- `density`: hit probability between 0 and 1. It starts at the preset's
+  probability and replaces it when changed. Fractional density requires an
+  explicit preset seed and uses the existing probability draw counter.
+
+Changes publish at the next unprocessed step, including a control delivered
+before that step at the same time. The latest queued value per port wins.
+Sounding notes, fitted gestures, tied gates, and pending repeat groups keep their
+realized parameters. A pause retains queued controls; Start or song-position
+relocation cancels them. Density rejections leave note selection unchanged.
+
+Use [motion-ports](conformance/motion-ports.toml) in either native MIDI host and
+enter `gate 1/2` or `density 2/3`. The preset includes the required seed.
+For a Python host:
+
+```python
+from ufor.arpeggiator_ports import ArpeggiatorControl
+
+control = ArpeggiatorControl.model_validate({"port": "density", "value": "2/3"})
+messages = player.control(now_ns, control)
+messages.extend(player.advance(now_ns))
+batch = player.take_events()
+for event in batch.events:
+    print(event.at, event.port, event.index, event.revision)
+```
+
+Rust accepts `player.control(now_us, InputPort::Density, value)` and returns the
+same MIDI output plus a separate `take_events()` batch. Both pure event engines
+also expose controls and their `ports` state. Python snapshots preserve effective
+values, queued controls, undrained events, and probability counters.
+
+Every opportunity produces `step`, then `hit` when a source note was admitted or
+`rest` otherwise. Ties produce only `step`; repeats share one `hit`. Events carry
+exact beat time, rhythm index, and bank revision. They describe source admission;
+a MIDI destination may subsequently hand off an older output note.
+
+The host samples its Motion before the target step and routes collected events
+to other Motions. Convert sampled scalar values to explicit rational values;
+there is no hidden float rounding or embedded Motion graph evaluator. Feedback
+needs an explicit delay of at least one scheduling quantum and a bounded host
+event budget.
+
+Drain after each operation. The output buffer holds 4096 events and reserves two
+slots before admitting a step. On exhaustion, new step admissions stop while due
+releases and already realized repeats continue. `batch.exhausted` reports the
+condition; draining permits future steps without replaying skipped attacks.
+Native MIDI hosts drain automatically and print a diagnostic on exhaustion.
+[Shared traces](conformance/ports.toml) cover gate edits, density and seeded
+decisions, ties, repeats, captured material, pause, seeks, and polling parity.
 
 ### Preset header defaults
 

@@ -54,7 +54,7 @@ integer timing survives the language boundary. The host chooses a time origin
 and uses it consistently; for example, convert elapsed `performance.now()`
 milliseconds with `BigInt(Math.round(elapsed * 1000))`.
 
-`accept`, `advance`, `capture`, `clear`, `stop`, and `set_tempo` return an array of complete
+`accept`, `advance`, `control`, `capture`, `clear`, `stop`, and `set_tempo` return an array of complete
 MIDI messages to emit, in order. The `beat` property is an exact rational string;
 `active` reports transport state. Invalid profiles or operations throw errors.
 `clear` follows the native engine's bank restrictions. `stop` pauses and releases
@@ -68,6 +68,21 @@ next grid step. Existing material plays during recording. `clear` also discards
 the recording. Capturing while transport is paused is supported.
 `capture_state` returns `[recording, publishedNoteCount, bankRevision]` for
 captured banks and an empty array for held or latched banks.
+
+Motion hosts use `control(time, "gate", "1/2")` or
+`control(time, "density", "2/3")`. Values are exact rational strings. Fractional
+density requires a preset seed; it replaces the preset probability. Queued
+changes publish at the next step, preserve already realized gates and repeats,
+survive pause, and are cancelled by Start or song-position relocation.
+
+Call `take_events()` after each operation to collect
+`{ events, exhausted }`. Each event is `{ at, port, index, revision }`: `at` is
+an exact beat string, `port` is `step`, `hit`, or `rest`, and the counters are
+BigInt values. Each step emits `step` before its `hit` or `rest`; ties emit only
+`step`, and repeats share one hit event. The 4096-event buffer stops admitting
+new steps when full while retaining release obligations; draining reports the
+exhaustion and permits future steps. Skipped attacks are not replayed.
+The webpage owns Motion sampling, event routing, and any delayed feedback.
 
 The webpage supplies its controls, clock polling, sound or MIDI output, and any
 browser permissions. This crate does not open MIDI ports, produce audio, or

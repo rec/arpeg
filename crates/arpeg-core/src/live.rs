@@ -4,6 +4,8 @@ use crate::chance::{Chance, draw_below};
 
 use crate::{
     Bank, Beat, Selection,
+    ports::{InputPort, PerformancePorts},
+    rhythm::PatternStep,
     rhythm::{Rhythm, RhythmDecision},
 };
 
@@ -59,7 +61,7 @@ struct Attack {
 
 pub struct LiveArpeggiator {
     bank_mode: Bank,
-    chance: Chance,
+    pub chance: Chance,
     bank_revision: u64,
     decision_count: u64,
     walk_count: u64,
@@ -74,7 +76,7 @@ pub struct LiveArpeggiator {
     retrigger: Retrigger,
     selection: Selection,
     rhythm: Rhythm,
-    gate: Beat,
+    pub ports: PerformancePorts,
     next_step: Beat,
     step_index: i64,
     pending: Vec<Attack>,
@@ -128,6 +130,7 @@ impl LiveArpeggiator {
         }
         Ok(Self {
             bank_mode: bank,
+            ports: PerformancePorts::new(gate, chance.probability),
             chance,
             bank_revision: 0,
             decision_count: 0,
@@ -143,7 +146,6 @@ impl LiveArpeggiator {
             retrigger,
             selection,
             rhythm,
-            gate,
             next_step: Beat::from_integer(0),
             step_index: 0,
             pending: Vec::new(),
@@ -272,11 +274,27 @@ impl LiveArpeggiator {
         Ok(output)
     }
 
+    pub fn control(
+        &mut self,
+        at: Beat,
+        port: InputPort,
+        value: Beat,
+    ) -> Result<Vec<OutputEvent>, &'static str> {
+        self.check_time(at)?;
+        PerformancePorts::check_control(port, value, self.chance.seed)?;
+        let output = self.before(at)?;
+        self.ports.queue(port, value);
+        Ok(output)
+    }
+
     pub fn pause(&mut self, at: Beat) -> Vec<OutputEvent> {
         let output = self.release_all(at);
         self.now = at;
         while self.next_step < at {
-            self.next_step += self.rhythm.decide_step(self.step_index, self.gate).duration;
+            self.next_step += self
+                .rhythm
+                .decide_step(self.step_index, self.ports.gate)
+                .duration;
             self.step_index += 1;
         }
         output
@@ -284,6 +302,7 @@ impl LiveArpeggiator {
 
     pub fn relocate(&mut self, at: Beat) -> Vec<OutputEvent> {
         let output = self.release_all(at);
+        self.ports.cancel_pending();
         match &self.rhythm {
             Rhythm::Grid { step } | Rhythm::Euclidean { step, .. } => {
                 self.step_index = (at / step).ceil().to_integer();
@@ -291,13 +310,16 @@ impl LiveArpeggiator {
             }
             Rhythm::Pattern { steps } => {
                 let cycle: Beat = (0..steps.len())
-                    .map(|i| self.rhythm.decide_step(i as i64, self.gate).duration)
+                    .map(|i| self.rhythm.decide_step(i as i64, self.ports.gate).duration)
                     .sum();
                 let cycles = (at / cycle).floor().to_integer();
                 self.next_step = cycle * cycles;
                 self.step_index = cycles * steps.len() as i64;
                 while self.next_step < at {
-                    self.next_step += self.rhythm.decide_step(self.step_index, self.gate).duration;
+                    self.next_step += self
+                        .rhythm
+                        .decide_step(self.step_index, self.ports.gate)
+                        .duration;
                     self.step_index += 1;
                 }
             }
@@ -384,8 +406,17 @@ impl LiveArpeggiator {
             }
             self.release_due(next, &mut output);
             if self.next_step == next {
-                let decision = self.rhythm.decide_step(self.step_index, self.gate);
-                self.schedule_step(next, decision);
+                let admitted = self
+                    .ports
+                    .begin_step(next, self.step_index, self.bank_revision);
+                let decision = self.rhythm.decide_step(self.step_index, self.ports.gate);
+                if admitted {
+                    let hit = self.schedule_step(next, decision);
+                    if !matches!(&self.rhythm, Rhythm::Pattern { steps } if matches!(steps[self.step_index as usize % steps.len()], PatternStep::Tie { .. }))
+                    {
+                        self.ports.outcome(hit);
+                    }
+                }
                 self.next_step += decision.duration;
                 self.step_index += 1;
             }
@@ -431,7 +462,7 @@ impl LiveArpeggiator {
             .collect()
     }
 
-    fn schedule_step(&mut self, at: Beat, decision: RhythmDecision) {
+    fn schedule_step(&mut self, at: Beat, decision: RhythmDecision) -> bool {
         let active = if self.bank_mode == Bank::Held {
             &self.input
         } else {
@@ -442,15 +473,18 @@ impl LiveArpeggiator {
             self.pattern_position = 0;
             self.shuffle_order.clear();
             self.shuffle_position = 0;
-            return;
+            return false;
         }
         if decision.repeats == 0 {
-            return;
+            return false;
         }
         let chance_index = self.decision_count;
         self.decision_count += 1;
-        if !self.chance.allows(self.bank_revision, chance_index) {
-            return;
+        if !self
+            .chance
+            .allows(self.bank_revision, chance_index, self.ports.density)
+        {
+            return false;
         }
         let selection = &self.selection;
         let mut ordered = active.clone();
@@ -463,7 +497,7 @@ impl LiveArpeggiator {
             let index = indices[self.pattern_position];
             self.pattern_position = (self.pattern_position + 1) % indices.len();
             if *rest_outside && index >= ordered.len() as u64 {
-                return;
+                return false;
             }
             ordered[(index % ordered.len() as u64) as usize]
         } else if let Selection::Choice {
@@ -694,6 +728,7 @@ impl LiveArpeggiator {
                 decision.gate
             },
         }));
+        true
     }
 
     fn attack(&mut self, attack: Attack, output: &mut Vec<OutputEvent>) {

@@ -6,6 +6,7 @@ use arpeg_core::{
     gesture::RealizedEvent,
     history::HistoryArpeggiator,
     live::{LiveArpeggiator, OutputEvent, OutputKind},
+    ports::{InputPort, PerformancePorts, PortBatch},
 };
 
 use crate::Profile;
@@ -54,15 +55,19 @@ impl MidiPlayer {
                 p.retrigger,
                 p.chance,
             )?)),
-            Profile::Captured(p) => Engine::History(Box::new(HistoryArpeggiator::new(
-                p.mode,
-                p.selection,
-                p.retrigger == arpeg_core::live::Retrigger::BankEdit,
-                p.step,
-                p.gate,
-                CaptureProfile::default(),
-                p.current_expression,
-            )?)),
+            Profile::Captured(p) => {
+                let mut engine = HistoryArpeggiator::new(
+                    p.mode,
+                    p.selection,
+                    p.retrigger == arpeg_core::live::Retrigger::BankEdit,
+                    p.step,
+                    p.gate,
+                    CaptureProfile::default(),
+                    p.current_expression,
+                )?;
+                engine.chance = p.chance;
+                Engine::History(Box::new(engine))
+            }
         };
         Ok(Self {
             clock: TransportClock::new(mode, bpm, timeout_us)?,
@@ -269,6 +274,44 @@ impl MidiPlayer {
                 e.bank.revision,
             )),
             Engine::Held(_) => None,
+        }
+    }
+
+    pub fn control(
+        &mut self,
+        at_us: i64,
+        port: InputPort,
+        value: arpeg_core::Beat,
+    ) -> Result<Vec<Vec<u8>>, &'static str> {
+        match &self.engine {
+            Engine::Held(e) => PerformancePorts::check_control(port, value, e.chance.seed)?,
+            Engine::History(e) => PerformancePorts::check_control(port, value, e.chance.seed)?,
+        }
+        let tick = self.elapsed(at_us);
+        let was_active = self.clock.active();
+        let at = self.clock.advance(tick);
+        let mut output = if was_active && !self.clock.active() {
+            self.pause(tick)
+        } else {
+            Vec::new()
+        };
+        match &mut self.engine {
+            Engine::Held(e) => {
+                let events = e.control(at, port, value)?;
+                output.extend(self.note_messages(events));
+            }
+            Engine::History(e) => {
+                let events = e.control(at, tick.max(self.input_tick), port, value)?;
+                output.extend(self.history_messages(events));
+            }
+        }
+        Ok(output)
+    }
+
+    pub fn take_events(&mut self) -> PortBatch {
+        match &mut self.engine {
+            Engine::Held(e) => e.ports.take_events(),
+            Engine::History(e) => e.ports.take_events(),
         }
     }
 

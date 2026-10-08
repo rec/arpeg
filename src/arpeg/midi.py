@@ -12,7 +12,7 @@ from typing import Annotated, Literal, Self
 import mido
 import tyro
 from pydantic import BaseModel, Field, model_validator
-from ufor import arpeggiator
+from ufor import arpeggiator, arpeggiator_ports
 from ufor.events import MidiEvent
 
 from .bank import CaptureBank
@@ -95,7 +95,8 @@ class Play(BaseModel, frozen=True):
                 )
             print(
                 f"Playing with {self.clock} clock. "
-                "Enter start, pause, continue, tempo BPM, record, commit, "
+                "Enter start, pause, continue, tempo BPM, gate FRACTION, "
+                "density FRACTION, record, commit, "
                 "overdub, undo, clear, or quit."
             )
             stopped = False
@@ -155,12 +156,30 @@ class Play(BaseModel, frozen=True):
                                 )
                             except ValueError as error:
                                 print(str(error), file=stderr)
+                        elif command.startswith(("gate ", "density ")):
+                            try:
+                                port, value = command.split()
+                                messages.extend(
+                                    player.control(
+                                        perf_counter_ns(),
+                                        arpeggiator_ports.ArpeggiatorControl.model_validate(
+                                            {"port": port, "value": value}
+                                        ),
+                                    )
+                                )
+                            except ValueError as error:
+                                print(str(error), file=stderr)
                         else:
                             stopped = True
                     if not stopped:
                         messages.extend(player.advance(perf_counter_ns()))
                     for message in messages:
                         output.send(message)
+                    if player.take_events().exhausted:
+                        print(
+                            "Motion output event buffer exhausted; skipped new steps",
+                            file=stderr,
+                        )
                     sleep(0.001)
             except KeyboardInterrupt:
                 pass
@@ -221,6 +240,8 @@ class MidiPlayer(BaseModel):
                 "captured playback requires recorded or current, fit, carry expression"
             )
         return LiveHistoryArpeggiator(
+            seed=body.seed,
+            name=self.profile.name,
             step=Fraction(body.rhythm.step.removesuffix(" beat")),
             gate=body.gate,
             expression_source=body.expression.source,
@@ -385,6 +406,29 @@ class MidiPlayer(BaseModel):
                     self.ordinal += 1
         return output
 
+    def control(
+        self, at_ns: int, control: arpeggiator_ports.ArpeggiatorControl
+    ) -> list[mido.Message]:
+        assert self.engine is not None and self.engine.ports is not None
+        self.engine.ports.check_control(control, self.profile.body.seed)
+        tick = self._elapsed(at_ns)
+        was_active = self.clock.active
+        at = self.clock.advance(tick)
+        output = self._pause(tick) if was_active and not self.clock.active else []
+        if isinstance(self.engine, LiveArpeggiator):
+            output.extend(self._note_messages(self.engine.control(at, control)))
+        else:
+            output.extend(
+                self._history_messages(
+                    self.engine.control(at, max(tick, self.input_tick), control)
+                )
+            )
+        return output
+
+    def take_events(self) -> arpeggiator_ports.ArpeggiatorPortBatch:
+        assert self.engine is not None and self.engine.ports is not None
+        return self.engine.ports.take_events()
+
     def _pause(self, tick: int) -> list[mido.Message]:
         assert self.engine is not None
         if isinstance(engine := self.engine, LiveArpeggiator):
@@ -470,11 +514,15 @@ def _read_commands(commands: SimpleQueue[str]) -> None:
             "commit",
             "overdub",
             "undo",
-        ) or (command.startswith("tempo ") and len(command.split()) == 2):
+        ) or (
+            command.startswith(("tempo ", "gate ", "density "))
+            and len(command.split()) == 2
+        ):
             commands.put(command)
         else:
             print(
-                "enter start, pause, continue, tempo BPM, record, commit, "
+                "enter start, pause, continue, tempo BPM, gate FRACTION, "
+                "density FRACTION, record, commit, "
                 "overdub, undo, clear, or quit",
                 file=stderr,
             )

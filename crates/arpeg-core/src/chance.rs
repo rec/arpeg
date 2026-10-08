@@ -33,11 +33,11 @@ impl Chance {
         Ok(())
     }
 
-    pub fn allows(&self, revision: u64, decision: u64) -> bool {
-        if self.probability == Beat::from_integer(0) {
+    pub fn allows(&self, revision: u64, decision: u64, probability: Beat) -> bool {
+        if probability == Beat::from_integer(0) {
             return false;
         }
-        if self.probability == Beat::from_integer(1) {
+        if probability == Beat::from_integer(1) {
             return true;
         }
         draw_below(
@@ -46,8 +46,8 @@ impl Chance {
             "probability",
             revision,
             decision,
-            *self.probability.denom() as u64,
-        ) < *self.probability.numer() as u64
+            *probability.denom() as u64,
+        ) < *probability.numer() as u64
     }
 }
 

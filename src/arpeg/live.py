@@ -12,6 +12,7 @@ from math import ceil
 from typing import Literal, Self
 
 from pydantic import BaseModel, Field, model_validator
+from ufor import arpeggiator_ports
 from ufor.arpeggiator import (
     Alternating,
     ArpeggiatorScore,
@@ -28,10 +29,12 @@ from ufor.arpeggiator import (
     Pattern,
     Played,
     Shuffle,
+    TieStep,
     Walk,
 )
 
 from .chance import draw_below
+from .ports import PerformancePorts
 from .rhythm import RhythmDecision, decide_step
 
 
@@ -48,6 +51,7 @@ class LiveArpeggiator(BaseModel):
     """Turn changing input notes into ordered note events."""
 
     profile: ArpeggiatorScore = Field(frozen=True)
+    ports: PerformancePorts | None = None
     next_step: Fraction = Fraction(0)
     step_index: int = 0
     bank_revision: int = 0
@@ -103,6 +107,8 @@ class LiveArpeggiator(BaseModel):
             raise ValueError("live mode does not support repeated selections")
         if not isinstance(body.rhythm, (Grid, Euclidean, Pattern)):
             raise ValueError("live mode requires grid, Euclidean, or pattern rhythm")
+        if self.ports is None:
+            self.ports = PerformancePorts(gate=body.gate, density=body.probability)
         return self
 
     @cached_property
@@ -230,6 +236,16 @@ class LiveArpeggiator(BaseModel):
         events.extend(self._release_due(through))
         return events
 
+    def control(
+        self, at: Fraction, control: arpeggiator_ports.ArpeggiatorControl
+    ) -> list[LiveEvent]:
+        self._check_time(at)
+        assert self.ports is not None
+        self.ports.check_control(control, self.profile.body.seed)
+        events = self.before(at)
+        self.ports.pending[control.port] = control.value
+        return events
+
     def stop(self, at: Fraction) -> list[LiveEvent]:
         """Release only this arpeggiator's sounding notes and clear its bank."""
         self._check_time(at)
@@ -295,6 +311,8 @@ class LiveArpeggiator(BaseModel):
     def relocate(self, at: Fraction) -> list[LiveEvent]:
         """Seek the rhythm and restart traversal without forgetting held notes."""
         events = self._release_all(at)
+        assert self.ports is not None
+        self.ports.pending.clear()
         rhythm = self.profile.body.rhythm
         if isinstance(rhythm, Pattern):
             cycle = sum(
@@ -333,8 +351,20 @@ class LiveArpeggiator(BaseModel):
             if self.next_step == at:
                 rhythm = self.profile.body.rhythm
                 assert isinstance(rhythm, (Grid, Euclidean, Pattern))
-                decision = decide_step(rhythm, self.step_index, self.profile.body.gate)
-                self._schedule_step(at, decision)
+                assert self.ports is not None
+                admitted = self.ports.begin_step(
+                    at, self.step_index, self.bank_revision
+                )
+                decision = decide_step(rhythm, self.step_index, self.ports.gate)
+                if admitted:
+                    hit = self._schedule_step(at, decision)
+                    if not (
+                        isinstance(rhythm, Pattern)
+                        and isinstance(
+                            rhythm.steps[self.step_index % len(rhythm.steps)], TieStep
+                        )
+                    ):
+                        self.ports.outcome(hit)
                 self.next_step += decision.duration
                 self.step_index += 1
             while self.pending and self.pending[0].at == at:
@@ -358,22 +388,24 @@ class LiveArpeggiator(BaseModel):
         self.sounding = [n for n in self.sounding if n.end > at]
         return events
 
-    def _schedule_step(self, at: Fraction, decision: RhythmDecision) -> None:
+    def _schedule_step(self, at: Fraction, decision: RhythmDecision) -> bool:
         active = self.input if isinstance(self.bank_mode, HeldBank) else self.bank
         if not active:
             self.previous_note = None
             self.pattern_position = 0
             self.shuffle_order.clear()
             self.shuffle_position = 0
-            return
+            return False
         if not decision.repeats:
-            return
+            return False
         body = self.profile.body
+        assert self.ports is not None
+        probability = self.ports.density
         decision_index = self.decision_count
         self.decision_count += 1
-        if body.probability == 0:
-            return
-        if body.probability < 1:
+        if probability == 0:
+            return False
+        if probability < 1:
             assert body.seed is not None
             if (
                 draw_below(
@@ -382,17 +414,17 @@ class LiveArpeggiator(BaseModel):
                     "probability",
                     self.bank_revision,
                     decision_index,
-                    body.probability.denominator,
+                    probability.denominator,
                 )
-                >= body.probability.numerator
+                >= probability.numerator
             ):
-                return
+                return False
         ordered = sorted(active, key=self._selection_key)
         if isinstance(selection := self.selection, IndexPattern):
             index = selection.indices[self.pattern_position]
             self.pattern_position = (self.pattern_position + 1) % len(selection.indices)
             if selection.boundary == "rest" and index >= len(ordered):
-                return
+                return False
             note = ordered[index % len(ordered)]
         elif isinstance(selection, Choice):
             candidates = [
@@ -549,6 +581,7 @@ class LiveArpeggiator(BaseModel):
             )
             for i in range(decision.repeats)
         )
+        return True
 
     def _shuffle_note(
         self, ordered: list[_InputNote], selection: Shuffle

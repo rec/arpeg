@@ -1,8 +1,11 @@
 //! Browser bindings to the existing profile parser and MIDI player.
 
-use arpeg_core::clock::ClockMode;
+use arpeg_core::{
+    clock::ClockMode,
+    ports::{InputPort, OutputPort},
+};
 use arpeg_midi::{parse_profile, player::InputSource};
-use js_sys::{Array, Uint8Array};
+use js_sys::{Array, BigInt, Object, Reflect, Uint8Array};
 use wasm_bindgen::{JsValue, prelude::wasm_bindgen};
 
 #[wasm_bindgen]
@@ -66,6 +69,51 @@ impl MidiPlayer {
             .capture(at_us, command)
             .map(messages)
             .map_err(JsValue::from_str)
+    }
+
+    pub fn control(&mut self, at_us: i64, port: &str, value: &str) -> Result<Array, JsValue> {
+        let port = match port {
+            "gate" => InputPort::Gate,
+            "density" => InputPort::Density,
+            _ => return Err(JsValue::from_str("port must be gate or density")),
+        };
+        let value = value
+            .parse()
+            .map_err(|_| JsValue::from_str("control value must be an exact rational"))?;
+        self.player
+            .control(at_us, port, value)
+            .map(messages)
+            .map_err(JsValue::from_str)
+    }
+
+    pub fn take_events(&mut self) -> Result<JsValue, JsValue> {
+        let batch = self.player.take_events();
+        let events = Array::new();
+        for event in batch.events {
+            let object = Object::new();
+            let port = match event.port {
+                OutputPort::Step => "step",
+                OutputPort::Hit => "hit",
+                OutputPort::Rest => "rest",
+            };
+            for (key, value) in [
+                ("at", JsValue::from_str(&event.at.to_string())),
+                ("port", JsValue::from_str(port)),
+                ("index", BigInt::from(event.index).into()),
+                ("revision", BigInt::from(event.revision).into()),
+            ] {
+                Reflect::set(&object, &JsValue::from_str(key), &value)?;
+            }
+            events.push(&object);
+        }
+        let result = Object::new();
+        Reflect::set(&result, &JsValue::from_str("events"), &events)?;
+        Reflect::set(
+            &result,
+            &JsValue::from_str("exhausted"),
+            &JsValue::from_bool(batch.exhausted),
+        )?;
+        Ok(result.into())
     }
 
     /// Recording flag, published note count, and bank revision, or an empty array for held banks.

@@ -4,7 +4,9 @@ use crate::{
     Selection,
     bank::{CaptureBank, CaptureMode},
     capture::{MidiEvent, Profile},
+    chance::Chance,
     gesture::{self, OverlapPolicy, Placement, RealizedEvent, Tick, Timing},
+    ports::{InputPort, PerformancePorts},
 };
 
 pub struct HistoryArpeggiator {
@@ -12,7 +14,10 @@ pub struct HistoryArpeggiator {
     capture_profile: Profile,
     next_capture_id: u64,
     step: Tick,
-    gate: Tick,
+    pub ports: PerformancePorts,
+    pub chance: Chance,
+    step_index: i64,
+    decision_count: u64,
     next_step: Tick,
     queue: Vec<RealizedEvent>,
     sounding: Option<(String, u8)>,
@@ -41,7 +46,10 @@ impl HistoryArpeggiator {
             capture_profile: profile,
             next_capture_id: 0,
             step,
-            gate,
+            ports: PerformancePorts::new(gate, Tick::from_integer(1)),
+            chance: Chance::default(),
+            step_index: 0,
+            decision_count: 0,
             next_step: Tick::from_integer(0),
             queue: Vec::new(),
             sounding: None,
@@ -77,6 +85,26 @@ impl HistoryArpeggiator {
 
     pub fn advance(&mut self, at: Tick, tick: i64) -> Result<Vec<RealizedEvent>, &'static str> {
         self.process(at, tick, true)
+    }
+
+    pub fn control(
+        &mut self,
+        at: Tick,
+        tick: i64,
+        port: InputPort,
+        value: Tick,
+    ) -> Result<Vec<RealizedEvent>, &'static str> {
+        PerformancePorts::check_control(port, value, self.chance.seed)?;
+        if at < self.processed_to {
+            return Err("live time must not go backwards");
+        }
+        let output = if at > self.processed_to {
+            self.before(at, tick)?
+        } else {
+            Vec::new()
+        };
+        self.ports.queue(port, value);
+        Ok(output)
     }
 
     pub fn clear(&mut self, at: Tick, tick: i64) -> Result<Vec<RealizedEvent>, &'static str> {
@@ -166,12 +194,15 @@ impl HistoryArpeggiator {
         self.capture_to = tick;
         self.inclusive = true;
         self.next_step = self.next_step.max((at / self.step).ceil() * self.step);
+        self.step_index = (self.next_step / self.step).ceil().to_integer();
         output
     }
 
     pub fn relocate(&mut self, at: Tick, tick: i64) -> Vec<RealizedEvent> {
         let output = self.pause(at, tick);
         self.next_step = (at / self.step).ceil() * self.step;
+        self.step_index = (at / self.step).ceil().to_integer();
+        self.ports.cancel_pending();
         self.bank.last_selected = None;
         self.inclusive = false;
         output
@@ -218,6 +249,7 @@ impl HistoryArpeggiator {
                 };
                 self.play_step(deadline, source_at.floor().to_integer(), &mut output)?;
                 self.next_step += self.step;
+                self.step_index += 1;
             } else {
                 let event = self.queue.remove(0);
                 if event.data[0] & 0xf0 == 0x90 && event.data[2] > 0 {
@@ -243,9 +275,31 @@ impl HistoryArpeggiator {
         output: &mut Vec<RealizedEvent>,
     ) -> Result<(), &'static str> {
         self.bank.advance(source_tick)?;
+        self.bank.publish_step();
+        if !self
+            .ports
+            .begin_step(at, self.step_index, self.bank.revision as u64)
+        {
+            return Ok(());
+        }
+        if self.bank.published.is_empty() {
+            self.bank.last_selected = None;
+            self.ports.outcome(false);
+            return Ok(());
+        }
+        let index = self.decision_count;
+        self.decision_count += 1;
+        if !self
+            .chance
+            .allows(self.bank.revision as u64, index, self.ports.density)
+        {
+            self.ports.outcome(false);
+            return Ok(());
+        }
         let Some(note) = self.bank.select_step()? else {
             return Ok(());
         };
+        self.ports.outcome(true);
         self.queue.clear();
         if let Some((source_note, key)) = self.sounding.take() {
             output.push(RealizedEvent {
@@ -261,7 +315,7 @@ impl HistoryArpeggiator {
             &[Placement {
                 note_id: note.note_id.clone(),
                 onset: at,
-                gate: Some(self.step * self.gate),
+                gate: Some(self.step * self.ports.gate),
             }],
             &[0],
             Timing::Fit,

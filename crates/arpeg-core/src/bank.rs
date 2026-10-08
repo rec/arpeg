@@ -166,7 +166,7 @@ impl CaptureBank {
         Ok(())
     }
 
-    pub fn select_step(&mut self) -> Result<Option<BankNote>, &'static str> {
+    pub fn publish_step(&mut self) {
         let mut notes = Vec::new();
         for take in &self.takes {
             if !take.overdub {
@@ -198,6 +198,10 @@ impl CaptureBank {
             self.published = notes;
             self.revision += 1;
         }
+    }
+
+    pub fn select_step(&mut self) -> Result<Option<BankNote>, &'static str> {
+        self.publish_step();
         if self.published.is_empty() {
             self.last_selected = None;
             return Ok(None);

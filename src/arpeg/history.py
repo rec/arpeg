@@ -5,12 +5,15 @@ from math import ceil, floor
 from typing import Literal, Self
 
 from pydantic import BaseModel, Field, model_validator
+from ufor import arpeggiator_ports
 from ufor.events import MidiEvent
 from ufor.time import Timebase
 
 from .bank import CaptureBank
 from .capture import MidiCaptureProfile
+from .chance import draw_below
 from .gesture import MidiGestureRenderer, MidiPlacement, RealizedMidiEvent
+from .ports import PerformancePorts
 
 
 class LiveHistoryArpeggiator(BaseModel):
@@ -18,6 +21,11 @@ class LiveHistoryArpeggiator(BaseModel):
 
     step: Fraction
     gate: Fraction = Fraction(4, 5)
+    ports: PerformancePorts | None = None
+    seed: int | None = None
+    name: str = ""
+    decision_count: int = 0
+    step_index: int = 0
     bank: CaptureBank = Field(default_factory=lambda: CaptureBank(mode="history"))
     capture_profile: MidiCaptureProfile = Field(default_factory=MidiCaptureProfile)
     expression_source: Literal["recorded", "current"] = "recorded"
@@ -37,6 +45,8 @@ class LiveHistoryArpeggiator(BaseModel):
             raise ValueError(
                 "capture playback requires positive step and nonnegative gate"
             )
+        if self.ports is None:
+            self.ports = PerformancePorts(gate=self.gate, density=Fraction(1))
         if self.bank.mode == "history" and self.bank.recording is None:
             self.bank.record(
                 "live",
@@ -64,6 +74,17 @@ class LiveHistoryArpeggiator(BaseModel):
 
     def advance(self, at: Fraction, tick: int) -> list[RealizedMidiEvent]:
         return self._process(at, tick, inclusive=True)
+
+    def control(
+        self, at: Fraction, tick: int, control: arpeggiator_ports.ArpeggiatorControl
+    ) -> list[RealizedMidiEvent]:
+        assert self.ports is not None
+        self.ports.check_control(control, self.seed)
+        if at < self.processed_to:
+            raise ValueError("live time must not go backwards")
+        events = self.before(at, tick) if at > self.processed_to else []
+        self.ports.pending[control.port] = control.value
+        return events
 
     def clear(self, at: Fraction, tick: int) -> list[RealizedMidiEvent]:
         events = (
@@ -133,11 +154,15 @@ class LiveHistoryArpeggiator(BaseModel):
         self.capture_to = tick
         self.inclusive = True
         self.next_step = max(self.next_step, ceil(at / self.step) * self.step)
+        self.step_index = ceil(self.next_step / self.step)
         return output
 
     def relocate(self, at: Fraction, tick: int) -> list[RealizedMidiEvent]:
         output = self.pause(at, tick)
         self.next_step = ceil(at / self.step) * self.step
+        self.step_index = ceil(at / self.step)
+        assert self.ports is not None
+        self.ports.pending.clear()
         self.bank.last_selected = None
         self.inclusive = False
         return output
@@ -181,6 +206,7 @@ class LiveHistoryArpeggiator(BaseModel):
                 )
                 output.extend(self._play_step(deadline, floor(source_at)))
                 self.next_step += self.step
+                self.step_index += 1
             else:
                 event = self.queue.pop(0)
                 kind = event.data[0] & 0xF0
@@ -198,9 +224,38 @@ class LiveHistoryArpeggiator(BaseModel):
 
     def _play_step(self, at: Fraction, source_tick: int) -> list[RealizedMidiEvent]:
         self.bank.advance(source_tick)
+        self.bank.publish_step()
+        assert self.ports is not None
+        if not self.ports.begin_step(at, self.step_index, self.bank.revision):
+            return []
+        if not self.bank.published:
+            self.bank.last_selected = None
+            self.ports.outcome(False)
+            return []
+        index = self.decision_count
+        self.decision_count += 1
+        density = self.ports.density
+        allowed = density == 1
+        if 0 < density < 1:
+            assert self.seed is not None
+            allowed = (
+                draw_below(
+                    self.seed,
+                    self.name,
+                    "probability",
+                    self.bank.revision,
+                    index,
+                    density.denominator,
+                )
+                < density.numerator
+            )
+        if not allowed:
+            self.ports.outcome(False)
+            return []
         selected = self.bank.select_step()
         if selected is None:
             return []
+        self.ports.outcome(True)
         self.queue.clear()
         output: list[RealizedMidiEvent] = []
         if self.sounding_key is not None and self.sounding_source is not None:
@@ -224,7 +279,9 @@ class LiveHistoryArpeggiator(BaseModel):
             ).render(
                 [
                     MidiPlacement(
-                        note_id=selected.note_id, onset=at, gate=self.step * self.gate
+                        note_id=selected.note_id,
+                        onset=at,
+                        gate=self.step * self.ports.gate,
                     )
                 ]
             )

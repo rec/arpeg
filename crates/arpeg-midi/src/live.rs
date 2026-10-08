@@ -4,7 +4,7 @@ use crate::{
     Profile,
     player::{InputSource, MidiPlayer},
 };
-use arpeg_core::{Bank, clock::ClockMode};
+use arpeg_core::{Bank, clock::ClockMode, ports::InputPort};
 use midir::{Ignore, MidiInput, MidiOutput, MidiOutputConnection};
 use std::{
     io,
@@ -132,7 +132,7 @@ pub fn play(
         keyboard.store(true, Ordering::SeqCst);
     });
     println!(
-        "Playing with {mode:?} clock. Enter start, pause, continue, tempo BPM, record, commit, overdub, undo, clear, or quit."
+        "Playing with {mode:?} clock. Enter start, pause, continue, tempo BPM, gate FRACTION, density FRACTION, record, commit, overdub, undo, clear, or quit."
     );
     let origin = Instant::now();
     let elapsed = |now: Instant| {
@@ -181,6 +181,19 @@ pub fn play(
                         continue;
                     }
                     _ => {
+                        if let Some((name, value)) = command.split_once(' ') {
+                            let port = match name { "gate" => Some(InputPort::Gate), "density" => Some(InputPort::Density), _ => None };
+                            if let Some(port) = port {
+                                match value.parse() {
+                                    Ok(value) => match player.control(at, port, value) {
+                                        Ok(messages) => send(&mut output, messages)?,
+                                        Err(error) => eprintln!("{error}"),
+                                    },
+                                    Err(_) => eprintln!("gate and density require an exact rational value"),
+                                }
+                                continue;
+                            }
+                        }
                         if let Some(bpm) =
                             command.strip_prefix("tempo ").and_then(|s| s.parse().ok())
                         {
@@ -192,7 +205,7 @@ pub fn play(
                                 }
                             }
                         } else {
-                            eprintln!("enter start, pause, continue, tempo BPM, record, commit, overdub, undo, clear, or quit");
+                            eprintln!("enter start, pause, continue, tempo BPM, gate FRACTION, density FRACTION, record, commit, overdub, undo, clear, or quit");
                             continue;
                         }
                     }
@@ -206,6 +219,9 @@ pub fn play(
                     .advance(elapsed(Instant::now()))
                     .map_err(str::to_owned)?,
             )?;
+            if player.take_events().exhausted {
+                eprintln!("Motion output event buffer exhausted; skipped new steps");
+            }
             thread::sleep(Duration::from_millis(1));
         }
         Ok(())

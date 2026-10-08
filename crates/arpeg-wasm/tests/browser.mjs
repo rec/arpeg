@@ -22,6 +22,32 @@ test('generated web bindings load and exchange MIDI messages', () => {
     }
 });
 
+test('Motion ports return exact event coordinates and accept step-boundary controls', () => {
+    const profile = readFileSync(new URL('../../../conformance/motion-ports.toml', import.meta.url), 'utf8');
+    const player = new MidiPlayer(profile, 'internal', 120, 500_000n);
+    try {
+        player.accept(0n, new Uint8Array([0x90, 60, 100]), 'both');
+        assert.deepEqual(player.control(0n, 'gate', '1/5'), []);
+        assert.deepEqual(player.advance(0n), [new Uint8Array([0x90, 60, 100])]);
+        assert.deepEqual(player.take_events(), { events: [
+            { at: '0', port: 'step', index: 0n, revision: 1n },
+            { at: '0', port: 'hit', index: 0n, revision: 1n },
+        ], exhausted: false });
+        assert.throws(() => player.control(10_000n, 'density', '2'));
+        assert.throws(() => player.control(10_000n, 'other', '1'));
+        assert.throws(() => player.control(10_000n, 'gate', '0.5'));
+        assert.deepEqual(player.advance(25_000n), [new Uint8Array([0x80, 60, 0])]);
+        assert.deepEqual(player.control(50_000n, 'density', '0'), []);
+        assert.deepEqual(player.advance(125_000n), []);
+        assert.deepEqual(player.take_events(), { events: [
+            { at: '1/4', port: 'step', index: 1n, revision: 1n },
+            { at: '1/4', port: 'rest', index: 1n, revision: 1n },
+        ], exhausted: false });
+    } finally {
+        player.free();
+    }
+});
+
 test('phrase controls publish committed takes and preserve sounding output', () => {
     const profile = readFileSync(new URL('../../../conformance/phrase-wind.toml', import.meta.url), 'utf8');
     const player = new MidiPlayer(profile, 'internal', 120, 500_000n);

@@ -1,0 +1,85 @@
+# Exact beat and wire traces for the shared Motion boundary.
+[[cases]]
+name = "gate-density-boundaries-and-selection"
+profile = "up"
+actions = [
+  { at = 0, data = [144, 60, 100], output = [], events = [] },
+  { at = 0, data = [144, 64, 90], output = [], events = [] },
+  { at = 0, output = [[144, 60, 100]], events = [["0", "step", 0, 2], ["0", "hit", 0, 2]] },
+  { at = 50000, port = "gate", value = "1/5", output = [], events = [] },
+  { at = 75000, port = "gate", value = "2/5", output = [], events = [] },
+  { at = 100000, output = [[128, 60, 0]], events = [] },
+  { at = 125000, output = [[144, 64, 90]], events = [["1/4", "step", 1, 2], ["1/4", "hit", 1, 2]] },
+  { at = 150000, port = "density", value = "0", output = [], events = [] },
+  { at = 175000, output = [[128, 64, 0]], events = [] },
+  { at = 250000, output = [], events = [["1/2", "step", 2, 2], ["1/2", "rest", 2, 2]] },
+  { at = 375000, port = "density", value = "1", output = [], events = [] },
+  { at = 375000, output = [[144, 60, 100]], events = [["3/4", "step", 3, 2], ["3/4", "hit", 3, 2]] },
+  { at = 380000, port = "gate", value = "0", output = [], events = [] },
+  { at = 500000, output = [[128, 60, 0], [144, 64, 90], [128, 64, 0]], events = [["1", "step", 4, 2], ["1", "hit", 4, 2]] },
+]
+
+[[cases]]
+name = "empty-bank-and-pending-controls-through-pause-and-seek"
+profile = "up"
+actions = [
+  { at = 0, port = "gate", value = "1/5", output = [], events = [] },
+  { at = 0, output = [], events = [["0", "step", 0, 0], ["0", "rest", 0, 0]] },
+  { at = 10000, port = "gate", value = "3/5", output = [], events = [] },
+  { at = 20000, data = [252], output = [], events = [] },
+  { at = 30000, data = [144, 60, 100], output = [], events = [] },
+  { at = 100000, data = [251], output = [], events = [] },
+  { at = 205000, output = [[144, 60, 100]], events = [["1/4", "step", 1, 1], ["1/4", "hit", 1, 1]] },
+  { at = 210000, port = "gate", value = "0", output = [], events = [] },
+  { at = 220000, data = [242, 4, 0], output = [[128, 60, 0]], events = [] },
+  { at = 220000, output = [[144, 60, 100]], events = [["1", "step", 4, 1], ["1", "hit", 4, 1]] },
+  { at = 295000, output = [[128, 60, 0]], events = [] },
+]
+
+[[cases]]
+name = "ties-and-repeats-keep-their-realized-gates"
+profile = "custom-steps"
+actions = [
+  { at = 0, data = [144, 60, 100], output = [], events = [] },
+  { at = 0, output = [[144, 60, 100]], events = [["0", "step", 0, 1], ["0", "hit", 0, 1]] },
+  { at = 10000, port = "gate", value = "0", output = [], events = [] },
+  { at = 125000, output = [], events = [["1/4", "step", 1, 1]] },
+  { at = 225000, output = [[128, 60, 0]], events = [] },
+  { at = 250000, output = [], events = [["1/2", "step", 2, 1], ["1/2", "rest", 2, 1]] },
+  { at = 312500, output = [[144, 60, 100], [128, 60, 0]], events = [["5/8", "step", 3, 1], ["5/8", "hit", 3, 1]] },
+  { at = 320000, port = "gate", value = "1", output = [], events = [] },
+  { at = 479167, output = [[144, 60, 100], [128, 60, 0], [144, 60, 100], [128, 60, 0]], events = [] },
+]
+
+[[cases]]
+name = "phrase-controls-preserve-fitted-release-and-undo-source"
+profile = "phrase-wind"
+actions = [
+  { at = 0, capture = "record", output = [], events = [] },
+  { at = 0, data = [144, 60, 100], output = [], events = [] },
+  { at = 0, capture = "commit", output = [], events = [] },
+  { at = 0, output = [[144, 60, 100]], events = [["0", "step", 0, 1], ["0", "hit", 0, 1]] },
+  { at = 10000, port = "gate", value = "1/5", output = [], events = [] },
+  { at = 20000, port = "density", value = "0", output = [], events = [] },
+  { at = 125000, output = [[128, 60, 0]], events = [["1/4", "step", 1, 1], ["1/4", "rest", 1, 1]] },
+  { at = 250000, port = "density", value = "1", output = [], events = [] },
+  { at = 250000, output = [[144, 60, 100]], events = [["1/2", "step", 2, 1], ["1/2", "hit", 2, 1]] },
+  { at = 275000, output = [[128, 60, 0]], events = [] },
+]
+
+[[cases]]
+name = "seeded-density-uses-existing-probability-lane"
+profile = "motion-ports"
+actions = [
+  { at = 0, port = "density", value = "1/2", output = [], events = [] },
+  { at = 0, data = [144, 60, 100], output = [], events = [] },
+  { at = 0, data = [144, 64, 90], output = [], events = [] },
+  { at = 0, output = [], events = [["0", "step", 0, 2], ["0", "rest", 0, 2]] },
+  { at = 125000, output = [], events = [["1/4", "step", 1, 2], ["1/4", "rest", 1, 2]] },
+  { at = 250000, output = [], events = [["1/2", "step", 2, 2], ["1/2", "rest", 2, 2]] },
+  { at = 375000, output = [[144, 60, 100]], events = [["3/4", "step", 3, 2], ["3/4", "hit", 3, 2]] },
+  { at = 500000, output = [[128, 60, 0], [144, 64, 90]], events = [["1", "step", 4, 2], ["1", "hit", 4, 2]] },
+  { at = 625000, output = [[128, 64, 0]], events = [["5/4", "step", 5, 2], ["5/4", "rest", 5, 2]] },
+  { at = 625000, port = "density", value = "1", output = [], events = [] },
+  { at = 750000, output = [[144, 60, 100]], events = [["3/2", "step", 6, 2], ["3/2", "hit", 6, 2]] },
+]

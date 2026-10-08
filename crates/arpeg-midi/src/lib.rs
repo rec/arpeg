@@ -27,6 +27,7 @@ pub struct HeldProfile {
 }
 
 pub struct CapturedProfile {
+    pub chance: Chance,
     pub mode: CaptureMode,
     pub selection: Selection,
     pub step: Beat,
@@ -531,6 +532,7 @@ pub fn parse_profile(text: &str, path: Option<&Path>) -> Result<Profile, String>
                 return Err("captured playback currently requires grid rhythm".into());
             };
             Profile::Captured(CapturedProfile {
+                chance,
                 mode,
                 selection,
                 step,

@@ -1,0 +1,7 @@
+kind = "arpeggiator"
+name = "motion-ports"
+title = "Live gate and density controls"
+
+[body]
+rhythm = { kind = "grid", step = "1/4 beat" }
+seed = 17
