@@ -4,7 +4,8 @@ use arpeg_midi::{
     player::{InputSource, MidiPlayer},
 };
 
-#[test]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
 fn transport_matches_shared_exact_wire_traces() {
     for text in [
         include_str!("../../../conformance/transport.toml"),

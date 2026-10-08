@@ -4,7 +4,8 @@ use midly::{
     num::{u4, u7, u15, u24, u28},
 };
 
-#[test]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
 fn file_render_preserves_tempo_and_emits_classic_note_order() {
     let profile = include_str!("../../../conformance/up.toml");
     parse_profile(profile, None).expect("supported profile");
@@ -103,7 +104,8 @@ fn file_render_preserves_tempo_and_emits_classic_note_order() {
     );
 }
 
-#[test]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
 fn incomplete_walk_profile_fails_explicitly() {
     let profile = include_str!("../../../conformance/up.toml").replace(
         "selection = { kind = \"ascending\" }",
@@ -112,7 +114,8 @@ fn incomplete_walk_profile_fails_explicitly() {
     assert!(parse_profile(&profile, None).is_err());
 }
 
-#[test]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
 fn alternating_profile_validates_endpoint_policy_and_is_live_only() {
     let profile = include_str!("../../../conformance/alternating.toml");
     for (policy, expected) in [
@@ -146,7 +149,8 @@ fn alternating_profile_validates_endpoint_policy_and_is_live_only() {
     assert!(parse_profile(&history, None).is_err());
 }
 
-#[test]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
 fn center_edge_profiles_are_live_only_and_have_no_extra_options() {
     for (profile, selection) in [
         (
@@ -173,7 +177,8 @@ fn center_edge_profiles_are_live_only_and_have_no_extra_options() {
     }
 }
 
-#[test]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
 fn weighted_walk_profile_validates_choices_and_requires_live_input() {
     let profile = include_str!("../../../conformance/weighted-walk.toml");
     let Profile::Classic(parsed) = parse_profile(profile, None).unwrap() else {
@@ -211,7 +216,8 @@ fn weighted_walk_profile_validates_choices_and_requires_live_input() {
     }
 }
 
-#[test]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
 fn euclidean_profile_renders_hits_with_independent_releases() {
     let profile = include_str!("../../../conformance/euclidean.toml");
     let output = render_file(profile, &single_note_input(0), None).unwrap();
@@ -231,7 +237,8 @@ fn euclidean_profile_renders_hits_with_independent_releases() {
     assert_eq!(notes, [(0, true), (96, false), (360, true), (456, false)]);
 }
 
-#[test]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
 fn euclidean_profile_rejects_invalid_masks_and_history_use() {
     let profile = include_str!("../../../conformance/euclidean.toml");
     for (original, replacement) in [
@@ -267,7 +274,8 @@ fn euclidean_profile_rejects_invalid_masks_and_history_use() {
     );
 }
 
-#[test]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
 fn custom_pattern_profile_is_live_only_and_validates_steps() {
     let profile = include_str!("../../../conformance/custom-steps.toml");
     let Profile::Classic(parsed) = parse_profile(profile, None).unwrap() else {
@@ -296,7 +304,8 @@ fn custom_pattern_profile_is_live_only_and_validates_steps() {
     assert!(parse_profile(empty, None).is_err());
 }
 
-#[test]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
 fn bank_edit_retrigger_is_live_only() {
     let profile = include_str!("../../../conformance/up.toml")
         .replace("[body]", "[body]\nretrigger = \"bank_edit\"");
@@ -307,7 +316,8 @@ fn bank_edit_retrigger_is_live_only() {
     );
 }
 
-#[test]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
 fn native_shell_accepts_the_canonical_ufor_profile() {
     parse_profile(include_str!("../../../conformance/up-expanded.toml"), None)
         .expect("uFor-serialized profile");
@@ -315,7 +325,8 @@ fn native_shell_accepts_the_canonical_ufor_profile() {
         .expect("live latch profile");
 }
 
-#[test]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
 fn history_profile_is_explicit_and_live_only() {
     let profile = include_str!("../../../conformance/history-wind.toml");
     let Profile::History(history) = parse_profile(profile, None).unwrap() else {
@@ -331,7 +342,8 @@ fn history_profile_is_explicit_and_live_only() {
     assert!(parse_profile(&unsupported, None).is_err());
 }
 
-#[test]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
 fn velocity_zero_releases_keep_their_wire_encoding() {
     let bytes = single_note_input(0);
     let output = render_file(include_str!("../../../conformance/up.toml"), &bytes, None)
@@ -354,7 +366,8 @@ fn velocity_zero_releases_keep_their_wire_encoding() {
     assert_eq!(releases, 4);
 }
 
-#[test]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
 fn latched_file_keeps_playing_after_source_release() {
     let profile = include_str!("../../../conformance/up.toml").replace(
         "[body]",
@@ -374,7 +387,8 @@ fn latched_file_keeps_playing_after_source_release() {
     assert_eq!(onsets, 8);
 }
 
-#[test]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
 fn index_pattern_defaults_to_wrap_and_validates_live_only_options() {
     let profile = include_str!("../../../conformance/index-pattern.toml");
     let Profile::Classic(parsed) = parse_profile(profile, None).unwrap() else {
@@ -424,7 +438,8 @@ fn index_pattern_defaults_to_wrap_and_validates_live_only_options() {
     assert!(parse_profile(&history, None).is_err());
 }
 
-#[test]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
 fn shuffle_profile_requires_seed_and_validates_live_only_policies() {
     let profile = include_str!("../../../conformance/shuffle.toml");
     for (options, once, no_repeat, preserve) in [
@@ -473,7 +488,8 @@ fn shuffle_profile_requires_seed_and_validates_live_only_policies() {
     assert!(parse_profile(&history, None).is_err());
 }
 
-#[test]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
 fn choice_profile_requires_seed_and_validates_weights_and_policies() {
     let profile = include_str!("../../../conformance/choice.toml");
     let Profile::Classic(parsed) = parse_profile(profile, None).unwrap() else {

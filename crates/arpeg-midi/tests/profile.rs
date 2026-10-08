@@ -1,7 +1,8 @@
 use arpeg_midi::{Profile, parse_profile};
 use std::path::Path;
 
-#[test]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
 fn profile_headers_match_shared_defaults_and_errors() {
     let fixture: toml::Value =
         toml::from_str(include_str!("../../../conformance/profile-headers.toml")).unwrap();

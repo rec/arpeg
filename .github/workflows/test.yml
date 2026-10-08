@@ -1,6 +1,8 @@
-name: Cross-platform tests
+name: Release builds and tests
 
-on: [push, pull_request]
+on:
+  release:
+    types: [published]
 
 permissions:
   contents: read
@@ -40,7 +42,40 @@ jobs:
         run: uv run --frozen --extra midi ty check src
       - name: Test Rust core and MIDI host
         run: cargo test --workspace --locked
+      - name: Build native executable
+        run: cargo build -p arpeg-midi --release --locked
       - name: Check Rust formatting
         run: cargo fmt --all --check
       - name: Check Rust
         run: cargo clippy --workspace --all-targets --locked -- -D warnings
+
+  wasm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@1.87.0
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+      - name: Install matching WebAssembly tools
+        shell: bash
+        run: |
+          curl -fL https://github.com/wasm-bindgen/wasm-bindgen/releases/download/0.2.129/wasm-bindgen-0.2.129-x86_64-unknown-linux-musl.tar.gz -o "$RUNNER_TEMP/wasm-bindgen.tar.gz"
+          tar -xzf "$RUNNER_TEMP/wasm-bindgen.tar.gz" -C "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/wasm-bindgen-0.2.129-x86_64-unknown-linux-musl" >> "$GITHUB_PATH"
+      - name: Test core, portable MIDI player, and browser bindings in WebAssembly
+        run: cargo test --workspace --no-default-features --target wasm32-unknown-unknown --tests --locked
+      - name: Build browser module
+        run: |
+          cargo build -p arpeg-wasm --no-default-features --target wasm32-unknown-unknown --release --locked
+          wasm-bindgen --target web --out-dir dist/wasm target/wasm32-unknown-unknown/release/arpeg_wasm.wasm
+      - name: Test generated web bindings
+        run: node --test crates/arpeg-wasm/tests/browser.mjs
+      - name: Upload browser module and bindings
+        uses: actions/upload-artifact@v7
+        with:
+          name: arpeg-webassembly
+          path: dist/wasm/
+          if-no-files-found: error

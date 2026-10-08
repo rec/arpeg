@@ -11,10 +11,12 @@ fn timebase() -> Timebase {
 }
 
 fn fixture(name: &str, profile: Profile) -> (Value, arpeg_core::capture::CapturedPhrase) {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join(format!("../../conformance/{name}.json"));
-    let text = std::fs::read_to_string(path).unwrap();
-    let source: Value = serde_json::from_str(&text).unwrap();
+    let text = match name {
+        "wind-breath" => include_str!("../../../conformance/wind-breath.json"),
+        "gap" => include_str!("../../../conformance/gap.json"),
+        _ => panic!("unknown capture fixture: {name}"),
+    };
+    let source: Value = serde_json::from_str(text).unwrap();
     let mut capture =
         MidiCapture::new(source["capture_id"].as_str().unwrap(), timebase(), profile).unwrap();
     let ids: Vec<_> = source["notes"]
@@ -54,7 +56,8 @@ fn fixture(name: &str, profile: Profile) -> (Value, arpeg_core::capture::Capture
     (source, phrase)
 }
 
-#[test]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
 fn wind_and_gap_fixtures_preserve_ledger_and_note_boundaries() {
     for (name, profile) in [
         (
@@ -165,7 +168,8 @@ fn wind_and_gap_fixtures_preserve_ledger_and_note_boundaries() {
     }
 }
 
-#[test]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
 fn legato_handoff_preserves_velocity_zero_wire_release() {
     let mut capture = MidiCapture::new("legato", timebase(), Profile::default()).unwrap();
     for (tick, data) in [
@@ -193,7 +197,8 @@ fn legato_handoff_preserves_velocity_zero_wire_release() {
     assert_eq!(phrase.events[3].data, [144, 64, 0]);
 }
 
-#[test]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
 fn independent_overlap_keeps_both_gates_and_shared_expression() {
     let mut capture = MidiCapture::new(
         "poly",
@@ -229,7 +234,8 @@ fn independent_overlap_keeps_both_gates_and_shared_expression() {
     assert_eq!(phrase.notes[1].expression_events, [2]);
 }
 
-#[test]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
 fn completed_note_waits_for_declared_tail() {
     let mut capture = MidiCapture::new(
         "history",
@@ -279,7 +285,8 @@ fn completed_note_waits_for_declared_tail() {
     assert!(capture.advance(129).is_err());
 }
 
-#[test]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
 fn reordered_wind_gestures_restore_entry_state_and_keep_local_timing() {
     let (_, phrase) = fixture(
         "wind-breath",
@@ -311,7 +318,8 @@ fn reordered_wind_gestures_restore_entry_state_and_keep_local_timing() {
     );
 }
 
-#[test]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
 fn overlapping_gestures_require_separate_channels() {
     let (_, phrase) = fixture(
         "wind-breath",
@@ -364,7 +372,8 @@ fn overlapping_gestures_require_separate_channels() {
     );
 }
 
-#[test]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
 fn monophonic_handoff_releases_the_old_note_before_new_state() {
     let (_, phrase) = fixture(
         "wind-breath",

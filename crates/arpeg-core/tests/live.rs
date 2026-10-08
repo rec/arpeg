@@ -10,7 +10,8 @@ fn beat(n: i64, d: i64) -> Beat {
     Beat::new(n, d)
 }
 
-#[test]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
 fn live_notes_follow_input_and_release_when_bank_empties() {
     let mut arp = LiveArpeggiator::new(
         Bank::Held,
@@ -72,7 +73,8 @@ fn live_notes_follow_input_and_release_when_bank_empties() {
     assert_eq!(arp.advance(beat(1, 2)).unwrap(), []);
 }
 
-#[test]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
 fn live_step_order_is_independent_of_poll_intervals() {
     let mut a = LiveArpeggiator::new(
         Bank::Held,
@@ -104,7 +106,8 @@ fn live_step_order_is_independent_of_poll_intervals() {
     assert_eq!(one, pieces);
 }
 
-#[test]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
 fn simultaneous_note_ons_join_the_first_step() {
     let mut arp = LiveArpeggiator::new(
         Bank::Held,
@@ -131,7 +134,8 @@ fn simultaneous_note_ons_join_the_first_step() {
     );
 }
 
-#[test]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
 fn live_classic_matches_shared_python_rust_traces() {
     for text in [
         include_str!("../../../conformance/live-classic.json"),

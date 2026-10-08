@@ -13,7 +13,8 @@ fn event(tick: i64, ordinal: u32, data: &[u8]) -> MidiEvent {
     }
 }
 
-#[test]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
 fn completed_wind_note_plays_on_next_step_with_fitted_breath() {
     let mut arp = HistoryArpeggiator::new(
         8,
@@ -57,7 +58,8 @@ fn completed_wind_note_plays_on_next_step_with_fitted_breath() {
     );
 }
 
-#[test]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
 fn channel_one_handoff_cancels_old_controls_and_releases_owned_note() {
     let mut arp = HistoryArpeggiator::new(
         8,
@@ -99,7 +101,8 @@ fn channel_one_handoff_cancels_old_controls_and_releases_owned_note() {
     assert!(arp.advance(Tick::new(350, 400), 350).unwrap().is_empty());
 }
 
-#[test]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
 fn late_input_after_a_published_step_is_rejected() {
     let mut arp = HistoryArpeggiator::new(
         8,
@@ -115,7 +118,8 @@ fn late_input_after_a_published_step_is_rejected() {
     assert!(arp.accept(event(0, 0, &[144, 60, 100])).is_err());
 }
 
-#[test]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
 fn clear_forgets_old_notes_but_keeps_capturing_new_ones() {
     let mut arp = HistoryArpeggiator::new(
         8,

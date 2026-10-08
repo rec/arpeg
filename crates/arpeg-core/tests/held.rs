@@ -12,7 +12,8 @@ fn ratio(text: &str) -> Beat {
     }
 }
 
-#[test]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
 fn euclidean_renderer_matches_shared_exact_trace() {
     let notes = ["c", "e", "g"]
         .into_iter()
@@ -54,7 +55,8 @@ fn euclidean_renderer_matches_shared_exact_trace() {
     assert_eq!(actual, expected);
 }
 
-#[test]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
 fn held_chord_matches_shared_exact_trace() {
     for (fixture, selection, expected_name) in [
         (
@@ -149,7 +151,8 @@ fn held_chord_matches_shared_exact_trace() {
     }
 }
 
-#[test]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
 fn latch_replace_and_add_keep_their_distinct_banks() {
     let notes = [
         HeldNote {

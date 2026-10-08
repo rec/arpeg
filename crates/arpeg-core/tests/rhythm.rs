@@ -1,7 +1,8 @@
 use arpeg_core::{Beat, rhythm::Rhythm};
 use serde_json::Value;
 
-#[test]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
 fn euclidean_rotations_match_canonical_masks() {
     let fixture: Value =
         serde_json::from_str(include_str!("../../../conformance/euclidean.json")).unwrap();
@@ -23,7 +24,8 @@ fn euclidean_rotations_match_canonical_masks() {
     }
 }
 
-#[test]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
 fn euclidean_pulse_counts_and_spacing() {
     for steps in 1..=16 {
         for pulses in 0..=steps {
@@ -49,7 +51,8 @@ fn euclidean_pulse_counts_and_spacing() {
     }
 }
 
-#[test]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
 fn invalid_euclidean_masks_are_rejected_before_playback() {
     for (steps, pulses) in [(0, 0), (-1, 0), (8, -1), (8, 9)] {
         let rhythm = Rhythm::Euclidean {

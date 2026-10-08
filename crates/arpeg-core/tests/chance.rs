@@ -1,6 +1,7 @@
 use arpeg_core::chance::draw_below;
 
-#[test]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
 fn named_draws_match_shared_vectors() {
     let fixture: serde_json::Value =
         serde_json::from_str(include_str!("../../../conformance/chance-walk.json")).unwrap();
@@ -18,7 +19,8 @@ fn named_draws_match_shared_vectors() {
     }
 }
 
-#[test]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
 fn single_outcome_always_returns_zero() {
     assert_eq!(draw_below(-42, "chord", "walk", 7, 99, 1), 0);
 }

@@ -4,7 +4,8 @@ use arpeg_core::{
 };
 use serde_json::Value;
 
-#[test]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
 fn marked_regions_match_the_python_source_frame_trace() {
     let case: Value =
         serde_json::from_str(include_str!("../../../conformance/marked-sample.json")).unwrap();
@@ -53,7 +54,8 @@ fn marked_regions_match_the_python_source_frame_trace() {
     assert_eq!(gates, [12_000, 27_000, 48_000]);
 }
 
-#[test]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
 fn an_exhaustive_region_bank_requires_a_frame_zero_marker() {
     let sample = MarkedSample {
         capture_id: "spoken".into(),
@@ -74,7 +76,8 @@ fn an_exhaustive_region_bank_requires_a_frame_zero_marker() {
     );
 }
 
-#[test]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
 fn a_gate_cannot_extend_into_the_next_region() {
     let sample = MarkedSample {
         capture_id: "spoken".into(),

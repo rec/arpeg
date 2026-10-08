@@ -12,6 +12,7 @@ use midly::{
     num::{u4, u7, u28},
 };
 
+#[cfg(feature = "device-host")]
 pub mod live;
 pub mod player;
 
