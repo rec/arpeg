@@ -154,7 +154,7 @@ class MidiGestureRenderer(BaseModel, frozen=True):
                         source = self._midi(state.source_event)
                         add(placement.onset, 1, source.data, state.source_event)
             else:
-                for lane in ("breath", "bend"):
+                for lane in ("breath", "bend", "pressure"):
                     prior = next(
                         (
                             e
@@ -221,9 +221,13 @@ class MidiGestureRenderer(BaseModel, frozen=True):
         return event
 
     def _live_lane(self, event: MidiEvent) -> str | None:
-        if len(event.data) != 3 or event.data[0] & 15 != self.live_profile.channel:
+        if event.data[0] & 15 != self.live_profile.channel:
             return None
         kind = event.data[0] & 0xF0
+        if kind == 0xD0 and len(event.data) == 2:
+            return "pressure"
+        if len(event.data) != 3:
+            return None
         if kind == 0xB0 and event.data[1] == self.live_profile.breath_cc:
             return "breath"
         if kind == 0xE0 and self.live_profile.track_bend:

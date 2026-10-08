@@ -3,6 +3,7 @@
 use arpeg_core::{
     capture::{MidiEvent, Profile as CaptureProfile},
     clock::{ClockMode, TransportClock},
+    gesture::RealizedEvent,
     history::HistoryArpeggiator,
     live::{LiveArpeggiator, OutputEvent, OutputKind},
 };
@@ -28,6 +29,9 @@ pub struct MidiPlayer {
     wall_us: i64,
     input_tick: i64,
     ordinal: u32,
+    current_expression: bool,
+    expression: std::collections::BTreeMap<u8, Vec<u8>>,
+    sounding: Option<(u64, u8)>,
 }
 
 impl MidiPlayer {
@@ -37,6 +41,10 @@ impl MidiPlayer {
         bpm: u32,
         timeout_us: i64,
     ) -> Result<Self, &'static str> {
+        let current_expression = match &profile {
+            Profile::Classic(_) => true,
+            Profile::History(p) => p.current_expression,
+        };
         let engine = match profile {
             Profile::Classic(p) => Engine::Held(LiveArpeggiator::new(
                 p.bank,
@@ -53,6 +61,7 @@ impl MidiPlayer {
                 p.step,
                 p.gate,
                 CaptureProfile::default(),
+                p.current_expression,
             )?),
         };
         Ok(Self {
@@ -62,6 +71,9 @@ impl MidiPlayer {
             wall_us: 0,
             input_tick: -1,
             ordinal: 0,
+            current_expression,
+            expression: std::collections::BTreeMap::new(),
+            sounding: None,
         })
     }
 
@@ -82,9 +94,13 @@ impl MidiPlayer {
             if self.clock.accept(tick, data)? {
                 let at = self.clock.beat;
                 return Ok(match &mut self.engine {
-                    Engine::Held(e) => note_messages(e.relocate(at)),
+                    Engine::Held(e) => {
+                        let events = e.relocate(at);
+                        self.note_messages(events)
+                    }
                     Engine::History(e) => {
-                        e.relocate(at, tick).into_iter().map(|e| e.data).collect()
+                        let events = e.relocate(at, tick);
+                        self.history_messages(events)
                     }
                 });
             }
@@ -97,7 +113,9 @@ impl MidiPlayer {
         if matches!(source, InputSource::Clock) {
             return Ok(Vec::new());
         }
+        let expressive = matches!(data[0], 0xd0 | 0xe0) || data[0] == 0xb0 && data[1] == 2;
         if matches!(self.engine, Engine::Held(_))
+            && !expressive
             && (data.len() != 3 || !matches!(data[0], 0x80 | 0x90))
         {
             return Ok(Vec::new());
@@ -112,20 +130,31 @@ impl MidiPlayer {
         };
         match &mut self.engine {
             Engine::Held(e) => {
+                if expressive {
+                    let events = e.before(at)?;
+                    output.extend(self.note_messages(events));
+                    self.expression.insert(data[0], data.to_vec());
+                    if self.clock.active() && self.sounding.is_some() {
+                        output.push(data.to_vec());
+                    }
+                    return Ok(output);
+                }
                 let events = if data[0] == 0x90 && data[2] > 0 {
                     e.note_on(at, data[1], data[2])?
                 } else {
                     e.note_off(at, data[1])?
                 };
-                output.extend(note_messages(events));
+                output.extend(self.note_messages(events));
             }
             Engine::History(e) => {
                 let tick = tick
                     .max(e.capture_to + i64::from(e.inclusive))
                     .max(self.input_tick);
-                if self.clock.active() && at > e.processed_to {
-                    output.extend(e.before(at, tick)?.into_iter().map(|e| e.data));
-                }
+                let events = if self.clock.active() && at > e.processed_to {
+                    e.before(at, tick)?
+                } else {
+                    Vec::new()
+                };
                 if tick != self.input_tick {
                     self.input_tick = tick;
                     self.ordinal = 0;
@@ -139,6 +168,13 @@ impl MidiPlayer {
                     .ordinal
                     .checked_add(1)
                     .ok_or("too many simultaneous MIDI messages")?;
+                output.extend(self.history_messages(events));
+                if expressive {
+                    self.expression.insert(data[0], data.to_vec());
+                    if self.current_expression && self.clock.active() && self.sounding.is_some() {
+                        output.push(data.to_vec());
+                    }
+                }
             }
         }
         Ok(output)
@@ -158,12 +194,14 @@ impl MidiPlayer {
             return Ok(Vec::new());
         }
         Ok(match &mut self.engine {
-            Engine::Held(e) => note_messages(e.advance(at)?),
-            Engine::History(e) => e
-                .advance(at, tick.max(self.input_tick))?
-                .into_iter()
-                .map(|e| e.data)
-                .collect(),
+            Engine::Held(e) => {
+                let events = e.advance(at)?;
+                self.note_messages(events)
+            }
+            Engine::History(e) => {
+                let events = e.advance(at, tick.max(self.input_tick))?;
+                self.history_messages(events)
+            }
         })
     }
 
@@ -172,8 +210,14 @@ impl MidiPlayer {
         let tick = self.elapsed(at_us);
         let at = self.clock.advance(tick);
         output.extend(match &mut self.engine {
-            Engine::Held(e) => note_messages(e.clear(at)?),
-            Engine::History(e) => e.clear(at, tick)?.into_iter().map(|e| e.data).collect(),
+            Engine::Held(e) => {
+                let events = e.clear(at)?;
+                self.note_messages(events)
+            }
+            Engine::History(e) => {
+                let events = e.clear(at, tick)?;
+                self.history_messages(events)
+            }
         });
         Ok(output)
     }
@@ -196,13 +240,64 @@ impl MidiPlayer {
 
     fn pause(&mut self, tick: i64) -> Vec<Vec<u8>> {
         match &mut self.engine {
-            Engine::Held(e) => note_messages(e.pause(self.clock.beat)),
-            Engine::History(e) => e
-                .pause(self.clock.beat, tick)
-                .into_iter()
-                .map(|e| e.data)
-                .collect(),
+            Engine::Held(e) => {
+                let events = e.pause(self.clock.beat);
+                self.note_messages(events)
+            }
+            Engine::History(e) => {
+                let events = e.pause(self.clock.beat, tick);
+                self.history_messages(events)
+            }
         }
+    }
+
+    fn note_messages(&mut self, events: Vec<OutputEvent>) -> Vec<Vec<u8>> {
+        let mut output = Vec::new();
+        for event in events {
+            match event.kind {
+                OutputKind::NoteOn {
+                    id, key, velocity, ..
+                } => {
+                    if let Some((_, key)) = self.sounding {
+                        output.push(vec![0x80, key, 0]);
+                    }
+                    for status in [0xb0, 0xe0, 0xd0] {
+                        if let Some(data) = self.expression.get(&status) {
+                            output.push(data.clone());
+                        }
+                    }
+                    output.push(vec![0x90, key, velocity]);
+                    self.sounding = Some((id, key));
+                }
+                OutputKind::NoteOff { id, key, .. } if self.sounding.is_some_and(|s| s.0 == id) => {
+                    output.push(vec![0x80, key, 0]);
+                    self.sounding = None;
+                }
+                _ => {}
+            }
+        }
+        output
+    }
+
+    fn history_messages(&mut self, events: Vec<RealizedEvent>) -> Vec<Vec<u8>> {
+        let mut output = Vec::new();
+        for event in events {
+            let kind = event.data[0] & 0xf0;
+            if kind == 0x90 && event.data[2] > 0 {
+                if self.current_expression {
+                    for status in [0xb0, 0xe0, 0xd0] {
+                        if let Some(data) = self.expression.get(&status) {
+                            output.push(data.clone());
+                        }
+                    }
+                }
+                self.sounding = Some((0, event.data[1]));
+            } else if kind == 0x80 || kind == 0x90 && event.data[2] == 0 {
+                self.sounding = None;
+            }
+            output.push(event.data);
+        }
+        output
     }
 
     fn elapsed(&mut self, at_us: i64) -> i64 {
@@ -211,14 +306,4 @@ impl MidiPlayer {
         self.wall_us = self.wall_us.max(at_us - origin);
         self.wall_us
     }
-}
-
-fn note_messages(events: Vec<OutputEvent>) -> Vec<Vec<u8>> {
-    events
-        .into_iter()
-        .map(|e| match e.kind {
-            OutputKind::NoteOn { key, velocity, .. } => vec![0x90, key, velocity],
-            OutputKind::NoteOff { key, .. } => vec![0x80, key, 0],
-        })
-        .collect()
 }

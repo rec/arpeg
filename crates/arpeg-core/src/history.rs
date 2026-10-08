@@ -23,6 +23,7 @@ pub struct HistoryArpeggiator {
     pub capture_to: i64,
     pub inclusive: bool,
     input_events: usize,
+    current_expression: bool,
 }
 
 impl HistoryArpeggiator {
@@ -33,6 +34,7 @@ impl HistoryArpeggiator {
         step: Tick,
         gate: Tick,
         profile: Profile,
+        current_expression: bool,
     ) -> Result<Self, &'static str> {
         if matches!(selection, Selection::Walk(_)) {
             return Err("history requires classic selection");
@@ -80,6 +82,7 @@ impl HistoryArpeggiator {
             capture_to: 0,
             inclusive: false,
             input_events: 0,
+            current_expression,
         })
     }
 
@@ -174,7 +177,17 @@ impl HistoryArpeggiator {
                 .queue
                 .first()
                 .map_or(self.next_step, |event| self.next_step.min(event.at));
-            if deadline > through || deadline == through && !inclusive {
+            if deadline > through {
+                break;
+            }
+            if deadline == through && !inclusive {
+                if self.queue.first().is_some_and(|e| {
+                    e.at == through
+                        && (e.data[0] & 0xf0 == 0x80 || e.data[0] & 0xf0 == 0x90 && e.data[2] == 0)
+                }) {
+                    output.push(self.queue.remove(0));
+                    self.sounding = None;
+                }
                 break;
             }
             if self.next_step == deadline {
@@ -247,7 +260,11 @@ impl HistoryArpeggiator {
             Timing::Fit,
             OverlapPolicy::Handoff,
         )?;
-        self.queue.extend(events);
+        self.queue.extend(
+            events
+                .into_iter()
+                .filter(|e| !self.current_expression || matches!(e.data[0] & 0xf0, 0x80 | 0x90)),
+        );
         Ok(())
     }
 

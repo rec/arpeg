@@ -22,6 +22,7 @@ fn completed_wind_note_plays_on_next_step_with_fitted_breath() {
         Tick::new(1, 4),
         Tick::new(4, 5),
         Profile::default(),
+        false,
     )
     .unwrap();
     arp.accept(event(0, 0, &[176, 2, 0])).unwrap();
@@ -65,6 +66,7 @@ fn channel_one_handoff_cancels_old_controls_and_releases_owned_note() {
         Tick::new(1, 4),
         Tick::from_integer(2),
         Profile::default(),
+        false,
     )
     .unwrap();
     arp.accept(event(0, 0, &[144, 60, 100])).unwrap();
@@ -106,6 +108,7 @@ fn late_input_after_a_published_step_is_rejected() {
         Tick::new(1, 4),
         Tick::from_integer(1),
         Profile::default(),
+        false,
     )
     .unwrap();
     arp.advance(Tick::new(0, 400), 0).unwrap();
@@ -121,6 +124,7 @@ fn clear_forgets_old_notes_but_keeps_capturing_new_ones() {
         Tick::new(1, 4),
         Tick::new(4, 5),
         Profile::default(),
+        false,
     )
     .unwrap();
     arp.accept(event(0, 0, &[144, 60, 100])).unwrap();

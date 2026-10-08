@@ -265,6 +265,13 @@ impl LiveArpeggiator {
         Ok(self.process_until(through, true))
     }
 
+    pub fn before(&mut self, through: Beat) -> Result<Vec<OutputEvent>, &'static str> {
+        self.check_time(through)?;
+        let mut output = self.process_until(through, false);
+        self.release_due(through, &mut output);
+        Ok(output)
+    }
+
     pub fn pause(&mut self, at: Beat) -> Vec<OutputEvent> {
         let output = self.release_all(at);
         self.now = at;

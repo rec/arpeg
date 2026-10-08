@@ -326,7 +326,7 @@ fn history_profile_is_explicit_and_live_only() {
         render_file(profile, &single_note_input(0)).unwrap_err(),
         "history profiles require live MIDI input"
     );
-    let unsupported = profile.replace("source = \"recorded\"", "source = \"current\"");
+    let unsupported = profile.replace("source = \"recorded\"", "source = \"motion\"");
     assert!(parse_profile(&unsupported).is_err());
 }
 

@@ -84,6 +84,12 @@ class MidiCapture(BaseModel):
         if not 0x80 <= status < 0xF0 or status & 15 != self.profile.channel:
             self._retain_context(index)
             return
+        if kind == 0xD0 and len(event.data) == 2:
+            self.controller_state["pressure"] = EntryState(
+                value=event.data[1] / 127, source_event=index
+            )
+            self._expression_or_context(index)
+            return
         if len(event.data) != 3:
             self._retain_context(index)
             return
@@ -157,6 +163,11 @@ class MidiCapture(BaseModel):
                 segment.cell_end_tick = max(
                     gate + self.profile.tail_ticks, segment.onset_tick + 1
                 )
+                segment.following_events = [
+                    i
+                    for i in segment.following_events
+                    if self.events[i].tick < segment.cell_end_tick
+                ]
             if (
                 segment.cell_end_tick is not None
                 and segment.note_id not in self.reported_notes

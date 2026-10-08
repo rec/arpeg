@@ -223,6 +223,13 @@ class LiveArpeggiator(BaseModel):
         self._check_time(through)
         return self._process_until(through, inclusive=True)
 
+    def before(self, through: Fraction) -> list[LiveEvent]:
+        """Release due notes before expression, leaving this beat's attacks pending."""
+        self._check_time(through)
+        events = self._process_until(through, inclusive=False)
+        events.extend(self._release_due(through))
+        return events
+
     def stop(self, at: Fraction) -> list[LiveEvent]:
         """Release only this arpeggiator's sounding notes and clear its bank."""
         self._check_time(at)
@@ -322,22 +329,7 @@ class LiveArpeggiator(BaseModel):
     def _process_until(self, through: Fraction, *, inclusive: bool) -> list[LiveEvent]:
         events: list[LiveEvent] = []
         while (at := self.next_deadline()) < through or (inclusive and at == through):
-            remaining: list[_SoundingNote] = []
-            for note in self.sounding:
-                if note.end <= at:
-                    events.append(
-                        LiveEvent(
-                            at=note.end,
-                            kind="off",
-                            id=note.id,
-                            source_id=note.source_id,
-                            key=note.key,
-                            velocity=0,
-                        )
-                    )
-                else:
-                    remaining.append(note)
-            self.sounding = remaining
+            events.extend(self._release_due(at))
             if self.next_step == at:
                 rhythm = self.profile.body.rhythm
                 assert isinstance(rhythm, (Grid, Euclidean, Pattern))
@@ -348,6 +340,22 @@ class LiveArpeggiator(BaseModel):
             while self.pending and self.pending[0].at == at:
                 events.extend(self._attack(self.pending.pop(0)))
         self.now = through
+        return events
+
+    def _release_due(self, at: Fraction) -> list[LiveEvent]:
+        events = [
+            LiveEvent(
+                at=n.end,
+                kind="off",
+                id=n.id,
+                source_id=n.source_id,
+                key=n.key,
+                velocity=0,
+            )
+            for n in self.sounding
+            if n.end <= at
+        ]
+        self.sounding = [n for n in self.sounding if n.end > at]
         return events
 
     def _schedule_step(self, at: Fraction, decision: RhythmDecision) -> None:

@@ -29,6 +29,7 @@ pub struct HistoryProfile {
     pub step: Beat,
     pub gate: Beat,
     pub retrigger: Retrigger,
+    pub current_expression: bool,
 }
 
 pub enum Profile {
@@ -196,11 +197,16 @@ pub fn parse_profile(text: &str) -> Result<Profile, String> {
             if expression
                 .keys()
                 .any(|key| !["source", "timing", "gaps"].contains(&key.as_str()))
-                || expression.get("source").and_then(toml::Value::as_str) != Some("recorded")
+                || !matches!(
+                    expression.get("source").and_then(toml::Value::as_str),
+                    Some("recorded" | "current")
+                )
                 || expression.get("timing").and_then(toml::Value::as_str) != Some("fit")
                 || expression.get("gaps").and_then(toml::Value::as_str) != Some("carry")
             {
-                return Err("history playback requires recorded, fit, carry expression".into());
+                return Err(
+                    "history playback requires recorded or current, fit, carry expression".into(),
+                );
             }
         }
     }
@@ -507,6 +513,10 @@ pub fn parse_profile(text: &str) -> Result<Profile, String> {
                 step,
                 gate,
                 retrigger,
+                current_expression: expression
+                    .and_then(|e| e.get("source"))
+                    .and_then(toml::Value::as_str)
+                    == Some("current"),
             })
         }
     })

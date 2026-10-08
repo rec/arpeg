@@ -18,6 +18,7 @@ from ufor.events import MidiEvent
 
 from .bank import CaptureBank
 from .clock import ClockMode, TransportClock
+from .gesture import RealizedMidiEvent
 from .history import LiveHistoryArpeggiator
 from .live import LiveArpeggiator, LiveEvent
 
@@ -163,6 +164,9 @@ class MidiPlayer(BaseModel):
     input_tick: int = -1
     ordinal: int = 0
     engine: LiveArpeggiator | LiveHistoryArpeggiator | None = None
+    expression: dict[int, list[int]] = Field(default_factory=dict)
+    output_id: int | None = None
+    output_key: int | None = None
 
     @model_validator(mode="after")
     def supported_profile(self) -> Self:
@@ -193,15 +197,16 @@ class MidiPlayer(BaseModel):
                 raise ValueError("history playback requires unrepeated pitch selection")
         elif not isinstance(selection, arpeggiator.Played):
             raise ValueError("history playback requires classic selection")
-        if body.expression != arpeggiator.Expression(
-            source="recorded", timing="fit", gaps="carry"
+        if body.expression.source not in ("recorded", "current") or (
+            body.expression.timing != "fit" or body.expression.gaps != "carry"
         ):
             raise ValueError(
-                "history playback requires recorded, fit, carry expression"
+                "history playback requires recorded or current, fit, carry expression"
             )
         return LiveHistoryArpeggiator(
             step=Fraction(body.rhythm.step.removesuffix(" beat")),
             gate=body.gate,
+            expression_source=body.expression.source,
             bank=CaptureBank(
                 mode="history",
                 history_size=body.bank.notes,
@@ -234,19 +239,19 @@ class MidiPlayer(BaseModel):
             relocated = self.clock.accept(tick, data)
             if relocated:
                 if isinstance(engine := self.engine, LiveArpeggiator):
-                    return _note_messages(engine.relocate(self.clock.beat))
-                return [
-                    mido.Message.from_bytes(e.data)
-                    for e in engine.relocate(self.clock.beat, tick)
-                ]
+                    return self._note_messages(engine.relocate(self.clock.beat))
+                return self._history_messages(engine.relocate(self.clock.beat, tick))
             if not self.clock.active:
                 return self._pause(tick)
             return []
         if source == "clock":
             return []
         engine = self.engine
-        if isinstance(engine, LiveArpeggiator) and (
-            len(data) != 3 or data[0] not in (0x80, 0x90)
+        expressive = data[0] in (0xD0, 0xE0) or data[0] == 0xB0 and data[1] == 2
+        if (
+            isinstance(engine, LiveArpeggiator)
+            and not expressive
+            and (len(data) != 3 or data[0] not in (0x80, 0x90))
         ):
             return []
         tick = self._elapsed(at_ns)
@@ -254,12 +259,18 @@ class MidiPlayer(BaseModel):
         at = self.clock.advance(tick)
         output = self._pause(tick) if was_active and not self.clock.active else []
         if isinstance(engine, LiveArpeggiator):
+            if expressive:
+                output.extend(self._note_messages(engine.before(at)))
+                self.expression[data[0]] = data
+                if self.clock.active and self.output_key is not None:
+                    output.append(message)
+                return output
             events = (
                 engine.note_on(at, data[1], data[2])
                 if data[0] == 0x90 and data[2] > 0
                 else engine.note_off(at, data[1])
             )
-            return output + _note_messages(events)
+            return output + self._note_messages(events)
         tick = max(tick, engine.capture_to + int(engine.inclusive), self.input_tick)
         events = (
             engine.before(at, tick)
@@ -271,7 +282,16 @@ class MidiPlayer(BaseModel):
             self.ordinal = 0
         engine.accept(MidiEvent(tick=tick, ordinal=self.ordinal, data=data))
         self.ordinal += 1
-        return output + [mido.Message.from_bytes(e.data) for e in events]
+        output.extend(self._history_messages(events))
+        if expressive:
+            self.expression[data[0]] = data
+            if (
+                self.profile.body.expression.source == "current"
+                and self.clock.active
+                and self.output_key is not None
+            ):
+                output.append(message)
+        return output
 
     def advance(self, at_ns: int) -> list[mido.Message]:
         assert self.engine is not None
@@ -285,9 +305,9 @@ class MidiPlayer(BaseModel):
         if not self.clock.active:
             return []
         if isinstance(engine := self.engine, LiveArpeggiator):
-            return _note_messages(engine.advance(at))
+            return self._note_messages(engine.advance(at))
         tick = max(tick, self.input_tick)
-        return [mido.Message.from_bytes(e.data) for e in engine.advance(at, tick)]
+        return self._history_messages(engine.advance(at, tick))
 
     def clear(self, at_ns: int) -> list[mido.Message]:
         assert self.engine is not None
@@ -295,10 +315,8 @@ class MidiPlayer(BaseModel):
         tick = self._elapsed(at_ns)
         at = self.clock.advance(tick)
         if isinstance(engine := self.engine, LiveArpeggiator):
-            return output + _note_messages(engine.clear(at))
-        return output + [
-            mido.Message.from_bytes(e.data) for e in engine.clear(at, tick)
-        ]
+            return output + self._note_messages(engine.clear(at))
+        return output + self._history_messages(engine.clear(at, tick))
 
     def stop(self, at_ns: int) -> list[mido.Message]:
         tick = self._elapsed(at_ns)
@@ -315,10 +333,49 @@ class MidiPlayer(BaseModel):
     def _pause(self, tick: int) -> list[mido.Message]:
         assert self.engine is not None
         if isinstance(engine := self.engine, LiveArpeggiator):
-            return _note_messages(engine.pause(self.clock.beat))
-        return [
-            mido.Message.from_bytes(e.data) for e in engine.pause(self.clock.beat, tick)
-        ]
+            return self._note_messages(engine.pause(self.clock.beat))
+        return self._history_messages(engine.pause(self.clock.beat, tick))
+
+    def _note_messages(self, events: list[LiveEvent]) -> list[mido.Message]:
+        output: list[mido.Message] = []
+        for event in events:
+            if event.kind == "on":
+                if self.output_key is not None:
+                    output.append(mido.Message.from_bytes([0x80, self.output_key, 0]))
+                output.extend(
+                    mido.Message.from_bytes(self.expression[s])
+                    for s in (0xB0, 0xE0, 0xD0)
+                    if s in self.expression
+                )
+                output.append(
+                    mido.Message.from_bytes([0x90, event.key, event.velocity])
+                )
+                self.output_id = event.id
+                self.output_key = event.key
+            elif event.id == self.output_id:
+                output.append(
+                    mido.Message.from_bytes([0x80, event.key, event.velocity])
+                )
+                self.output_id = None
+                self.output_key = None
+        return output
+
+    def _history_messages(self, events: list[RealizedMidiEvent]) -> list[mido.Message]:
+        output: list[mido.Message] = []
+        for event in events:
+            kind = event.data[0] & 0xF0
+            if kind == 0x90 and event.data[2] > 0:
+                if self.profile.body.expression.source == "current":
+                    output.extend(
+                        mido.Message.from_bytes(self.expression[s])
+                        for s in (0xB0, 0xE0, 0xD0)
+                        if s in self.expression
+                    )
+                self.output_key = event.data[1]
+            elif kind == 0x80 or kind == 0x90 and event.data[2] == 0:
+                self.output_key = None
+            output.append(mido.Message.from_bytes(event.data))
+        return output
 
     def _elapsed(self, at_ns: int) -> int:
         if self.origin_ns is None:
@@ -337,13 +394,6 @@ def main() -> None:
         command.run()
     except (ValueError, OSError, RuntimeError, ImportError) as error:
         exit(str(error))
-
-
-def _note_messages(events: list[LiveEvent]) -> list[mido.Message]:
-    return [
-        mido.Message.from_bytes([0x90 if e.kind == "on" else 0x80, e.key, e.velocity])
-        for e in events
-    ]
 
 
 def _read_commands(commands: SimpleQueue[str]) -> None:

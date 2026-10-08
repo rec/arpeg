@@ -1,8 +1,8 @@
-"""Live history selection and owned MIDI output in exact source ticks."""
+"""Live history captured in source microseconds and played in exact beats."""
 
 from fractions import Fraction
 from math import ceil, floor
-from typing import Self
+from typing import Literal, Self
 
 from pydantic import BaseModel, Field, model_validator
 from ufor.events import MidiEvent
@@ -20,6 +20,7 @@ class LiveHistoryArpeggiator(BaseModel):
     gate: Fraction = Fraction(4, 5)
     bank: CaptureBank = Field(default_factory=lambda: CaptureBank(mode="history"))
     capture_profile: MidiCaptureProfile = Field(default_factory=MidiCaptureProfile)
+    expression_source: Literal["recorded", "current"] = "recorded"
     next_step: Fraction = Fraction(0)
     queue: list[RealizedMidiEvent] = Field(default_factory=list)
     sounding_key: int | None = None
@@ -122,7 +123,21 @@ class LiveHistoryArpeggiator(BaseModel):
             deadline = (
                 min(self.next_step, self.queue[0].at) if self.queue else self.next_step
             )
-            if deadline > through or (deadline == through and not inclusive):
+            if deadline > through:
+                break
+            if deadline == through and not inclusive:
+                if (
+                    self.queue
+                    and self.queue[0].at == through
+                    and (
+                        self.queue[0].data[0] & 0xF0 == 0x80
+                        or self.queue[0].data[0] & 0xF0 == 0x90
+                        and self.queue[0].data[2] == 0
+                    )
+                ):
+                    output.append(self.queue.pop(0))
+                    self.sounding_key = None
+                    self.sounding_source = None
                 break
             if self.next_step == deadline:
                 source_at = (
@@ -174,6 +189,7 @@ class LiveHistoryArpeggiator(BaseModel):
                 channels=[0],
                 timing="fit",
                 overlap="handoff",
+                expression_source=self.expression_source,
             ).render(
                 [
                     MidiPlacement(

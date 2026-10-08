@@ -233,7 +233,9 @@ impl Emitter<'_> {
 }
 
 fn midi(event: &MidiEvent) -> Result<&[u8], &'static str> {
-    if event.data.len() != 3 || !(0x80..0xf0).contains(&event.data[0]) {
+    if (event.data.len() != 3 && !(event.data.len() == 2 && event.data[0] & 0xf0 == 0xd0))
+        || !(0x80..0xf0).contains(&event.data[0])
+    {
         return Err("MIDI gesture references a non-channel event");
     }
     Ok(&event.data)

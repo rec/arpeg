@@ -187,6 +187,17 @@ impl MidiCapture {
             return Ok(());
         }
         if self.events[index].data.len() != 3 {
+            if kind == 0xd0 && self.events[index].data.len() == 2 {
+                self.controller_state.insert(
+                    "pressure".into(),
+                    EntryState {
+                        value: Some(f64::from(self.events[index].data[1]) / 127.0),
+                        source_event: Some(index),
+                    },
+                );
+                self.expression_or_context(index);
+                return Ok(());
+            }
             self.retain_context(index);
             return Ok(());
         }
@@ -241,6 +252,9 @@ impl MidiCapture {
             if segment.cell_end_tick.is_none() && !self.active.contains(&index) {
                 segment.cell_end_tick =
                     Some((gate + self.profile.tail_ticks).max(segment.onset_tick + 1));
+                segment
+                    .following_events
+                    .retain(|i| Some(self.events[*i].tick) < segment.cell_end_tick);
             }
             if segment.cell_end_tick.is_some() && !self.reported_notes.contains(&segment.note_id) {
                 ready.push(source_note(segment, &self.capture_id));

@@ -88,6 +88,8 @@ def test_play_arguments_are_typed_pydantic_commands() -> None:
         "index-pattern",
         "shuffle",
         "choice",
+        "live-wind",
+        "history-live-wind",
     ],
 )
 def test_live_presets_prepare_without_opening_devices(name: str) -> None:

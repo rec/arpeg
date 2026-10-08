@@ -1,0 +1,76 @@
+[[cases]]
+name = "latched current expression, handoff and stale release ownership"
+profile = "live-wind"
+mode = "internal"
+actions = [
+  { at = 0, data = [176, 2, 20], beat = "0", active = true, output = [] },
+  { at = 0, data = [224, 0, 64], beat = "0", active = true, output = [] },
+  { at = 0, data = [208, 30], beat = "0", active = true, output = [] },
+  { at = 0, data = [144, 60, 100], beat = "0", active = true, output = [] },
+  { at = 0, data = [144, 64, 90], beat = "0", active = true, output = [] },
+  { at = 0, beat = "0", active = true, output = [[176, 2, 20], [224, 0, 64], [208, 30], [144, 60, 100]] },
+  { at = 50000, data = [176, 2, 42], beat = "1/10", active = true, output = [[176, 2, 42]] },
+  { at = 62500, data = [208, 90], beat = "1/8", active = true, output = [[208, 90]] },
+  { at = 125000, beat = "1/4", active = true, output = [[128, 60, 0], [176, 2, 42], [224, 0, 64], [208, 90], [144, 64, 90]] },
+  { at = 187500, beat = "3/8", active = true, output = [] },
+  { at = 187500, data = [176, 2, 80], beat = "3/8", active = true, output = [[176, 2, 80]] },
+  { at = 250000, beat = "1/2", active = true, output = [[128, 64, 0], [176, 2, 80], [224, 0, 64], [208, 90], [144, 60, 100]] },
+  { at = 260000, data = [252], beat = "13/25", active = false, output = [[128, 60, 0]] },
+  { at = 280000, data = [176, 2, 51], beat = "13/25", active = false, output = [] },
+  { at = 300000, data = [251], beat = "13/25", active = true, output = [] },
+  { at = 415000, beat = "3/4", active = true, output = [[176, 2, 51], [224, 0, 64], [208, 90], [144, 64, 90]] },
+  { at = 420000, data = [250], beat = "0", active = true, output = [[128, 64, 0]] },
+  { at = 420000, beat = "0", active = true, output = [[176, 2, 51], [224, 0, 64], [208, 90], [144, 60, 100]] },
+]
+
+[[cases]]
+name = "remembered pitches use current expression without replaying recorded controls"
+profile = "history-live-wind"
+mode = "internal"
+actions = [
+  { at = 0, data = [176, 2, 20], beat = "0", active = true, output = [] },
+  { at = 0, data = [208, 30], beat = "0", active = true, output = [] },
+  { at = 0, data = [144, 60, 100], beat = "0", active = true, output = [] },
+  { at = 15625, data = [176, 2, 80], beat = "1/32", active = true, output = [] },
+  { at = 31250, data = [224, 0, 65], beat = "1/16", active = true, output = [] },
+  { at = 62500, data = [128, 60, 20], beat = "1/8", active = true, output = [] },
+  { at = 75000, data = [176, 2, 50], beat = "3/20", active = true, output = [] },
+  { at = 125000, beat = "1/4", active = true, output = [[176, 2, 50], [224, 0, 65], [208, 30], [144, 60, 100]] },
+  { at = 150000, data = [208, 88], beat = "3/10", active = true, output = [[208, 88]] },
+  { at = 175000, data = [224, 0, 66], beat = "7/20", active = true, output = [[224, 0, 66]] },
+  { at = 225000, data = [208, 89], beat = "9/20", active = true, output = [[128, 60, 20]] },
+  { at = 240000, data = [176, 2, 75], beat = "12/25", active = true, output = [] },
+  { at = 250000, beat = "1/2", active = true, output = [[176, 2, 75], [224, 0, 66], [208, 89], [144, 60, 100]] },
+  { at = 260000, clear = true, beat = "13/25", active = true, output = [[128, 60, 0]] },
+  { at = 270000, data = [208, 95], beat = "27/50", active = true, output = [] },
+]
+
+[[cases]]
+name = "recorded pressure preserves entry state and fitted changes"
+profile = "history-wind"
+mode = "internal"
+actions = [
+  { at = 0, data = [208, 20], beat = "0", active = true, output = [] },
+  { at = 0, data = [144, 60, 100], beat = "0", active = true, output = [] },
+  { at = 31250, data = [208, 100], beat = "1/16", active = true, output = [] },
+  { at = 62500, data = [128, 60, 20], beat = "1/8", active = true, output = [] },
+  { at = 75000, data = [208, 90], beat = "3/20", active = true, output = [] },
+  { at = 125000, beat = "1/4", active = true, output = [[208, 20], [144, 60, 100]] },
+  { at = 175000, beat = "7/20", active = true, output = [[208, 100]] },
+  { at = 225000, beat = "9/20", active = true, output = [[128, 60, 20]] },
+]
+
+[[cases]]
+name = "unknown expression is not reset and other channels cannot change it"
+profile = "up"
+mode = "internal"
+actions = [
+  { at = 0, data = [177, 2, 20], beat = "0", active = false, output = [] },
+  { at = 0, data = [209, 90], beat = "0", active = false, output = [] },
+  { at = 0, data = [225, 0, 65], beat = "0", active = false, output = [] },
+  { at = 0, data = [144, 60, 100], beat = "0", active = true, output = [] },
+  { at = 0, beat = "0", active = true, output = [[144, 60, 100]] },
+  { at = 100000, data = [208, 90], beat = "1/5", active = true, output = [[128, 60, 0]] },
+  { at = 110000, data = [176, 2, 75], beat = "11/50", active = true, output = [] },
+  { at = 125000, beat = "1/4", active = true, output = [[176, 2, 75], [208, 90], [144, 60, 100]] },
+]

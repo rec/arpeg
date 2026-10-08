@@ -1,0 +1,11 @@
+kind = "arpeggiator"
+name = "live-wind"
+title = "Latched pitches with live breath, bend and pressure"
+
+[body]
+bank = { kind = "latched", update = "replace" }
+selection = { kind = "ascending" }
+rhythm = { kind = "grid", step = "1/4 beat" }
+gate = "3/2"
+retrigger = "bank_edit"
+expression = { source = "current", timing = "original", gaps = "omit" }

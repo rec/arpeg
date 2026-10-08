@@ -270,6 +270,36 @@ and pitch bend from channel 1 and fits their recorded note gestures to each
 step. Channel 1 handoff ends overlapping gestures rather than assigning them
 independent MIDI channels.
 
+### Live expressive performance
+
+Both hosts now follow channel 1 breath (CC2), pitch bend and channel pressure
+with held or latched notes. Known values are restored before each generated
+onset, in breath/bend/pressure order; unseen values are left alone. Changes
+follow the owned sounding note. They are remembered during rests and pauses
+without being sent to an unrelated voice. Other input channels, sustain pedal,
+polyphonic pressure and other controllers are not live expression lanes yet.
+
+[live-wind](conformance/live-wind.toml) latches overlapping keys into a chord and
+uses live expression. Its gate exceeds the step, demonstrating channel 1
+handoff. Scheduled releases belonging to an earlier output occurrence cannot
+cut off the new one, even when the pitch repeats.
+
+[history-live-wind](conformance/history-live-wind.toml) captures recent completed
+notes and plays their pitches and velocities with your current breath, bend and
+pressure. The recorded controller ledger remains stored but its gestures are
+not played in this mode. [history-wind](conformance/history-wind.toml) instead
+restores recorded entry values and fits recorded changes, now including channel
+pressure, to each gate. Controllers arriving outside a completed capture cell
+remain in the raw ledger and can establish the next note's entry state; they do
+not extend that cell or become part of its gesture.
+
+Use either preset as the `--profile` value in Python or the profile argument in
+Rust. [Shared performance traces](conformance/performance.toml) cover live and
+recorded expression, handoff, unknown state, pause and clear cleanup. The live
+hosts still have one independent expression owner on channel 1. MPE, MIDI 2.0,
+phrase record/commit controls and Motion-driven performance parameters remain
+later work.
+
 ## Development
 
 Building the Rust MIDI host on Linux requires ALSA development headers and

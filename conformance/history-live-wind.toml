@@ -1,0 +1,11 @@
+kind = "arpeggiator"
+name = "history-live-wind"
+title = "Remembered pitches with live breath, bend and pressure"
+
+[body]
+bank = { kind = "history", notes = 8, publish = "step" }
+selection = { kind = "ascending", key = "pitch" }
+rhythm = { kind = "grid", step = "1/4 beat" }
+gate = "4/5"
+retrigger = "bank_edit"
+expression = { source = "current", timing = "fit", gaps = "carry" }
