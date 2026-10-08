@@ -22,6 +22,10 @@ repeats = 1
 kind = "grid"
 step = "1/4 beat"
 
+[body.transposition]
+semitones = 0
+boundary = "drop"
+
 [body.expression]
 source = "current"
 timing = "original"
