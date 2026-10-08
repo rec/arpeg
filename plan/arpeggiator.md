@@ -515,7 +515,7 @@ A first browser front end now uses the existing WebAssembly player with held
 and latched chords, classic note orders, on-screen/computer keyboard input,
 transport and performance controls, and a built-in oscillator/ADSR synth.
 Exact lifecycle beats schedule notes on the audio clock with a 40 ms presentation
-delay; Stop and focus loss cancel queued voices. This is a static site with no
+delay; Stop and page hiding cancel queued voices. This is a static site with no
 backend. Browser/device timing remains to be measured; capture editing, sample
 playback, and external MIDI are not part of this initial front end.
 

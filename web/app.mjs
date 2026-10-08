@@ -196,7 +196,10 @@ elements.play.addEventListener('click', async () => {
     try {
         context ??= new AudioContext({ latencyHint: 'interactive' });
         await context.resume();
-        if (document.hidden || !document.hasFocus()) return;
+        if (document.hidden) return;
+        if (context.state !== 'running') {
+            throw new Error(`Audio could not start (${context.state}). Check the browser's sound permission and try Start again.`);
+        }
         synth ??= new Synth(context);
         synth.master.gain.value = Number(elements.volume.value) / 100;
         if (!performance) rebuild();
@@ -236,7 +239,6 @@ for (const name of ['gate', 'transpose', 'velocity', 'bend', 'volume', 'attack',
     }));
 }
 
-window.addEventListener('blur', () => perform(stop));
 document.addEventListener('visibilitychange', () => { if (document.hidden) perform(stop); });
 window.addEventListener('pagehide', () => perform(stop));
 
