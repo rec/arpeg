@@ -7,6 +7,7 @@ pub enum InputPort {
     Gate,
     Density,
     Transposition,
+    SelectionOffset,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -42,9 +43,12 @@ pub struct PerformancePorts {
     pub density: Beat,
     pub transposition: i64,
     pub pitch_boundary: PitchBoundary,
+    pub selection_offset: i64,
+    pub offset_rest_outside: bool,
     pending_gate: Option<Beat>,
     pending_density: Option<Beat>,
     pending_transposition: Option<i64>,
+    pending_selection_offset: Option<i64>,
     events: Vec<PortEvent>,
     exhausted: bool,
 }
@@ -56,9 +60,12 @@ impl PerformancePorts {
             density,
             transposition: 0,
             pitch_boundary: PitchBoundary::Drop,
+            selection_offset: 0,
+            offset_rest_outside: false,
             pending_gate: None,
             pending_density: None,
             pending_transposition: None,
+            pending_selection_offset: None,
             events: Vec::new(),
             exhausted: false,
         }
@@ -69,11 +76,11 @@ impl PerformancePorts {
         value: Beat,
         seed: Option<i64>,
     ) -> Result<(), &'static str> {
-        if port == InputPort::Transposition {
+        if matches!(port, InputPort::Transposition | InputPort::SelectionOffset) {
             return if value.is_integer() {
                 Ok(())
             } else {
-                Err("transposition requires whole semitones")
+                Err("transposition and selection offset require whole numbers")
             };
         }
         if value < Beat::from_integer(0)
@@ -96,6 +103,7 @@ impl PerformancePorts {
             InputPort::Gate => self.pending_gate = Some(value),
             InputPort::Density => self.pending_density = Some(value),
             InputPort::Transposition => self.pending_transposition = Some(value.to_integer()),
+            InputPort::SelectionOffset => self.pending_selection_offset = Some(value.to_integer()),
         }
     }
 
@@ -103,6 +111,7 @@ impl PerformancePorts {
         self.pending_gate = None;
         self.pending_density = None;
         self.pending_transposition = None;
+        self.pending_selection_offset = None;
     }
 
     pub fn begin_step(&mut self, at: Beat, index: i64, revision: u64) -> bool {
@@ -115,6 +124,9 @@ impl PerformancePorts {
         if let Some(value) = self.pending_transposition.take() {
             self.transposition = value;
         }
+        if let Some(value) = self.pending_selection_offset.take() {
+            self.selection_offset = value;
+        }
         if self.events.len() > 4094 {
             self.exhausted = true;
             return false;
@@ -126,6 +138,14 @@ impl PerformancePorts {
             revision,
         });
         true
+    }
+
+    pub fn offset_rank(&self, rank: usize, size: usize) -> Option<usize> {
+        let shifted = rank as i128 + i128::from(self.selection_offset);
+        if self.offset_rest_outside && !(0..size as i128).contains(&shifted) {
+            return None;
+        }
+        Some(shifted.rem_euclid(size as i128) as usize)
     }
 
     pub fn realize_pitch(&self, key: u8) -> Result<Option<u8>, &'static str> {

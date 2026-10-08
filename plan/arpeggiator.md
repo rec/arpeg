@@ -491,6 +491,17 @@ tested explicitly; the existing tempo map is not a MIDI pulse estimator.
 
 Expose a small useful Motion interface:
 
+Live `selection_offset` is implemented for held, latched, history, and phrase
+banks in Python, Rust, and WebAssembly. Configure
+`selection_offset = { ranks = 0, boundary = "wrap" }` in the body. It shifts
+each selector result by ascending source pitch rank, with source identity
+breaking ties, before transposition. The original selector cursor advances
+independently of the shifted target. Output uses the target's identity,
+velocity, and captured expression. Wrap is the default; rest skips out-of-bank
+targets while advancing the selector. Scalar controls publish at the next step;
+repeats retain their target. Fractional ranks and nonzero offsets in the limited
+file renderer are rejected.
+
 - Inputs: pulse, reset, start/stop, capture/commit, bank selection, density,
   gate, transposition, selection offset, and named expression lanes.
 - Outputs: step, hit, rest, cycle, note-start, note-end, capture-ready, plus

@@ -4,13 +4,14 @@ from fractions import Fraction
 
 from pydantic import BaseModel, Field
 from ufor import arpeggiator_ports
-from ufor.arpeggiator import Transposition
+from ufor.arpeggiator import SelectionOffset, Transposition
 
 
 class PerformancePorts(BaseModel):
     gate: Fraction
     density: Fraction
     transposition: Transposition = Transposition()
+    selection_offset: SelectionOffset = SelectionOffset()
     pending: dict[arpeggiator_ports.ArpeggiatorInputPort, Fraction] = Field(
         default_factory=dict
     )
@@ -35,9 +36,13 @@ class PerformancePorts(BaseModel):
                 self.gate = value
             elif port == arpeggiator_ports.ArpeggiatorInputPort.density:
                 self.density = value
-            else:
+            elif port == arpeggiator_ports.ArpeggiatorInputPort.transposition:
                 self.transposition = self.transposition.model_copy(
                     update={"semitones": int(value)}
+                )
+            else:
+                self.selection_offset = self.selection_offset.model_copy(
+                    update={"ranks": int(value)}
                 )
         self.pending.clear()
         if len(self.events) > 4094:
@@ -52,6 +57,12 @@ class PerformancePorts(BaseModel):
             )
         )
         return True
+
+    def offset_rank(self, rank: int, size: int) -> int | None:
+        shifted = rank + self.selection_offset.ranks
+        if self.selection_offset.boundary == "rest" and not 0 <= shifted < size:
+            return None
+        return shifted % size
 
     def realize_pitch(self, key: int) -> int | None:
         pitch = key + self.transposition.semitones

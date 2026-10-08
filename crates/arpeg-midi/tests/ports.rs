@@ -50,17 +50,19 @@ fn pitch_range_errors_still_release_the_last_delivered_note() {
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 #[cfg_attr(not(target_arch = "wasm32"), test)]
-fn fractional_transposition_preserves_time_and_pending_music() {
-    let mut player = player(include_str!("../../../conformance/up.toml"));
-    player
-        .accept(0, &[144, 60, 100], InputSource::Both)
-        .unwrap();
-    assert!(
+fn fractional_offsets_preserve_time_and_pending_music() {
+    for port in [InputPort::Transposition, InputPort::SelectionOffset] {
+        let mut player = player(include_str!("../../../conformance/up.toml"));
         player
-            .control(50_000, InputPort::Transposition, "1/2".parse().unwrap())
-            .is_err()
-    );
-    assert_eq!(player.advance(0).unwrap(), [vec![144, 60, 100]]);
+            .accept(0, &[144, 60, 100], InputSource::Both)
+            .unwrap();
+        assert!(
+            player
+                .control(50_000, port, "1/2".parse().unwrap())
+                .is_err()
+        );
+        assert_eq!(player.advance(0).unwrap(), [vec![144, 60, 100]]);
+    }
 }
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
@@ -75,6 +77,7 @@ fn motion_ports_match_shared_exact_traces() {
             "phrase-wind" => include_str!("../../../conformance/phrase-wind.toml"),
             "motion-ports" => include_str!("../../../conformance/motion-ports.toml"),
             "transpose-fold" => include_str!("../../../conformance/transpose-fold.toml"),
+            "offset-rest" => include_str!("../../../conformance/offset-rest.toml"),
             _ => panic!("unknown profile"),
         };
         for poll_us in [None, Some(1000)] {
@@ -109,6 +112,7 @@ fn motion_ports_match_shared_exact_traces() {
                         "gate" => InputPort::Gate,
                         "density" => InputPort::Density,
                         "transposition" => InputPort::Transposition,
+                        "selection_offset" => InputPort::SelectionOffset,
                         _ => panic!("unknown port"),
                     };
                     player

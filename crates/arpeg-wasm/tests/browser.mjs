@@ -37,6 +37,24 @@ test('transposition controls and preset boundaries work through web bindings', (
     }
 });
 
+test('selection offset uses source ranks and configurable rests through web bindings', () => {
+    const profile = readFileSync(new URL('../../../conformance/offset-rest.toml', import.meta.url), 'utf8');
+    const player = new MidiPlayer(profile, 'internal', 120, 500_000n);
+    try {
+        player.accept(0n, new Uint8Array([144, 60, 100]), 'both');
+        player.accept(0n, new Uint8Array([144, 64, 90]), 'both');
+        assert.deepEqual(player.advance(0n), [new Uint8Array([144, 64, 90])]);
+        assert.throws(() => player.control(50_000n, 'selection_offset', '1/2'));
+        assert.deepEqual(player.control(50_000n, 'selection_offset', '-1'), []);
+        assert.deepEqual(player.advance(125_000n), [new Uint8Array([128, 64, 0]), new Uint8Array([144, 60, 100])]);
+        player.control(150_000n, 'selection_offset', '2');
+        assert.deepEqual(player.advance(250_000n), [new Uint8Array([128, 60, 0])]);
+        assert.equal(player.take_events().events.at(-1).port, 'rest');
+    } finally {
+        player.free();
+    }
+});
+
 test('Motion ports return exact event coordinates and accept step-boundary controls', () => {
     const profile = readFileSync(new URL('../../../conformance/motion-ports.toml', import.meta.url), 'utf8');
     const player = new MidiPlayer(profile, 'internal', 120, 500_000n);

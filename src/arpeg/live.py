@@ -112,6 +112,7 @@ class LiveArpeggiator(BaseModel):
                 gate=body.gate,
                 density=body.probability,
                 transposition=body.transposition,
+                selection_offset=body.selection_offset,
             )
         return self
 
@@ -574,6 +575,13 @@ class LiveArpeggiator(BaseModel):
                 ordered[0],
             )
         self.previous_note = note
+        if self.ports.selection_offset.ranks:
+            ranked = sorted(active, key=lambda n: (n.key, n.id))
+            if (
+                rank := self.ports.offset_rank(ranked.index(note), len(ranked))
+            ) is None:
+                return False
+            note = ranked[rank]
         if (key := self.ports.realize_pitch(note.key)) is None:
             return False
         interval = decision.duration / decision.repeats

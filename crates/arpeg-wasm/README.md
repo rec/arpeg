@@ -81,6 +81,14 @@ density requires a preset seed; it replaces the preset probability. Queued
 changes publish at the next step, preserve already realized gates and repeats,
 survive pause, and are cancelled by Start or song-position relocation.
 
+Selection offset uses `control(time, "selection_offset", "-1")` and preset
+`body.selection_offset = { ranks = 0, boundary = "wrap" }`. It shifts each
+selector result in ascending pitch/source-identity order while preserving the
+selector's own progression, then applies transposition. The target supplies its
+velocity and recorded expression. `rest` is the other boundary policy; it skips
+out-of-bank targets while advancing selection. Whole signed 64-bit ranks publish
+at the next step; sounding notes and pending repeats retain their target.
+
 Call `take_events()` after each operation to collect
 `{ events, exhausted }`. Each event is `{ at, port, index, revision }`: `at` is
 an exact beat string, `port` is `step`, `hit`, or `rest`, and the counters are

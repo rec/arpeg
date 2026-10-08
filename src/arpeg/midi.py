@@ -97,7 +97,8 @@ class Play(BaseModel, frozen=True):
             print(
                 f"Playing with {self.clock} clock. "
                 "Enter start, pause, continue, tempo BPM, gate FRACTION, "
-                "density FRACTION, transposition SEMITONES, record, commit, "
+                "density FRACTION, transposition SEMITONES, selection_offset RANKS, "
+                "record, commit, "
                 "overdub, undo, clear, or quit."
             )
             stopped = False
@@ -158,7 +159,7 @@ class Play(BaseModel, frozen=True):
                             except ValueError as error:
                                 print(str(error), file=stderr)
                         elif command.startswith(
-                            ("gate ", "density ", "transposition ")
+                            ("gate ", "density ", "transposition ", "selection_offset ")
                         ):
                             try:
                                 port, value = command.split()
@@ -247,6 +248,7 @@ class MidiPlayer(BaseModel):
                 gate=body.gate,
                 density=body.probability,
                 transposition=body.transposition,
+                selection_offset=body.selection_offset,
             ),
             seed=body.seed,
             name=self.profile.name,
@@ -529,14 +531,17 @@ def _read_commands(commands: SimpleQueue[str]) -> None:
             "overdub",
             "undo",
         ) or (
-            command.startswith(("tempo ", "gate ", "density ", "transposition "))
+            command.startswith(
+                ("tempo ", "gate ", "density ", "transposition ", "selection_offset ")
+            )
             and len(command.split()) == 2
         ):
             commands.put(command)
         else:
             print(
                 "enter start, pause, continue, tempo BPM, gate FRACTION, "
-                "density FRACTION, transposition SEMITONES, record, commit, "
+                "density FRACTION, transposition SEMITONES, selection_offset RANKS, "
+                "record, commit, "
                 "overdub, undo, clear, or quit",
                 file=stderr,
             )

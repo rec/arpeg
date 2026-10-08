@@ -339,6 +339,32 @@ and carried gaps, matching history playback.
 
 ### Motion control ports
 
+Live selection offset chooses another identified note from the current bank,
+including that note's velocity and recorded expression:
+
+```toml
+[body.selection_offset]
+ranks = 1
+boundary = "wrap"
+```
+
+Ranks count upward by source pitch, using source identity to break equal-pitch
+ties, regardless of the selector's own order. With C–E–G, +1 maps C to E,
+E to G, and G to C. The selector continues from its original choices, so offset
+changes preserve ascending, shuffled, and random progression. `ranks` defaults
+to 0 and accepts signed 64-bit whole numbers. `boundary` defaults to `wrap`;
+`rest` skips targets outside the bank while advancing the selector. An empty
+bank emits rest. A single-note bank wraps to itself; rest requires rank zero.
+Index-pattern rests are resolved before applying this offset, and density
+rejections do not advance selection. Transposition applies after choosing the
+target. Rhythm timing, sounding gestures, and repeated groups remain unchanged.
+
+Enter `selection_offset -1` during live playback, or send `selection_offset`
+through the Python, Rust, or WebAssembly control API. It publishes at the next
+step, with the same latest-value, pause, and seek rules as transposition. Python
+snapshots preserve the original selector cursor and the effective and queued
+offsets. Nonzero preset offsets require live playback rather than file rendering.
+
 Live transposition changes the selected note's MIDI pitch without changing its
 source identity, selection order, or recorded controller values. Configure it
 in the preset:
@@ -413,7 +439,8 @@ slots before admitting a step. On exhaustion, new step admissions stop while due
 releases and already realized repeats continue. `batch.exhausted` reports the
 condition; draining permits future steps without replaying skipped attacks.
 Native MIDI hosts drain automatically and print a diagnostic on exhaustion.
-[Shared traces](conformance/ports.toml) cover transposition, folding, gate edits,
+[Shared traces](conformance/ports.toml) cover selection offsets, target expression,
+transposition, folding, gate edits,
 density and seeded decisions, ties, repeats, captured material, pause, seeks,
 and polling parity.
 

@@ -58,6 +58,8 @@ impl MidiPlayer {
                 )?;
                 engine.ports.transposition = p.transposition;
                 engine.ports.pitch_boundary = p.pitch_boundary;
+                engine.ports.selection_offset = p.selection_offset;
+                engine.ports.offset_rest_outside = p.offset_rest_outside;
                 Engine::Held(Box::new(engine))
             }
             Profile::Captured(p) => {
@@ -73,6 +75,8 @@ impl MidiPlayer {
                 engine.chance = p.chance;
                 engine.ports.transposition = p.transposition;
                 engine.ports.pitch_boundary = p.pitch_boundary;
+                engine.ports.selection_offset = p.selection_offset;
+                engine.ports.offset_rest_outside = p.offset_rest_outside;
                 Engine::History(Box::new(engine))
             }
         };

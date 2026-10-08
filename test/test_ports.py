@@ -5,11 +5,85 @@ from tomllib import loads
 import mido
 import pytest
 from ufor import arpeggiator_ports, motion
-from ufor.arpeggiator import Transposition
+from ufor.arpeggiator import SelectionOffset, Transposition
 
 from arpeg.live import LiveArpeggiator
 from arpeg.midi import MidiPlayer
 from arpeg.profile import parse_profile
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "up",
+        "weighted-walk",
+        "shuffle",
+        "choice",
+        "alternating",
+        "inside-out",
+        "outside-in",
+        "index-pattern",
+        "live-latch",
+    ],
+)
+def test_offset_keeps_each_selectors_progression_and_emits_target_identity(
+    name: str,
+) -> None:
+    profile = parse_profile(Path(f"conformance/{name}.toml").read_text())
+    baseline = LiveArpeggiator(profile=profile)
+    shifted = LiveArpeggiator(
+        profile=profile.model_copy(
+            update={
+                "body": profile.body.model_copy(
+                    update={"selection_offset": SelectionOffset(ranks=1)}
+                )
+            }
+        )
+    )
+    keys = [67, 60, 64]
+    for i, key in enumerate(keys):
+        baseline.note_on(Fraction(0), key, 100 - i)
+        shifted.note_on(Fraction(0), key, 100 - i)
+    expected = [
+        (n.source_id + 1) % 3 for n in baseline.advance(Fraction(2)) if n.kind == "on"
+    ]
+    actual = [n for n in shifted.advance(Fraction(2)) if n.kind == "on"]
+    assert [(n.source_id, n.key, n.velocity) for n in actual] == [
+        (i, keys[i], 100 - i) for i in expected
+    ]
+    shifted = LiveArpeggiator.model_validate_json(shifted.model_dump_json())
+    shifted.control(
+        Fraction(9, 4),
+        arpeggiator_ports.ArpeggiatorControl(port="selection_offset", value=0),
+    )
+    assert [
+        (n.source_id, n.key) for n in shifted.advance(Fraction(3)) if n.kind == "on"
+    ] == [(n.source_id, n.key) for n in baseline.advance(Fraction(3)) if n.kind == "on"]
+
+
+def test_offset_breaks_equal_pitch_ties_by_source_identity_and_keeps_repeats() -> None:
+    profile = parse_profile(Path("conformance/custom-steps.toml").read_text())
+    engine = LiveArpeggiator(profile=profile)
+    engine.note_on(Fraction(0), 60, 100)
+    engine.note_on(Fraction(0), 60, 90)
+    engine.control(
+        Fraction(0),
+        arpeggiator_ports.ArpeggiatorControl(port="selection_offset", value=1),
+    )
+    assert [
+        (n.source_id, n.velocity)
+        for n in engine.advance(Fraction(5, 8))
+        if n.kind == "on"
+    ] == [(1, 90), (0, 100)]
+    engine.control(
+        Fraction(2, 3),
+        arpeggiator_ports.ArpeggiatorControl(port="selection_offset", value=0),
+    )
+    assert [n.source_id for n in engine.advance(Fraction(9, 8)) if n.kind == "on"] == [
+        0,
+        0,
+        0,
+    ]
 
 
 def test_transposition_keeps_pending_repeats_and_source_identity() -> None:
@@ -58,13 +132,18 @@ def test_pitch_range_error_still_releases_the_last_delivered_note(
     assert [m.bytes() for m in player.stop(250_000_000)] == [[128, 120, 0]]
 
 
-def test_fractional_transposition_is_rejected_before_time_or_music_changes() -> None:
+@pytest.mark.parametrize("port", ["transposition", "selection_offset"])
+def test_fractional_offsets_are_rejected_before_time_or_music_changes(
+    port: str,
+) -> None:
     player = MidiPlayer(profile=parse_profile(Path("conformance/up.toml").read_text()))
     snapshot = player.model_dump_json()
-    with pytest.raises(ValueError, match="whole semitones"):
+    with pytest.raises(ValueError, match="whole"):
         player.control(
             50_000_000,
-            arpeggiator_ports.ArpeggiatorControl(port="transposition", value="1/2"),
+            arpeggiator_ports.ArpeggiatorControl.model_validate(
+                {"port": port, "value": "1/2"}
+            ),
         )
     assert player.model_dump_json() == snapshot
 

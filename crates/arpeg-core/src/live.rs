@@ -723,6 +723,17 @@ impl LiveArpeggiator {
                 .unwrap_or(&ordered[0])
         };
         self.previous_key = Some(selection_key(&selected, selection));
+        let selected = if self.ports.selection_offset != 0 {
+            let mut ranked = ordered.clone();
+            ranked.sort_unstable_by_key(|n| (n.key, n.id));
+            let rank = ranked.iter().position(|n| n.id == selected.id).unwrap();
+            let Some(rank) = self.ports.offset_rank(rank, ranked.len()) else {
+                return Ok(false);
+            };
+            ranked[rank]
+        } else {
+            selected
+        };
         let Some(key) = self.ports.realize_pitch(selected.key)? else {
             return Ok(false);
         };

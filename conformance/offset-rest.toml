@@ -1,0 +1,6 @@
+name = "offset-rest"
+title = "Offset with out-of-bank rests"
+
+[body]
+rhythm = { kind = "grid", step = "1/4 beat" }
+selection_offset = { ranks = 1, boundary = "rest" }

@@ -299,6 +299,30 @@ impl HistoryArpeggiator {
         let Some(note) = self.bank.select_step()? else {
             return Ok(());
         };
+        let note = if self.ports.selection_offset != 0 {
+            let mut ranked = Vec::new();
+            for reference in &self.bank.published {
+                let source = self
+                    .bank
+                    .source(&reference.capture_id)?
+                    .notes
+                    .iter()
+                    .find(|n| n.note_id == reference.note_id)
+                    .ok_or("source note is missing")?;
+                ranked.push((source.key, reference));
+            }
+            ranked.sort_by(|a, b| {
+                (a.0, &a.1.capture_id, &a.1.note_id).cmp(&(b.0, &b.1.capture_id, &b.1.note_id))
+            });
+            let rank = ranked.iter().position(|(_, r)| **r == note).unwrap();
+            let Some(rank) = self.ports.offset_rank(rank, ranked.len()) else {
+                self.ports.outcome(false);
+                return Ok(());
+            };
+            ranked[rank].1.clone()
+        } else {
+            note
+        };
         let phrase = self.bank.source(&note.capture_id)?;
         let source = phrase
             .notes

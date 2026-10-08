@@ -9,7 +9,7 @@ from ufor import arpeggiator_ports
 from ufor.events import MidiEvent
 from ufor.time import Timebase
 
-from .bank import CaptureBank
+from .bank import BankNote, CaptureBank
 from .capture import MidiCaptureProfile
 from .chance import draw_below
 from .gesture import MidiGestureRenderer, MidiPlacement, RealizedMidiEvent
@@ -255,6 +255,24 @@ class LiveHistoryArpeggiator(BaseModel):
         selected = self.bank.select_step()
         if selected is None:
             return []
+        if self.ports.selection_offset.ranks:
+
+            def pitch_order(ref: BankNote) -> tuple[int, str, str]:
+                note = next(
+                    n
+                    for n in self.bank.source(ref.capture_id).notes
+                    if n.note_id == ref.note_id
+                )
+                assert note.key is not None
+                return note.key, ref.capture_id, ref.note_id
+
+            ranked = sorted(self.bank.published, key=pitch_order)
+            if (
+                rank := self.ports.offset_rank(ranked.index(selected), len(ranked))
+            ) is None:
+                self.ports.outcome(False)
+                return []
+            selected = ranked[rank]
         phrase = self.bank.source(selected.capture_id)
         note = next(n for n in phrase.notes if n.note_id == selected.note_id)
         assert note.key is not None

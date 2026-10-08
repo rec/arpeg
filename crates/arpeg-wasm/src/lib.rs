@@ -76,9 +76,10 @@ impl MidiPlayer {
             "gate" => InputPort::Gate,
             "density" => InputPort::Density,
             "transposition" => InputPort::Transposition,
+            "selection_offset" => InputPort::SelectionOffset,
             _ => {
                 return Err(JsValue::from_str(
-                    "port must be gate, density, or transposition",
+                    "port must be gate, density, transposition, or selection_offset",
                 ));
             }
         };
