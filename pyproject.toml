@@ -1,6 +1,6 @@
 [project]
 name = "arpeg"
-version = "0.1.0"
+version = "0.2.0"
 description = "🧬 An expressive arpeggiator 🧬"
 readme = "README.md"
 authors = [
