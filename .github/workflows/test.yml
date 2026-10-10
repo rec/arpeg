@@ -35,11 +35,11 @@ jobs:
       - name: Test Python reference and host message handling
         run: uv run --frozen --extra midi pytest
       - name: Check Python
-        run: uv run --frozen --extra midi ruff check --select B,E,F,I src test
+        run: uv run --frozen --extra midi ruff check --select B,E,F,I arpeg test
       - name: Check Python formatting
-        run: uv run --frozen --extra midi ruff format --check src test
+        run: uv run --frozen --extra midi ruff format --check arpeg test
       - name: Check Python types
-        run: uv run --frozen --extra midi ty check src
+        run: uv run --frozen --extra midi ty check arpeg
       - name: Test Rust core and MIDI host
         run: cargo test --workspace --locked
       - name: Build native executable

@@ -25,7 +25,7 @@ The Python package uses uFor's portable profile and capture contracts. The Rust
 crate in `crates/arpeg-core` contains event decisions only; it has no dependency
 on Python, MIDI device libraries, or audio processing.
 
-The readable Python live engine is [src/arpeg/live.py](src/arpeg/live.py).
+The readable Python live engine is [arpeg/live.py](arpeg/live.py).
 `LiveArpeggiator` accepts a uFor profile and provides `note_on`, `note_off`,
 `advance`, `clear`, and `stop` methods with exact beat times. Its behavior is
 covered in [test/test_live.py](test/test_live.py) and the shared
@@ -158,14 +158,14 @@ while retaining the random counter. Python snapshots retain both. Both engines
 support live held and latched banks; file rendering, history, and marked samples
 reject choice. [Shared traces](conformance/choice.json) specify the exact draws.
 
-[src/arpeg/capture.py](src/arpeg/capture.py) records a MIDI phrase through
+[arpeg/capture.py](arpeg/capture.py) records a MIDI phrase through
 `MidiCapture.accept` and closes it with `finish`. Its profile declares whether
 overlapping onsets hand off a monophonic segment or remain independent notes.
 The original MIDI bytes stay in the captured ledger, including velocity-zero
 note-on releases. The Python capture fixture checks use the wind and gap traces
 in `conformance/`.
 
-The Python [gesture renderer](src/arpeg/gesture.py) reorders completed MIDI
+The Python [gesture renderer](arpeg/gesture.py) reorders completed MIDI
 notes in source timing or fits their gestures to an output gate. It restores
 known controller entry values before each onset, retains note-local event times,
 and allocates a separate channel when gestures overlap. Unowned gap events remain
@@ -174,14 +174,14 @@ instead use live breath and bend, or replay the original MIDI ledger unchanged.
 For a single-channel destination, `overlap="handoff"` ends the old output note
 before initializing the new gesture on channel 1.
 
-[src/arpeg/bank.py](src/arpeg/bank.py) records history or phrase takes. Completed
+[arpeg/bank.py](arpeg/bank.py) records history or phrase takes. Completed
 history notes wait for the declared capture tail, and replace, overdub, and undo
 changes become visible at `publish_step`. Clear empties the published bank
 immediately. `select_step` chooses a
 source note from the published revision; callers can place it through the
 gesture renderer at an output onset.
 
-[src/arpeg/history.py](src/arpeg/history.py) is the Python reference for live
+[arpeg/history.py](arpeg/history.py) is the Python reference for live
 recorded history. `LiveHistoryArpeggiator` captures channel 1 MIDI, selects
 completed notes at exact grid steps, and fits their recorded breath and bend
 gestures to each output gate. It owns one sounding output note at a time:
@@ -189,7 +189,7 @@ each new step ends the old note before starting the next gesture. `clear`
 forgets the history and releases the output note while continuing to capture
 new input. The Rust event core implements the same step and handoff rules.
 
-[src/arpeg/marked_sample.py](src/arpeg/marked_sample.py) turns ordered frame
+[arpeg/marked_sample.py](arpeg/marked_sample.py) turns ordered frame
 markers into identified `SourceNote` regions. An explicit marker at frame zero
 accounts for any prefix, and the last region ends at the asset boundary.
 Selection keys order regions without claiming an acoustic pitch. The Rust core
@@ -561,6 +561,6 @@ uv sync
 uv run pytest
 uv run ruff check .
 uv run ruff format --check .
-uv run ty check src
+uv run ty check arpeg
 cargo test --workspace
 ```
