@@ -43,4 +43,4 @@ dev = [
 
 [tool.uv.sources]
 ufor = { git = "ssh://git@github.com/rec/ufor.git", branch = "main" }
-envelfo = { git = "ssh://git@github.com/rec/envelfo.git", rev = "c252c11fbfa1d5f347a50d71cf43ff9ccca39c5d" }
+envelfo = { git = "ssh://git@github.com/rec/envelfo.git", rev = "055202d185677fda08a37797a9e29bb95dad5f52" }

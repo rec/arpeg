@@ -295,7 +295,7 @@ def test_envelfo_samples_drive_density_and_receive_hit_events() -> None:
         {
             "clock": "beats",
             "body": {
-                "kind": "contour",
+                "kind": "envelope",
                 "start": "event",
                 "retrigger": "reset",
                 "segments": [{"duration": "1/4 beat", "to": 1.0}],

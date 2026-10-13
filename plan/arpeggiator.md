@@ -77,9 +77,9 @@ implementation status when beginning development:
   stable `trigger_id`, ordered events, raw MIDI and UMP storage.
 - Sibling `ufor/ufor/control.py`: exact tempo maps, host song beats, and elapsed
   running beats that ignore transport seeks.
-- Sibling `ufor/ufor/envelfo.py`: LFO/Contour/Stages and ordered Envelfo definitions;
+- Sibling `ufor/ufor/envelfo.py`: LFO/Envelope/Stages and ordered Envelfo definitions;
   sibling enveLFO owns their runtime execution.
-- `enge/synth.py` and `src/runtime.rs`: standalone beat-clock Contours/LFOs in
+- `enge/synth.py` and `src/runtime.rs`: standalone beat-clock Envelopes/LFOs in
   offline and persistent synth rendering. Beat-based Stages and explicit
   transport-position drivers remain separate unfinished Envelfo work.
 - `enge/midi.py`: a limited offline adapter. It currently handles CC1/CC11 and
@@ -395,7 +395,7 @@ unchanged. Fractional offsets are rejected in this slice; microtonal realization
 scale-degree transforms, octave expansion, and register limits remain unfinished.
 
 Algorithmic selectors include weighted choice, shuffle-once, reshuffle-per-cycle,
-no-immediate-repeat, bounded random walks, interval contours, transition tables,
+no-immediate-repeat, bounded random walks, interval envelopes, transition tables,
 and finite grammar expansions. All must still select or derive identified notes.
 Shuffle selection requires a seed. `mode = "cycle"` shuffles each cycle by
 default; `mode = "once"` reuses the order. `no_repeat = false` allows adjacent
