@@ -807,6 +807,13 @@ offline execution and live execution consume the same decisions and clocks.
    jitter, capture limits, recovery, and hardware expression. Publish supported
    destination profiles and known protocol limitations with the standalone builds.
 
+Native release delivery now packages Mac ARM64/Intel, Windows x64, and Linux x64
+executables with profiles and checksums, then attaches them after the release
+checks pass. Repeatable Python/Rust synthetic timing/load probes and dense-capture
+cleanup tests are in place; results and limits are recorded in
+`doc/performance.md`. Hardware/driver loopback verification is pending. Input
+queues remain unbounded, and transport bandwidth management is not implemented.
+
 Each slice gets focused commits and its own passing checks. No dependency or
 roadmap changes are authorized by writing this plan. During implementation,
 coordinate required uFor/enge changes as separately reviewable commits; do not

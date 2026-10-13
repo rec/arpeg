@@ -64,6 +64,12 @@ jobs:
         run: cargo fmt --all --check
       - name: Check Rust
         run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - name: Measure synthetic player timing and recovery without MIDI devices
+        run: |
+          uv run --frozen --extra midi python tools/check_performance.py --controller-hz 1000
+          uv run --frozen --extra midi python tools/check_performance.py --controller-hz 4000
+          uv run --frozen --extra midi python tools/check_performance.py --controller-hz 1000 --stall-ms 200
+          cargo run -p arpeg-midi --example check_performance --release --locked
       - name: Package standalone executable
         shell: bash
         env:

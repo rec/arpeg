@@ -214,6 +214,10 @@ Windows x64, and Linux x64. Once every native and WebAssembly check passes, the
 workflow attaches the executables, sample profiles, and SHA-256 checksums to the
 release. See [standalone download instructions](packaging/README-NATIVE.md).
 
+[Performance verification](doc/performance.md) records repeatable synthetic
+timing/load probes, dense-capture cleanup regressions, and remaining device-host
+limits. These checks do not establish physical MIDI or synth latency.
+
 Python MIDI port access requires the `midi` extra. The default package installs
 the reference engines, mido, and the CLI without the native RtMidi backend:
 
