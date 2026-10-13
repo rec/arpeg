@@ -1,6 +1,6 @@
 use arpeg_core::{clock::ClockMode, ports::InputPort};
 use arpeg_midi::{
-    expression::{Lane, motion_message},
+    expression::{Lane, envelfo_message},
     parse_profile,
     player::{InputSource, MidiPlayer},
 };
@@ -24,7 +24,7 @@ fn normalized_samples_round_to_shared_destination_values() {
             .map(|n| n.as_integer().unwrap() as u8)
             .collect();
         assert_eq!(
-            motion_message(lane, case["value"].as_str().unwrap().parse().unwrap()).unwrap(),
+            envelfo_message(lane, case["value"].as_str().unwrap().parse().unwrap()).unwrap(),
             expected
         );
     }
@@ -40,7 +40,7 @@ fn expression_errors_leave_pending_music_and_time_unchanged() {
             "1/2",
         ),
         (
-            include_str!("../../../conformance/motion-expression.toml"),
+            include_str!("../../../conformance/envelfo-expression.toml"),
             InputPort::Bend,
             "2",
         ),
@@ -66,10 +66,10 @@ fn expression_errors_leave_pending_music_and_time_unchanged() {
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 #[cfg_attr(not(target_arch = "wasm32"), test)]
-fn unknown_motion_state_and_repeated_same_time_samples_are_preserved() {
+fn unknown_envelfo_state_and_repeated_same_time_samples_are_preserved() {
     let mut player = MidiPlayer::new(
         parse_profile(
-            include_str!("../../../conformance/motion-expression.toml"),
+            include_str!("../../../conformance/envelfo-expression.toml"),
             None,
         )
         .unwrap(),
@@ -99,7 +99,7 @@ fn unknown_motion_state_and_repeated_same_time_samples_are_preserved() {
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 fn recorded_override_keeps_its_gesture_with_global_current_source() {
-    let text = include_str!("../../../conformance/motion-phrase.toml")
+    let text = include_str!("../../../conformance/envelfo-phrase.toml")
         .replace("source = \"recorded\"", "source = \"current\"")
         .replace("pressure = \"current\"", "bend = \"recorded\"");
     let mut player = MidiPlayer::new(

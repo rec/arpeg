@@ -1,4 +1,4 @@
-"""Step-published performance values and bounded Motion output events."""
+"""Step-published performance values and bounded Envelfo output events."""
 
 from fractions import Fraction
 

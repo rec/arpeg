@@ -1,0 +1,8 @@
+# Keep this profile identity stable: it seeds the portable random streams.
+name = "motion-expression"
+title = "Envelfo breath, bend, and pressure"
+
+[body]
+rhythm = { kind = "grid", step = "1/4 beat" }
+gate = "6/5"
+expression = { lanes = { breath = "envelfo", bend = "envelfo", pressure = "envelfo" } }

@@ -4,7 +4,8 @@ from tomllib import loads
 
 import mido
 import pytest
-from ufor import arpeggiator_ports, motion
+from envelfo.runtime import envelfo_at, envelfo_event, initial_envelfo
+from ufor import arpeggiator_ports, envelfo
 from ufor.arpeggiator import SelectionOffset, Transposition
 
 from arpeg.live import LiveArpeggiator
@@ -155,7 +156,9 @@ def test_fractional_offsets_are_rejected_before_time_or_music_changes(
     ids=lambda c: c["name"],
 )
 @pytest.mark.parametrize("poll_us", [None, 1000])
-def test_shared_motion_port_trace(case: dict[str, object], poll_us: int | None) -> None:
+def test_shared_envelfo_port_trace(
+    case: dict[str, object], poll_us: int | None
+) -> None:
     player = MidiPlayer(
         profile=parse_profile(Path(f"conformance/{case['profile']}.toml").read_text())
     )
@@ -274,12 +277,12 @@ def test_full_event_buffer_skips_attacks_and_still_releases_owned_notes() -> Non
     assert not player.take_events().exhausted
 
 
-def test_motion_samples_drive_density_and_receive_hit_events() -> None:
-    source = motion.MotionUse.model_validate(
+def test_envelfo_samples_drive_density_and_receive_hit_events() -> None:
+    source = envelfo.EnvelfoUse.model_validate(
         {
             "clock": "beats",
             "body": {
-                "kind": "cycle",
+                "kind": "lfo",
                 "shape": "square",
                 "rate": "1",
                 "center": 0.5,
@@ -287,8 +290,8 @@ def test_motion_samples_drive_density_and_receive_hit_events() -> None:
             },
         }
     )
-    state = motion.initial_motion(source, Fraction(0))
-    receiver = motion.MotionUse.model_validate(
+    state = initial_envelfo(source, Fraction(0))
+    receiver = envelfo.EnvelfoUse.model_validate(
         {
             "clock": "beats",
             "body": {
@@ -299,13 +302,13 @@ def test_motion_samples_drive_density_and_receive_hit_events() -> None:
             },
         }
     )
-    receiver_state = motion.initial_motion(receiver, Fraction(0))
+    receiver_state = initial_envelfo(receiver, Fraction(0))
     player = MidiPlayer(profile=parse_profile(Path("conformance/up.toml").read_text()))
     player.accept(0, mido.Message.from_bytes([144, 60, 100]))
     hits: list[int] = []
     for index in range(5):
         at = Fraction(index, 4)
-        value = motion.motion_at(source, state, at).value
+        value = envelfo_at(source, state, at).value
         player.control(
             index * 125_000_000,
             arpeggiator_ports.ArpeggiatorControl(
@@ -317,12 +320,12 @@ def test_motion_samples_drive_density_and_receive_hit_events() -> None:
         for event in player.take_events().events:
             if event.port == arpeggiator_ports.ArpeggiatorOutputPort.hit:
                 hits.append(event.index)
-                receiver_state = motion.motion_event(
+                receiver_state = envelfo_event(
                     receiver,
                     receiver_state,
-                    motion.MotionEvent(
+                    envelfo.EnvelfoEvent(
                         at=event.at, ordinal=event.index, action="start"
                     ),
                 )
     assert hits == [0, 1, 4]
-    assert motion.motion_at(receiver, receiver_state, Fraction(9, 8)).value == 0.5
+    assert envelfo_at(receiver, receiver_state, Fraction(9, 8)).value == 0.5

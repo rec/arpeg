@@ -69,7 +69,7 @@ the recording. Capturing while transport is paused is supported.
 `capture_state` returns `[recording, publishedNoteCount, bankRevision]` for
 captured banks and an empty array for held or latched banks.
 
-Motion hosts use `control(time, "gate", "1/2")`,
+Envelfo hosts use `control(time, "gate", "1/2")`,
 `control(time, "density", "2/3")`, or `control(time, "transposition", "-12")`.
 Transposition requires whole signed 64-bit semitones. Presets configure
 `body.transposition = { semitones = 0, boundary = "drop" }`; boundary may also be
@@ -111,11 +111,11 @@ new steps when full while retaining release obligations; draining reports the
 exhaustion and permits future steps. Skipped attacks and notifications are not replayed;
 publication still updates the bank revision reported by subsequent steps.
 Expression lanes declare their source through `body.expression.lanes`, for
-example `{ breath = "motion", bend = "recorded", pressure = "current" }`.
+example `{ breath = "envelfo", bend = "recorded", pressure = "current" }`.
 Unspecified lanes inherit `body.expression.source`. Recorded lanes require a
 history or phrase bank. `control(time, "breath", "1/2")`,
 `control(time, "bend", "-1/4")`, and `control(time, "pressure", "1")` update
-Motion-owned lanes immediately. Breath/pressure range from 0 to 1; bend ranges
+Envelfo-owned lanes immediately. Breath/pressure range from 0 to 1; bend ranges
 from -1 to 1 with center 0, leaving the musical interval to the synth. Values
 round to the nearest MIDI integer, ties upward. Samples are held through rests
 and pauses, restored before the next note-on, and never added to the input
@@ -131,7 +131,7 @@ returned MIDI release, not the end of a synth's audible tail or confirmation of
 physical delivery. Each undrained start reserves room for its end in this
 4096-event list; exhaustion suppresses new attacks and gestures while releases
 continue. `exhausted` covers either list. Draining permits future attacks without
-replaying skipped ones. The webpage owns Motion sampling, event routing, and any
+replaying skipped ones. The webpage owns Envelfo sampling, event routing, and any
 delayed feedback.
 
 The [browser instrument](../../web/README.md) supplies controls, clock polling,

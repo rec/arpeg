@@ -1,4 +1,4 @@
-# Exact beat and wire traces for the shared Motion boundary.
+# Exact beat and wire traces for the shared Envelfo boundary.
 [[cases]]
 name = "variable-duration-cycles-begin-on-ties-without-invented-hits"
 profile = "cycle-ties"
@@ -69,8 +69,8 @@ actions = [
 ]
 
 [[cases]]
-name = "motion-expression-is-immediate-and-restored-after-pause-and-seek"
-profile = "motion-expression"
+name = "envelfo-expression-is-immediate-and-restored-after-pause-and-seek"
+profile = "envelfo-expression"
 actions = [
   { at = 0, port = "breath", value = "1/2", output = [], events = [] },
   { at = 0, port = "bend", value = "-1", output = [], events = [] },
@@ -91,8 +91,8 @@ actions = [
 ]
 
 [[cases]]
-name = "motion-breath-recorded-bend-and-live-pressure-have-separate-owners"
-profile = "motion-phrase"
+name = "envelfo-breath-recorded-bend-and-live-pressure-have-separate-owners"
+profile = "envelfo-phrase"
 actions = [
   { at = 0, data = [176, 2, 10], output = [], events = [] },
   { at = 0, data = [224, 0, 64], output = [], events = [] },
@@ -281,7 +281,7 @@ actions = [
 
 [[cases]]
 name = "seeded-density-uses-existing-probability-lane"
-profile = "motion-ports"
+profile = "envelfo-ports"
 actions = [
   { at = 0, port = "density", value = "1/2", output = [], events = [] },
   { at = 0, data = [144, 60, 100], output = [], events = [] },

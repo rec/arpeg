@@ -1,0 +1,9 @@
+# Keep this profile identity stable: it seeds the portable random streams.
+name = "motion-phrase"
+title = "Envelfo breath, recorded bend, and live pressure"
+
+[body]
+bank = { kind = "phrase", publish = "step" }
+selection = { kind = "played" }
+rhythm = { kind = "grid", step = "1/4 beat" }
+expression = { source = "recorded", timing = "fit", gaps = "carry", lanes = { breath = "envelfo", pressure = "current" } }

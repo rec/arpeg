@@ -1,7 +1,7 @@
 # The expressive arpeggiator
 
 Design proposal, updated 2026-10-03. This plan covers the shared arpeggiator model,
-its integration with Motions and instruments, and a standalone MIDI program.
+its integration with Envelfos and instruments, and a standalone MIDI program.
 Names and TOML examples below are proposed syntax, not currently loadable scores.
 This document adds no implementation and does not change the main roadmap.
 
@@ -61,13 +61,13 @@ Use the established boundaries:
 | --- | --- |
 | uFor | Portable definitions, exact timing, note/control ownership, library references, validation, and reference semantics. |
 | New arpeggiator project | First-class Python and Rust runtimes in one repository, MIDI adapters, CLI, examples, and shared conformance tests. Runtime cores own capture, selection, rhythm, note realization, deterministic scheduling, and snapshots, without audio processing or device ownership. |
-| Motions | Clocks, control signals, recorded gestures, parameter modulation, and typed events used by the arpeggiator. |
+| Envelfos | Clocks, control signals, recorded gestures, parameter modulation, and typed events used by the arpeggiator. |
 | enge | Consume generated performance events; realize sample regions and synth voices through existing instruments and renderers. |
 | Host or standalone MIDI shell | MIDI ports, device profiles, clock acquisition, controller decoding, channel allocation, and output scheduling. |
 
 An arpeggiator is an **event processor with note input and note output**, with
-Motion-compatible signal and event ports. It should not pretend to be a scalar
-LFO. Reuse the Motion clock/event contract and library resolver; do not require
+Envelfo-compatible signal and event ports. It should not pretend to be a scalar
+LFO. Reuse the Envelfo clock/event contract and library resolver; do not require
 every note to be represented as a signal crossing a threshold.
 
 Source anchors checked for the initial proposal on 2026-10-02; recheck their
@@ -77,10 +77,11 @@ implementation status when beginning development:
   stable `trigger_id`, ordered events, raw MIDI and UMP storage.
 - Sibling `ufor/ufor/control.py`: exact tempo maps, host song beats, and elapsed
   running beats that ignore transport seeks.
-- Sibling `ufor/ufor/motion.py`: Cycle/Contour/Stages and ordered Motion events.
-- `enge/synth.py` and `src/runtime.rs`: standalone beat-clock Contours/Cycles in
+- Sibling `ufor/ufor/envelfo.py`: LFO/Contour/Stages and ordered Envelfo definitions;
+  sibling enveLFO owns their runtime execution.
+- `enge/synth.py` and `src/runtime.rs`: standalone beat-clock Contours/LFOs in
   offline and persistent synth rendering. Beat-based Stages and explicit
-  transport-position drivers remain separate unfinished Motion work.
+  transport-position drivers remain separate unfinished Envelfo work.
 - `enge/midi.py`: a limited offline adapter. It currently handles CC1/CC11 and
   bend but rejects breath CC2 and other unsupported messages. It also fixes a
   particular bend interpretation in its supplied patches. It is not yet the
@@ -244,7 +245,7 @@ For a controller genuinely arriving after C's release and before E's onset:
 
 This retained-but-not-emitted rule is the default for unowned gap controllers,
 not permission to discard explicitly owned note expression. Capturing a stream
-as a Motion does not assign note ownership; the capture profile does that.
+as a Envelfo does not assign note ownership; the capture profile does that.
 
 ### The wind-controller example
 
@@ -277,14 +278,14 @@ controller values and resolution alongside their declared normalized meaning.
 
 ### Timing and transformation
 
-Keep event order and exact relative times. Motions need not be continuous.
+Keep event order and exact relative times. Envelfos need not be continuous.
 Distinguish discrete events, step-valued signals that hold their last value,
 and explicitly interpolated signals. A captured MIDI controller lane retains
 its ordered original events and may expose a step-valued signal for modulation.
 Repeated messages remain in the event view even when their values are equal;
 holding a value does not generate additional MIDI messages. Before a known
 initial value exists, preserve unknown state rather than inventing zero.
-Converting the lane to an interpolated Motion requires an explicit
+Converting the lane to an interpolated Envelfo requires an explicit
 interpolation/reduction choice, with an error bound and retained original data.
 Controller state can exist while no note is sounding.
 
@@ -315,7 +316,7 @@ policy; never send an old gesture into a channel reassigned to a new note.
 A profile that cannot realize the requested overlap must diagnose it or use
 an explicitly selected crop/handoff policy, rather than silently losing data.
 
-Recorded, live, and Motion-generated expression are distinct lane sources.
+Recorded, live, and Envelfo-generated expression are distinct lane sources.
 Default ownership is one source per lane. Combining them requires the existing
 typed modulation operations, for example live breath multiplying recorded
 breath, or live bend adding cents. Record the combination and its bounds.
@@ -465,7 +466,7 @@ Seed random decisions by instance identity, named lane, bank revision where
 relevant, and logical decision count. Do not use audio block size, wall time,
 or a single random stream shared with unrelated lanes. Snapshot all counters.
 
-## 9. Clocks, lifecycle, and Motions
+## 9. Clocks, lifecycle, and Envelfos
 
 Keep the agreed time coordinates: local running beats, elapsed seconds, and
 sample frames at an audio destination. A MIDI-only process has no sample rate;
@@ -474,7 +475,7 @@ convert absolute times to frames once using their declared rounding rule.
 
 Local beat timing follows tempo and freezes on a musical stop, preserving phase
 through seeks. Explicit transport-position timing follows song position. Host
-seeks cancel pending quantized commands, as already chosen for Motions. For
+seeks cancel pending quantized commands, as already chosen for Envelfos. For
 arpeggiation, release owned output notes, discard their future scheduled events,
 and begin again at the destination clock's next eligible boundary; a seek does
 not spray all crossed notes into the output. A transport stop preserves pattern
@@ -489,14 +490,14 @@ release owned output notes. Record accepted clock observations so playback does
 not depend on the next run's packet jitter. This adapter must be implemented and
 tested explicitly; the existing tempo map is not a MIDI pulse estimator.
 
-Expose a small useful Motion interface:
+Expose a small useful Envelfo interface:
 
 `capture_ready` is implemented in Python, Rust, and WebAssembly. History and
 phrase banks emit one notification before the step that publishes a changed,
 nonempty bank, carrying its exact beat, step index, and revision. Publication
 coalesces completed notes or committed takes; unfinished recording, unchanged
 banks, and empty publication do not notify. Readiness is independent of density.
-The bounded Motion buffer admits notification, step, and outcome together or
+The bounded Envelfo buffer admits notification, step, and outcome together or
 reports exhaustion while preserving bank publication and due releases. Skipped
 notifications are not replayed.
 
@@ -530,13 +531,13 @@ They describe rhythm loops independently of note selector traversal. The bounded
 buffer admits notifications and their step together or reports exhaustion.
 
 Live breath, bend, and channel pressure now support per-lane `current`,
-`recorded`, and `motion` sources through `body.expression.lanes` in Python,
-Rust, and WebAssembly. Unspecified lanes inherit the global source. Motion
+`recorded`, and `envelfo` sources through `body.expression.lanes` in Python,
+Rust, and WebAssembly. Unspecified lanes inherit the global source. Envelfo
 controls update sounding notes immediately and hold exact samples through
 rests, pauses, clear, and relocation. Breath/pressure use [0, 1]; bend uses
 normalized wheel position [-1, 1], with 0 at center. The instrument sets its
 bend interval. MIDI destination rounding is nearest integer, ties upward;
-unknown values are not initialized. Motion samples never alter the received
+unknown values are not initialized. Envelfo samples never alter the received
 MIDI capture. Each lane has one owner; source mixing remains future work.
 
 Live `selection_offset` is implemented for held, latched, history, and phrase
@@ -560,7 +561,7 @@ file renderer are rejected.
 
 Use the existing event ordering/capacity rules for connections. Feedback requires
 an explicit delay of at least one scheduling quantum and a bounded event budget.
-Do not add an unbounded same-timestamp loop between a Motion and an arpeggiator.
+Do not add an unbounded same-timestamp loop between a Envelfo and an arpeggiator.
 
 ## 10. MIDI realization and faithful cleanup
 
@@ -798,7 +799,7 @@ offline execution and live execution consume the same decisions and clocks.
    repeats, probability, deterministic selectors, phrase substitution, voicing,
    polymetric lanes, and multi-arp composition. Cover each reference family with
    an authored profile and an exact decision trace.
-6. **Motions and clock integration.** Share signal/event ports and snapshots;
+6. **Envelfos and clock integration.** Share signal/event ports and snapshots;
    complete external MIDI-clock acquisition and explicit transport-position
    behavior on top of the common clock work. Keep live provider execution
    deferred until its capacity and timing contract exists.
@@ -809,7 +810,7 @@ offline execution and live execution consume the same decisions and clocks.
 Each slice gets focused commits and its own passing checks. No dependency or
 roadmap changes are authorized by writing this plan. During implementation,
 coordinate required uFor/enge changes as separately reviewable commits; do not
-silently fold unrelated unfinished Motion features into an arp change.
+silently fold unrelated unfinished Envelfo features into an arp change.
 
 ## 15. Acceptance evidence
 
@@ -819,12 +820,12 @@ silently fold unrelated unfinished Motion features into an arp change.
 | Monophonic memory | Sequential notes build a bank without requiring overlap; completed gestures become eligible at the declared boundary and playing occurrences survive bank replacement. |
 | Breath and bend | Reordering wind notes carries CC2-derived breath, the correct inherited initial state, later attack, bend offsets, release velocity when supplied, and selected tails. Legato onsets without intervening releases form segments under the explicit input profile; velocity-zero releases retain their original encoding. No silent default velocity substitution. |
 | Between notes | Prefix, gap, suffix, pedal, and unknown events survive capture; each playback policy has exact emitted and retained-event traces. Unowned post-release breath updates the next source note's entry state without affecting an unrelated output note. Original-phrase replay preserves source semantic ordering. |
-| Discrete Motions | Repeated equal-valued MIDI messages preserve their timestamps and order; the held-value view creates no extra messages or implicit interpolation and remains independent of note ownership. |
+| Discrete Envelfos | Repeated equal-valued MIDI messages preserve their timestamps and order; the held-value view creates no extra messages or implicit interpolation and remains independent of note ownership. |
 | MIDI allocation | Independent gestures on overlapping notes never collide silently on one channel; exhaustion, repeated keys, stop, bypass, disconnect, and snapshot reconciliation release exactly the owned notes. |
 | Euclidean/algorithmic | Exact canonical masks and rotations, pulse counts, deterministic random choices, rest/tie/repeat semantics, and polymetric cycle behavior. |
 | Timing | Tempo changes, fractional divisions, stop/resume, seek cancellation, incoming pulses, and equal-time ordering agree across whole runs, irregular blocks, and restored snapshots. |
 | Samples | Exhaustive marked regions reconstruct the decoded source exactly under identity settings; shuffled/repeated regions and seam policies have listenable regressions. |
-| Motion integration | A Motion can change density or expression and receive a hit event without duplicate clock ownership or unbounded feedback. |
+| Envelfo integration | A Envelfo can change density or expression and receive a hit event without duplicate clock ownership or unbounded feedback. |
 | Standalone | A shipped MIDI-only executable validates profiles and processes files without Python or audio libraries; loopback tests verify note/control order and scheduling. |
 | Python accessibility | Install and run without NumPy, enge, audio libraries, or a Rust extension. A modified Python selector works without compilation; shared fixtures establish built-in parity with Rust. |
 | Limits | Event storms and dense breath streams obey explicit capacity/quality policies while preserving release obligations. |
@@ -840,7 +841,7 @@ software parity alone cannot establish the receiver's articulation or tail rules
 
 Begin a dedicated project chat after choosing the name and creating its
 repository. Use this plan as the handoff, starting with slice 1 and the dependency
-boundaries in section 11. Keep enge/Motions work in its existing project context.
+boundaries in section 11. Keep enge/Envelfos work in its existing project context.
 This documentation update creates neither the repository nor a new chat and
 does not start implementation. Coordinate shared uFor changes explicitly when
 development begins; keep one authoritative plan rather than diverging copies.

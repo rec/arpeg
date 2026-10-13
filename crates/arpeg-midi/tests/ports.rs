@@ -67,7 +67,7 @@ fn fractional_offsets_preserve_time_and_pending_music() {
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 #[cfg_attr(not(target_arch = "wasm32"), test)]
-fn motion_ports_match_shared_exact_traces() {
+fn envelfo_ports_match_shared_exact_traces() {
     let traces: toml::Value =
         toml::from_str(include_str!("../../../conformance/ports.toml")).unwrap();
     for case in traces["cases"].as_array().unwrap() {
@@ -76,13 +76,13 @@ fn motion_ports_match_shared_exact_traces() {
             "custom-steps" => include_str!("../../../conformance/custom-steps.toml"),
             "phrase-wind" => include_str!("../../../conformance/phrase-wind.toml"),
             "history-wind" => include_str!("../../../conformance/history-wind.toml"),
-            "motion-ports" => include_str!("../../../conformance/motion-ports.toml"),
+            "envelfo-ports" => include_str!("../../../conformance/envelfo-ports.toml"),
             "transpose-fold" => include_str!("../../../conformance/transpose-fold.toml"),
             "offset-rest" => include_str!("../../../conformance/offset-rest.toml"),
-            "motion-expression" => include_str!("../../../conformance/motion-expression.toml"),
+            "envelfo-expression" => include_str!("../../../conformance/envelfo-expression.toml"),
             "cycle-rests" => include_str!("../../../conformance/cycle-rests.toml"),
             "cycle-ties" => include_str!("../../../conformance/cycle-ties.toml"),
-            "motion-phrase" => include_str!("../../../conformance/motion-phrase.toml"),
+            "envelfo-phrase" => include_str!("../../../conformance/envelfo-phrase.toml"),
             _ => panic!("unknown profile"),
         };
         for poll_us in [None, Some(1000)] {

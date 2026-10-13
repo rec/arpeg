@@ -22,8 +22,8 @@ test('generated web bindings load and exchange MIDI messages', () => {
     }
 });
 
-test('Motion expression updates immediately and restores known values at handoff', () => {
-    const profile = readFileSync(new URL('../../../conformance/motion-expression.toml', import.meta.url), 'utf8');
+test('Envelfo expression updates immediately and restores known values at handoff', () => {
+    const profile = readFileSync(new URL('../../../conformance/envelfo-expression.toml', import.meta.url), 'utf8');
     const player = new MidiPlayer(profile, 'internal', 120, 500_000n);
     try {
         player.accept(0n, new Uint8Array([144, 60, 100]), 'both');
@@ -75,8 +75,8 @@ test('selection offset uses source ranks and configurable rests through web bind
     }
 });
 
-test('Motion ports return exact event coordinates and accept step-boundary controls', () => {
-    const profile = readFileSync(new URL('../../../conformance/motion-ports.toml', import.meta.url), 'utf8');
+test('Envelfo ports return exact event coordinates and accept step-boundary controls', () => {
+    const profile = readFileSync(new URL('../../../conformance/envelfo-ports.toml', import.meta.url), 'utf8');
     const player = new MidiPlayer(profile, 'internal', 120, 500_000n);
     try {
         player.accept(0n, new Uint8Array([0x90, 60, 100]), 'both');

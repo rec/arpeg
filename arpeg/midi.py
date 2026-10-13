@@ -17,7 +17,7 @@ from ufor.events import MidiEvent
 
 from .bank import CaptureBank
 from .clock import ClockMode, TransportClock
-from .expression import entry_messages, expression_lane, motion_message
+from .expression import entry_messages, envelfo_message, expression_lane
 from .gesture import RealizedMidiEvent
 from .history import LiveHistoryArpeggiator
 from .live import LiveArpeggiator, LiveEvent
@@ -214,7 +214,7 @@ class MidiPlayer(BaseModel):
     ordinal: int = 0
     engine: LiveArpeggiator | LiveHistoryArpeggiator | None = None
     expression: dict[int, list[int]] = Field(default_factory=dict)
-    motion_expression: dict[arpeggiator.ExpressionLane, Fraction] = Field(
+    envelfo_expression: dict[arpeggiator.ExpressionLane, Fraction] = Field(
         default_factory=dict
     )
     output_id: int | None = None
@@ -461,8 +461,8 @@ class MidiPlayer(BaseModel):
         )
         if lane is not None:
             policy = self.profile.body.expression
-            if policy.lanes.get(lane, policy.source) != "motion":
-                raise ValueError(f"{lane} is not owned by Motion")
+            if policy.lanes.get(lane, policy.source) != "envelfo":
+                raise ValueError(f"{lane} is not owned by Envelfo")
         else:
             self.engine.ports.check_control(control, self.profile.body.seed)
         tick = self._elapsed(at_ns)
@@ -479,10 +479,10 @@ class MidiPlayer(BaseModel):
                             self.engine.before(at, max(tick, self.input_tick))
                         )
                     )
-            self.motion_expression[lane] = control.value
+            self.envelfo_expression[lane] = control.value
             if self.clock.active and self.output_key is not None:
                 output.append(
-                    mido.Message.from_bytes(motion_message(lane, control.value))
+                    mido.Message.from_bytes(envelfo_message(lane, control.value))
                 )
             return output
         if isinstance(self.engine, LiveArpeggiator):
@@ -571,7 +571,7 @@ class MidiPlayer(BaseModel):
                     for d in entry_messages(
                         self.profile.body.expression,
                         self.expression,
-                        self.motion_expression,
+                        self.envelfo_expression,
                     )
                 )
                 output.append(
@@ -617,7 +617,7 @@ class MidiPlayer(BaseModel):
                     for d in entry_messages(
                         self.profile.body.expression,
                         self.expression,
-                        self.motion_expression,
+                        self.envelfo_expression,
                     )
                 )
             if self.suppressed_note:

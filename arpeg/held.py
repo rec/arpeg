@@ -49,7 +49,7 @@ def render_held(
         raise ValueError("selection offset currently requires live input")
     if any(s != "current" for s in body.expression.lanes.values()):
         raise ValueError(
-            "per-lane recorded and Motion expression require live playback"
+            "per-lane recorded and Envelfo expression require live playback"
         )
     if body.retrigger != "on_empty":
         raise ValueError("held rendering does not support bank-edit retrigger")

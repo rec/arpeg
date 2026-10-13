@@ -35,7 +35,7 @@ pub struct MidiPlayer {
     ordinal: u32,
     expression_sources: std::collections::BTreeMap<Lane, Source>,
     expression: std::collections::BTreeMap<u8, Vec<u8>>,
-    motion_expression: std::collections::BTreeMap<Lane, arpeg_core::Beat>,
+    envelfo_expression: std::collections::BTreeMap<Lane, arpeg_core::Beat>,
     sounding: Option<(u64, u8)>,
     next_occurrence: u64,
     output_note: Option<NoteEvent>,
@@ -98,7 +98,7 @@ impl MidiPlayer {
             ordinal: 0,
             expression_sources,
             expression: std::collections::BTreeMap::new(),
-            motion_expression: std::collections::BTreeMap::new(),
+            envelfo_expression: std::collections::BTreeMap::new(),
             sounding: None,
             next_occurrence: 0,
             output_note: None,
@@ -318,10 +318,10 @@ impl MidiPlayer {
         value: arpeg_core::Beat,
     ) -> Result<Vec<Vec<u8>>, &'static str> {
         let sample = if let Some(lane) = expression::control_lane(port) {
-            if self.expression_sources[&lane] != Source::Motion {
-                return Err("expression lane is not owned by Motion");
+            if self.expression_sources[&lane] != Source::Envelfo {
+                return Err("expression lane is not owned by Envelfo");
             }
-            Some((lane, expression::motion_message(lane, value)?))
+            Some((lane, expression::envelfo_message(lane, value)?))
         } else {
             match &self.engine {
                 Engine::Held(e) => PerformancePorts::check_control(port, value, e.chance.seed)?,
@@ -351,7 +351,7 @@ impl MidiPlayer {
                     _ => {}
                 }
             }
-            self.motion_expression.insert(lane, value);
+            self.envelfo_expression.insert(lane, value);
             if self.clock.active() && self.sounding.is_some() {
                 output.push(data);
             }
@@ -434,7 +434,7 @@ impl MidiPlayer {
                     output.extend(expression::entry_messages(
                         &self.expression_sources,
                         &self.expression,
-                        &self.motion_expression,
+                        &self.envelfo_expression,
                     ));
                     output.push(vec![0x90, key, velocity]);
                     self.sounding = Some((id, key));
@@ -474,7 +474,7 @@ impl MidiPlayer {
                 output.extend(expression::entry_messages(
                     &self.expression_sources,
                     &self.expression,
-                    &self.motion_expression,
+                    &self.envelfo_expression,
                 ));
             }
             if self.suppressed_note {

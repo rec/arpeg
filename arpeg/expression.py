@@ -18,7 +18,7 @@ def expression_lane(data: list[int]) -> ExpressionLane | None:
             return None
 
 
-def motion_message(lane: ExpressionLane, value: Fraction) -> list[int]:
+def envelfo_message(lane: ExpressionLane, value: Fraction) -> list[int]:
     if lane == ExpressionLane.bend:
         wheel = floor(8192 + value * (8192 if value < 0 else 8191) + Fraction(1, 2))
         return [0xE0, wheel & 127, wheel >> 7]
@@ -29,15 +29,15 @@ def motion_message(lane: ExpressionLane, value: Fraction) -> list[int]:
 def entry_messages(
     profile: Expression,
     current: dict[int, list[int]],
-    motion: dict[ExpressionLane, Fraction],
+    envelfo: dict[ExpressionLane, Fraction],
 ) -> list[list[int]]:
     output: list[list[int]] = []
     for lane, status in _LANES:
         source = profile.lanes.get(lane, profile.source)
         if source == "current" and status in current:
             output.append(current[status])
-        elif source == "motion" and lane in motion:
-            output.append(motion_message(lane, motion[lane]))
+        elif source == "envelfo" and lane in envelfo:
+            output.append(envelfo_message(lane, envelfo[lane]))
     return output
 
 

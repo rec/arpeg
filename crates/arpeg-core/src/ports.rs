@@ -1,4 +1,4 @@
-//! Step-published scalar inputs and bounded discrete Motion outputs.
+//! Step-published scalar inputs and bounded discrete Envelfo outputs.
 
 use crate::Beat;
 

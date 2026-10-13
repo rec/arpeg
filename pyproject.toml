@@ -38,7 +38,9 @@ dev = [
     "pyupgrade>=3.21.2",
     "ruff>=0.16.9",
     "ty>=0.0.84",
+    "envelfo",
 ]
 
 [tool.uv.sources]
-ufor = { git = "ssh://git@github.com/rec/ufor.git", rev = "main" }
+ufor = { git = "ssh://git@github.com/rec/ufor.git", branch = "main" }
+envelfo = { git = "ssh://git@github.com/rec/envelfo.git", rev = "c252c11fbfa1d5f347a50d71cf43ff9ccca39c5d" }

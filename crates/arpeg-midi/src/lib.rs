@@ -506,10 +506,10 @@ pub fn parse_profile(text: &str, path: Option<&Path>) -> Result<Profile, String>
             let source = match value.as_str() {
                 Some("current") => Source::Current,
                 Some("recorded") => Source::Recorded,
-                Some("motion") => Source::Motion,
+                Some("envelfo") => Source::Envelfo,
                 _ => {
                     return Err(
-                        "expression lane source must be current, recorded, or motion".into(),
+                        "expression lane source must be current, recorded, or envelfo".into(),
                     );
                 }
             };
@@ -783,7 +783,7 @@ pub fn render_file(profile: &str, input: &[u8], path: Option<&Path>) -> Result<V
         .values()
         .any(|s| *s != Source::Current)
     {
-        return Err("Motion expression requires live playback".into());
+        return Err("Envelfo expression requires live playback".into());
     }
     if profile.retrigger != Retrigger::OnEmpty {
         return Err("file rendering does not support bank-edit retrigger".into());

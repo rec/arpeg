@@ -15,7 +15,7 @@ pub enum Lane {
 pub enum Source {
     Current,
     Recorded,
-    Motion,
+    Envelfo,
 }
 
 pub fn control_lane(port: InputPort) -> Option<Lane> {
@@ -36,7 +36,7 @@ pub fn lane(data: &[u8]) -> Option<Lane> {
     }
 }
 
-pub fn motion_message(lane: Lane, value: Beat) -> Result<Vec<u8>, &'static str> {
+pub fn envelfo_message(lane: Lane, value: Beat) -> Result<Vec<u8>, &'static str> {
     let lower = if lane == Lane::Bend { -1 } else { 0 };
     if value < lower.into() || value > 1.into() {
         return Err("expression sample is outside its normalized range");
@@ -59,7 +59,7 @@ pub fn motion_message(lane: Lane, value: Beat) -> Result<Vec<u8>, &'static str> 
 pub fn entry_messages(
     sources: &BTreeMap<Lane, Source>,
     current: &BTreeMap<u8, Vec<u8>>,
-    motion: &BTreeMap<Lane, Beat>,
+    envelfo: &BTreeMap<Lane, Beat>,
 ) -> Vec<Vec<u8>> {
     let mut output = Vec::new();
     for (lane, status) in [
@@ -73,9 +73,9 @@ pub fn entry_messages(
                     output.push(data.clone());
                 }
             }
-            Source::Motion => {
-                if let Some(value) = motion.get(&lane) {
-                    output.push(motion_message(lane, *value).expect("validated Motion sample"));
+            Source::Envelfo => {
+                if let Some(value) = envelfo.get(&lane) {
+                    output.push(envelfo_message(lane, *value).expect("validated Envelfo sample"));
                 }
             }
             Source::Recorded => {}

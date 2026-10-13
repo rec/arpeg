@@ -348,31 +348,31 @@ entry state, pause, boundary timing, and cleanup with coarse and frequent pollin
 Phrase playback currently uses a grid with classic note orders, fit timing,
 and carried gaps, matching history playback.
 
-### Motion control ports
+### Envelfo control ports
 
 Live MIDI expression has one declared source per lane. For example:
 
 ```toml
 [body.expression]
 source = "current"
-lanes = { breath = "motion", bend = "recorded" }
+lanes = { breath = "envelfo", bend = "recorded" }
 ```
 
 Unspecified lanes inherit `source`; each override accepts `current`, `recorded`,
-or `motion`. Recorded lanes require a history or phrase bank and the existing
+or `envelfo`. Recorded lanes require a history or phrase bank and the existing
 `timing = "fit", gaps = "carry"` playback policy. Held and latched banks support
-current and Motion lanes. Received MIDI remains captured regardless of ownership.
+current and Envelfo lanes. Received MIDI remains captured regardless of ownership.
 
-Motion samples reach the sounding note immediately. Breath and channel pressure
+Envelfo samples reach the sounding note immediately. Breath and channel pressure
 use exact values from 0 to 1; bend uses normalized wheel position from -1 to 1,
 with 0 at center. The synth sets the bend interval. Values round to the nearest
 MIDI integer, with ties upward. There is no interpolation or source mixing.
 Samples during rests or pauses are held for the next onset; an unsampled lane
-has no invented initial value. Current/Motion entry values precede the recorded
-entry bundle and note-on, preserving recorded event order. Motion samples are
+has no invented initial value. Current/Envelfo entry values precede the recorded
+entry bundle and note-on, preserving recorded event order. Envelfo samples are
 not added to the received MIDI recording. Python snapshots retain exact samples.
 
-Use [motion-expression](conformance/motion-expression.toml) with either native
+Use [envelfo-expression](conformance/envelfo-expression.toml) with either native
 host and enter `breath 1/2`, `bend -1/4`, or `pressure 1`. Python uses
 `ArpeggiatorControl` with those port names; WebAssembly uses `control(time, port,
 value)`. These expression controls belong to the MIDI player; the pure step
@@ -442,7 +442,7 @@ Sounding notes, fitted gestures, tied gates, and pending repeat groups keep thei
 realized parameters. A pause retains queued controls; Start or song-position
 relocation cancels them. Density rejections leave note selection unchanged.
 
-Use [motion-ports](conformance/motion-ports.toml) in either native MIDI host and
+Use [envelfo-ports](conformance/envelfo-ports.toml) in either native MIDI host and
 enter `gate 1/2` or `density 2/3`. The preset includes the required seed.
 For a Python host:
 
@@ -473,7 +473,7 @@ beat, step index, and bank revision. Several captures published together emit on
 notification. Replacement, overdub, and undo can notify; unfinished recording,
 unchanged banks, and empty banks do not. Readiness is independent of density:
 even a rejected hit can publish usable captured material. Route this event to a
-Motion that should restart when a new bank becomes eligible.
+Envelfo that should restart when a new bank becomes eligible.
 
 `cycle` marks the first step of an authored rhythm loop, including the first
 loop. Euclidean loops contain `steps` opportunities; custom patterns loop after
@@ -483,7 +483,7 @@ banks, rests, ties, density rejection, and chord edits preserve rhythm phase.
 Pause preserves phase; Start and seeks relocate it without replaying crossed
 boundaries. Each cycle event carries its step's beat, index, and bank revision,
 before `step` and its outcome. This describes rhythm loops independently of note
-selector traversal. Hosts can use it to restart a Motion once per rhythm loop.
+selector traversal. Hosts can use it to restart a Envelfo once per rhythm loop.
 
 The MIDI player's batch also has `notes`: realized `note_start` and `note_end`
 notifications with exact beat `at`, player-local `occurrence`, source identity
@@ -503,9 +503,9 @@ skipped ones. `batch.exhausted` reports either list's exhaustion. Drain both
 lists using the same `take_events()` call. This describes returned MIDI output;
 it does not confirm delivery to hardware or reconcile a restored synth.
 
-The host samples its Motion before the target step and routes collected events
-to other Motions. Convert sampled scalar values to explicit rational values;
-there is no hidden float rounding or embedded Motion graph evaluator. Feedback
+The host samples its Envelfo before the target step and routes collected events
+to other Envelfos. Convert sampled scalar values to explicit rational values;
+there is no hidden float rounding or embedded Envelfo graph evaluator. Feedback
 needs an explicit delay of at least one scheduling quantum and a bounded host
 event budget.
 

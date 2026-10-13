@@ -1,4 +1,5 @@
 kind = "arpeggiator"
+# Keep this profile identity stable: it seeds the portable random streams.
 name = "motion-ports"
 title = "Live gate and density controls"
 
