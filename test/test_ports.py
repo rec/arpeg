@@ -278,7 +278,7 @@ def test_full_event_buffer_skips_attacks_and_still_releases_owned_notes() -> Non
 
 
 def test_envelfo_samples_drive_density_and_receive_hit_events() -> None:
-    source = envelfo.EnvelfoUse.model_validate(
+    source = envelfo.EnveLFO.model_validate(
         {
             "clock": "beats",
             "body": {
@@ -291,7 +291,7 @@ def test_envelfo_samples_drive_density_and_receive_hit_events() -> None:
         }
     )
     state = initial_envelfo(source, Fraction(0))
-    receiver = envelfo.EnvelfoUse.model_validate(
+    receiver = envelfo.EnveLFO.model_validate(
         {
             "clock": "beats",
             "body": {
