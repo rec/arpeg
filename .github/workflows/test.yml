@@ -12,7 +12,19 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        include:
+          - os: ubuntu-24.04
+            target: x86_64-unknown-linux-gnu
+            executable: arpeg
+          - os: windows-2025
+            target: x86_64-pc-windows-msvc
+            executable: arpeg.exe
+          - os: macos-15
+            target: aarch64-apple-darwin
+            executable: arpeg
+          - os: macos-15-intel
+            target: x86_64-apple-darwin
+            executable: arpeg
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
@@ -35,19 +47,51 @@ jobs:
       - name: Test Python reference and host message handling
         run: uv run --frozen --extra midi pytest
       - name: Check Python
-        run: uv run --frozen --extra midi ruff check --select B,E,F,I arpeg test
+        run: uv run --frozen --extra midi ruff check --select B,E,F,I arpeg test tools
       - name: Check Python formatting
-        run: uv run --frozen --extra midi ruff format --check arpeg test
+        run: uv run --frozen --extra midi ruff format --check arpeg test tools
       - name: Check Python types
-        run: uv run --frozen --extra midi ty check arpeg
+        run: uv run --frozen --extra midi ty check arpeg tools
       - name: Test Rust core and MIDI host
         run: cargo test --workspace --locked
       - name: Build native executable
         run: cargo build -p arpeg-midi --release --locked
+      - name: Validate a profile with the standalone executable
+        shell: bash
+        run: |
+          "./target/release/${{ matrix.executable }}" validate conformance/up.toml
       - name: Check Rust formatting
         run: cargo fmt --all --check
       - name: Check Rust
         run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - name: Package standalone executable
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: uv run --frozen --extra midi python tools/package_native.py --version "$RELEASE_TAG" --target "${{ matrix.target }}" --binary "target/release/${{ matrix.executable }}" --output dist/native
+      - name: Retain native downloads
+        uses: actions/upload-artifact@v7
+        with:
+          name: arpeg-native-${{ matrix.target }}
+          path: dist/native/
+          if-no-files-found: error
+
+  publish-native:
+    needs: [test, wasm]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: arpeg-native-*
+          merge-multiple: true
+          path: dist/native
+      - name: Attach native downloads to the published release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: gh release upload "$RELEASE_TAG" dist/native/* --repo "$GITHUB_REPOSITORY"
 
   wasm:
     runs-on: ubuntu-latest

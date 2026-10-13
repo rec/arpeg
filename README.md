@@ -209,6 +209,11 @@ messages when the input callback runs, poll every millisecond, and send events
 immediately when due. Driver timestamps and future output timestamps are not
 used yet. Hardware timing and device behavior have not been verified.
 
+Published releases build native ZIP downloads for Apple Silicon and Intel Macs,
+Windows x64, and Linux x64. Once every native and WebAssembly check passes, the
+workflow attaches the executables, sample profiles, and SHA-256 checksums to the
+release. See [standalone download instructions](packaging/README-NATIVE.md).
+
 Python MIDI port access requires the `midi` extra. The default package installs
 the reference engines, mido, and the CLI without the native RtMidi backend:
 
