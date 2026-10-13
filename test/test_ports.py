@@ -5,6 +5,7 @@ from tomllib import loads
 import mido
 import pytest
 from envelfo.runtime import envelfo_at, envelfo_event, initial_envelfo
+from pydantic import TypeAdapter
 from ufor import arpeggiator_ports, envelfo
 from ufor.arpeggiator import SelectionOffset, Transposition
 
@@ -278,28 +279,24 @@ def test_full_event_buffer_skips_attacks_and_still_releases_owned_notes() -> Non
 
 
 def test_envelfo_samples_drive_density_and_receive_hit_events() -> None:
-    source = envelfo.EnveLFO.model_validate(
+    source = TypeAdapter(envelfo.Generator).validate_python(
         {
+            "kind": "lfo",
+            "shape": "square",
+            "rate": "1",
+            "center": 0.5,
+            "depth": 0.5,
             "clock": "beats",
-            "body": {
-                "kind": "lfo",
-                "shape": "square",
-                "rate": "1",
-                "center": 0.5,
-                "depth": 0.5,
-            },
         }
     )
     state = initial_envelfo(source, Fraction(0))
-    receiver = envelfo.EnveLFO.model_validate(
+    receiver = TypeAdapter(envelfo.Generator).validate_python(
         {
+            "kind": "envelope",
+            "start": "event",
+            "retrigger": "reset",
+            "segments": [{"duration": "1/4 beat", "to": 1.0}],
             "clock": "beats",
-            "body": {
-                "kind": "envelope",
-                "start": "event",
-                "retrigger": "reset",
-                "segments": [{"duration": "1/4 beat", "to": 1.0}],
-            },
         }
     )
     receiver_state = initial_envelfo(receiver, Fraction(0))
