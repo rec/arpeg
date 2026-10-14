@@ -4,7 +4,7 @@ from fractions import Fraction
 
 from pydantic import BaseModel, Field
 from ufor import arpeggiator_ports
-from ufor.arpeggiator import SelectionOffset, Transposition
+from ufor.arpeggiator import PitchRegister, SelectionOffset, Transposition
 
 
 class PerformancePorts(BaseModel):
@@ -12,6 +12,7 @@ class PerformancePorts(BaseModel):
     density: Fraction
     transposition: Transposition = Transposition()
     selection_offset: SelectionOffset = SelectionOffset()
+    register_limits: PitchRegister | None = None
     pending: dict[arpeggiator_ports.ArpeggiatorInputPort, Fraction] = Field(
         default_factory=dict
     )
@@ -97,14 +98,26 @@ class PerformancePorts(BaseModel):
 
     def realize_pitch(self, key: int) -> int | None:
         pitch = key + self.transposition.semitones
-        if 0 <= pitch <= 127:
+        limits = self.register_limits
+        low, high = (limits.low, limits.high) if limits is not None else (0, 127)
+        boundary = (
+            limits.boundary if limits is not None else self.transposition.boundary
+        )
+        if low <= pitch <= high:
             return pitch
-        match self.transposition.boundary:
+        match boundary:
             case "drop":
                 return None
             case "fold":
-                return pitch % 12 if pitch < 0 else 116 + (pitch - 116) % 12
+                folded = (
+                    low + (pitch - low) % 12
+                    if pitch < low
+                    else high - (high - pitch) % 12
+                )
+                return folded if low <= folded <= high else None
             case "error":
+                if limits is not None:
+                    raise RuntimeError("pitch is outside configured register limits")
                 raise ValueError("transposed pitch is outside MIDI range 0–127")
 
     def outcome(self, hit: bool) -> None:

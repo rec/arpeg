@@ -22,6 +22,26 @@ pub enum PitchBoundary {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PitchRegister {
+    low: u8,
+    high: u8,
+    boundary: PitchBoundary,
+}
+
+impl PitchRegister {
+    pub fn new(low: u8, high: u8, boundary: PitchBoundary) -> Result<Self, &'static str> {
+        if low > high || high > 127 {
+            return Err("register bounds must be ordered within MIDI range 0–127");
+        }
+        Ok(Self {
+            low,
+            high,
+            boundary,
+        })
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum OutputPort {
     CaptureReady,
     Cycle,
@@ -61,6 +81,7 @@ pub struct NoteEvent {
 }
 
 pub struct PerformancePorts {
+    pub register_limits: Option<PitchRegister>,
     pub gate: Beat,
     pub density: Beat,
     pub transposition: i64,
@@ -78,6 +99,7 @@ pub struct PerformancePorts {
 impl PerformancePorts {
     pub fn new(gate: Beat, density: Beat) -> Self {
         Self {
+            register_limits: None,
             gate,
             density,
             transposition: 0,
@@ -205,16 +227,29 @@ impl PerformancePorts {
 
     pub fn realize_pitch(&self, key: i128) -> Result<Option<u8>, &'static str> {
         let pitch = key + i128::from(self.transposition);
-        if (0..=127).contains(&pitch) {
+        let (low, high, boundary) = self
+            .register_limits
+            .map_or((0, 127, self.pitch_boundary), |r| {
+                (i128::from(r.low), i128::from(r.high), r.boundary)
+            });
+        if (low..=high).contains(&pitch) {
             return Ok(Some(pitch as u8));
         }
-        match self.pitch_boundary {
+        match boundary {
             PitchBoundary::Drop => Ok(None),
-            PitchBoundary::Fold => Ok(Some(if pitch < 0 {
-                pitch.rem_euclid(12) as u8
-            } else {
-                (116 + (pitch - 116).rem_euclid(12)) as u8
-            })),
+            PitchBoundary::Fold => {
+                let folded = if pitch < low {
+                    low + (pitch - low).rem_euclid(12)
+                } else {
+                    high - (high - pitch).rem_euclid(12)
+                };
+                Ok(if (low..=high).contains(&folded) {
+                    Some(folded as u8)
+                } else {
+                    None
+                })
+            }
+            PitchBoundary::Error if self.register_limits.is_some() => Err(REGISTER_RANGE_ERROR),
             PitchBoundary::Error => Err("transposed pitch is outside MIDI range 0–127"),
         }
     }
@@ -239,3 +274,5 @@ impl PerformancePorts {
         }
     }
 }
+
+pub const REGISTER_RANGE_ERROR: &str = "pitch is outside configured register limits";

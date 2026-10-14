@@ -49,6 +49,8 @@ def render_held(
         raise ValueError("selection offset currently requires live input")
     if body.octaves.offsets != [0]:
         raise ValueError("octave expansion currently requires live input")
+    if body.register_limits is not None:
+        raise ValueError("register limits currently require live input")
     if any(s != "current" for s in body.expression.lanes.values()):
         raise ValueError(
             "per-lane recorded and Envelfo expression require live playback"

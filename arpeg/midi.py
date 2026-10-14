@@ -302,6 +302,7 @@ class MidiPlayer(BaseModel):
                 density=body.probability,
                 transposition=body.transposition,
                 selection_offset=body.selection_offset,
+                register_limits=body.register_limits,
             ),
             seed=body.seed,
             name=self.profile.name,

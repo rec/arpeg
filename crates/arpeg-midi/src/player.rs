@@ -67,6 +67,7 @@ impl MidiPlayer {
                 )?;
                 engine.ports.transposition = p.transposition;
                 engine.ports.pitch_boundary = p.pitch_boundary;
+                engine.ports.register_limits = p.register_limits;
                 engine.ports.selection_offset = p.selection_offset;
                 engine.ports.offset_rest_outside = p.offset_rest_outside;
                 engine.octaves = p.octaves;
@@ -85,6 +86,7 @@ impl MidiPlayer {
                 engine.chance = p.chance;
                 engine.ports.transposition = p.transposition;
                 engine.ports.pitch_boundary = p.pitch_boundary;
+                engine.ports.register_limits = p.register_limits;
                 engine.ports.selection_offset = p.selection_offset;
                 engine.ports.offset_rest_outside = p.offset_rest_outside;
                 engine.bank.octaves = p.octaves;

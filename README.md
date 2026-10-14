@@ -88,6 +88,36 @@ Try [up-octaves](conformance/up-octaves.toml) with either MIDI host or load it
 through the WebAssembly player API. The limited file renderer rejects expanded
 octaves. [Shared traces](conformance/octaves.toml) cover both layouts and selectors.
 
+### Register limits
+
+Constrain live held, latched, history, or committed phrase output with inclusive
+MIDI note bounds:
+
+```toml
+[body.register_limits]
+low = 48
+high = 72
+boundary = "drop"
+```
+
+Omitting the table disables register limiting. Bounds default to 0 and 127,
+must be whole MIDI note numbers, and must satisfy `low <= high`. `drop` is the
+default: an out-of-window selection becomes a rest while traversal continues.
+`fold` moves a pitch by the fewest whole octaves needed to enter the window.
+If a narrow window contains no octave-equivalent pitch, the hit becomes a rest.
+`error` ends playback with a diagnostic and owned-note cleanup.
+
+The window checks the pitch after octave displacement and transposition. Its
+policy replaces the general MIDI-range policy while enabled. Source notes,
+weights, and recorded gestures remain intact, even when folding maps distinct
+entries onto the same output pitch. Repeats and ties retain their realized pitch;
+snapshots retain the window and traversal. Bounds are preset-only in this slice,
+and the limited file renderer rejects them.
+
+[register-fold](conformance/register-fold.toml) demonstrates folded octave
+entries. [Shared register traces](conformance/register.toml) check boundaries,
+rests, exact folding, and transform order in Python, Rust, and WebAssembly.
+
 [Weighted walks](conformance/weighted-walk.toml) move through the bank in pitch
 order, breaking equal-pitch ties by source identity. `moves` contains signed
 rank offsets, `weights` contains their positive integer weights, and movement

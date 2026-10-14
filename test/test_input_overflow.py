@@ -2,13 +2,14 @@ from collections.abc import Callable
 from contextlib import nullcontext
 from io import StringIO
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Literal
 
 import mido
 import pytest
 
 from arpeg import midi
-from arpeg.inbox import InputOverflow
+from arpeg.inbox import Inbox, InputOverflow
 from arpeg.output import OutputOverload
 
 
@@ -149,4 +150,42 @@ def test_output_overload_releases_sent_note_instead_of_refused_attack(
             output_bytes_per_second=1,
             output_burst_bytes=3,
         ).run()
+    assert host.output.messages == [[0x90, 60, 100], [0x80, 60, 0]]
+
+
+def test_register_error_during_a_tempo_command_ends_play_with_cleanup(
+    host: Backend,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    commands: Inbox[str] | None = None
+    now = 0
+
+    def command_thread(
+        *, target: object, args: tuple[Inbox[str]], daemon: bool
+    ) -> SimpleNamespace:
+        nonlocal commands
+        commands = args[0]
+        return SimpleNamespace(start=lambda: None)
+
+    def next_step(_: float) -> None:
+        nonlocal now
+        assert now == 0, "range error did not end the session"
+        now = 125_000_000
+        assert host.receive is not None and commands is not None
+        host.receive(mido.Message("note_on", note=73, velocity=90))
+        commands.put("tempo 90", 8)
+
+    profile = tmp_path / "register.toml"
+    profile.write_text("""title="Register"
+[body]
+rhythm={kind="grid",step="1/4 beat"}
+gate=2
+register_limits={low=60,high=72,boundary="error"}
+""")
+    monkeypatch.setattr(midi, "Thread", command_thread)
+    monkeypatch.setattr(midi, "perf_counter_ns", lambda: now)
+    monkeypatch.setattr(midi, "sleep", next_step)
+    with pytest.raises(RuntimeError, match="register limits"):
+        midi.Play(profile=profile, source=0, destination=0).run()
     assert host.output.messages == [[0x90, 60, 100], [0x80, 60, 0]]

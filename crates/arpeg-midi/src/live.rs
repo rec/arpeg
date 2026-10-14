@@ -6,6 +6,7 @@ use crate::{
     Profile,
     player::{InputSource, MidiPlayer},
 };
+use arpeg_core::ports::REGISTER_RANGE_ERROR;
 use arpeg_core::{Bank, clock::ClockMode, ports::InputPort};
 use midir::{Ignore, MidiInput, MidiOutput, MidiOutputConnection};
 use std::{
@@ -227,6 +228,7 @@ pub fn play(
                             }
                             Ok(messages)
                         }
+                        Err(error) if error == REGISTER_RANGE_ERROR => return Err(error.into()),
                         Err(error) => {
                             eprintln!("{error}");
                             continue;
@@ -244,6 +246,7 @@ pub fn play(
                                 match value.parse() {
                                     Ok(value) => match player.control(at, port, value) {
                                         Ok(messages) => send(&mut output, &mut delivery, origin, messages)?,
+                                        Err(error) if error == REGISTER_RANGE_ERROR => return Err(error.into()),
                                         Err(error) => eprintln!("{error}"),
                                     },
                                     Err(_) => eprintln!("controls require an exact rational value; transposition and selection_offset require whole numbers"),
@@ -256,6 +259,7 @@ pub fn play(
                         {
                             match player.set_tempo(at, bpm) {
                                 Ok(messages) => Ok(messages),
+                                Err(error) if error == REGISTER_RANGE_ERROR => return Err(error.into()),
                                 Err(error) => {
                                     eprintln!("{error}");
                                     continue;

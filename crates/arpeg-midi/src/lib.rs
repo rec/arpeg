@@ -7,7 +7,7 @@ use arpeg_core::bank::CaptureMode;
 use arpeg_core::chance::Chance;
 use arpeg_core::live::Retrigger;
 use arpeg_core::octaves::{Octaves, Traversal};
-use arpeg_core::ports::PitchBoundary;
+use arpeg_core::ports::{PitchBoundary, PitchRegister};
 use arpeg_core::rhythm::{PatternStep, Rhythm};
 use arpeg_core::{Bank, Beat, HeldNote, Selection, Walk, render_held};
 use midly::{
@@ -28,6 +28,7 @@ pub mod output;
 pub mod player;
 
 pub struct HeldProfile {
+    pub register_limits: Option<PitchRegister>,
     pub octaves: Octaves,
     pub expression_sources: BTreeMap<Lane, Source>,
     pub selection_offset: i64,
@@ -43,6 +44,7 @@ pub struct HeldProfile {
 }
 
 pub struct CapturedProfile {
+    pub register_limits: Option<PitchRegister>,
     pub octaves: Octaves,
     pub expression_sources: BTreeMap<Lane, Source>,
     pub selection_offset: i64,
@@ -136,6 +138,7 @@ pub fn parse_profile(text: &str, path: Option<&Path>) -> Result<Profile, String>
             "transposition",
             "selection_offset",
             "octaves",
+            "register_limits",
         ]
         .contains(&key.as_str())
     }) {
@@ -645,8 +648,44 @@ pub fn parse_profile(text: &str, path: Option<&Path>) -> Result<Profile, String>
             Octaves { offsets, traversal }
         }
     };
+    let register_limits = match body.get("register_limits") {
+        None => None,
+        Some(value) => {
+            let table = value.as_table().ok_or("register_limits must be a table")?;
+            if table
+                .keys()
+                .any(|k| !["low", "high", "boundary"].contains(&k.as_str()))
+            {
+                return Err("unsupported register_limits field".into());
+            }
+            let bound = |name: &str, default: u8| -> Result<u8, String> {
+                match table.get(name) {
+                    None => Ok(default),
+                    Some(value) => value
+                        .as_integer()
+                        .filter(|v| (0..=127).contains(v))
+                        .map(|v| v as u8)
+                        .ok_or_else(|| format!("register {name} must be a MIDI note number 0–127")),
+                }
+            };
+            let boundary = match table.get("boundary") {
+                None => PitchBoundary::Drop,
+                Some(value) => match value.as_str() {
+                    Some("drop") => PitchBoundary::Drop,
+                    Some("fold") => PitchBoundary::Fold,
+                    Some("error") => PitchBoundary::Error,
+                    _ => return Err("register boundary must be drop, fold, or error".into()),
+                },
+            };
+            Some(
+                PitchRegister::new(bound("low", 0)?, bound("high", 127)?, boundary)
+                    .map_err(str::to_owned)?,
+            )
+        }
+    };
     Ok(match bank {
         ParsedBank::Classic(bank) => Profile::Classic(HeldProfile {
+            register_limits,
             octaves,
             expression_sources,
             selection_offset,
@@ -690,6 +729,7 @@ pub fn parse_profile(text: &str, path: Option<&Path>) -> Result<Profile, String>
                 return Err("captured playback currently requires grid rhythm".into());
             };
             Profile::Captured(CapturedProfile {
+                register_limits,
                 octaves,
                 expression_sources,
                 selection_offset,
@@ -826,6 +866,9 @@ pub fn render_file(profile: &str, input: &[u8], path: Option<&Path>) -> Result<V
     }
     if profile.octaves.offsets != [0] {
         return Err("octave expansion currently requires live input".into());
+    }
+    if profile.register_limits.is_some() {
+        return Err("register limits currently require live input".into());
     }
     if profile
         .expression_sources

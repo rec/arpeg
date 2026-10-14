@@ -1,0 +1,46 @@
+[[cases]]
+name = "drop preserves traversal and includes both bounds"
+limits = { low = 60, high = 72 }
+notes = [[59, 100], [60, 90], [72, 80], [73, 70]]
+keys = [-1, 60, 72, -1, -1, 60, 72, -1]
+
+[[cases]]
+name = "fold chooses the nearest octave inside the window"
+limits = { low = 60, high = 72, boundary = "fold" }
+notes = [[59, 100], [60, 90], [72, 80], [73, 70]]
+keys = [71, 60, 72, 61, 71, 60, 72, 61]
+
+[[cases]]
+name = "narrow folds without an equivalent pitch become rests"
+limits = { low = 62, high = 65, boundary = "fold" }
+notes = [[60, 100], [64, 90], [67, 80]]
+keys = [-1, 64, -1, -1, 64, -1]
+
+[[cases]]
+name = "a one-note register permits only its pitch class"
+limits = { low = 60, high = 60, boundary = "fold" }
+notes = [[60, 100], [61, 90], [72, 80]]
+keys = [60, -1, 60, 60, -1, 60]
+
+[[cases]]
+name = "register follows octave displacement and transposition"
+limits = { low = 60, high = 72 }
+octaves = [-1, 0, 1]
+semitones = 2
+notes = [[60, 100]]
+keys = [-1, 62, -1, -1, 62, -1]
+
+[[cases]]
+name = "register fold can rescue a pitch outside MIDI range"
+limits = { low = 60, high = 72, boundary = "fold" }
+octaves = [1]
+midi_boundary = "error"
+notes = [[120, 100]]
+keys = [72, 72, 72]
+
+[[cases]]
+name = "fold uses exact arithmetic for extreme signed octave offsets"
+limits = { low = 60, high = 72, boundary = "fold" }
+octaves = [-9223372036854775808, 9223372036854775807]
+notes = [[61, 100]]
+keys = [61, 61, 61, 61]

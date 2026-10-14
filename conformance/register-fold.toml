@@ -1,0 +1,7 @@
+name = "register-fold"
+title = "Three octave entries in a one-octave register"
+
+[body]
+rhythm = { kind = "grid", step = "1/4 beat" }
+octaves = { offsets = [-1, 0, 1] }
+register_limits = { low = 60, high = 72, boundary = "fold" }

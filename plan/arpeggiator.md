@@ -392,7 +392,20 @@ rest, fold moves an out-of-range pitch by the fewest octaves into MIDI 0–127,
 and error reports the invalid pitch to the host, which must stop to release
 its last delivered note. Captured source pitches and controller values remain
 unchanged. Fractional offsets are rejected in this slice; microtonal realization,
-scale-degree transforms and register limits remain unfinished.
+scale-degree transforms remain unfinished.
+
+Register limits are implemented in Python, Rust, and WebAssembly for live held,
+latched, history, and committed phrase playback. An optional
+`register_limits = { low = 48, high = 72, boundary = "drop" }` table enables an
+inclusive MIDI pitch window after octave displacement and transposition.
+Drop is the default; fold moves by the fewest whole octaves into the window and
+emits rest when no equivalent pitch fits; error ends playback with owned-note
+cleanup. The configured window's policy replaces the general MIDI-range policy.
+Selectors still consume the original expanded candidates, preserving progression,
+identity, weights, expression, and pending repeats/ties. Shared traces cover both
+bounds, narrow windows, exact extreme-offset folding, and transform order.
+Recorded-expression and cleanup tests cover history and range errors. Bounds
+are preset-only; the limited file renderer rejects this transform.
 
 Octave expansion is implemented in Python, Rust, and WebAssembly for live held,
 latched, history, and committed phrase playback. Configure
