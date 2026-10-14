@@ -55,6 +55,39 @@ check the Python and Rust schedulers with irregular polling.
 Custom patterns currently support live held and latched banks; file rendering
 and recorded history reject them.
 
+### Octave expansion
+
+Live held, latched, history, and committed phrase playback supports:
+
+```toml
+[body.octaves]
+offsets = [0, 1, 2]
+traversal = "notes_first"
+```
+
+Offsets are signed whole octaves in authored order; `[0]` is the default.
+Negative offsets visit lower octaves, and repeated offsets create distinct
+selector entries. `notes_first` visits all source notes within each layer:
+C4, E4, G4, C5, E5, G5 for `[0, 1]`. `octaves_first` visits every layer within
+each source note: C4, C5, E4, E5, G4, G5. Descending and reverse-played traversal
+reverse the layer order as well as their existing source ordering. These are
+source/layer orders, rather than a global sort of the resulting pitches when
+source registers overlap.
+
+Walks, index patterns, weights, center/edge orders, and shuffles address the
+expanded ranks. No-repeat distinguishes source/layer entries, so different
+octaves of the same source may follow each other. Selection offset applies to
+expanded ascending ranks, then octave displacement and transposition determine
+the emitted pitch using the existing drop/fold/error policy. Repeats and ties
+retain their chosen pitch. Copies preserve source identity, velocity, recorded
+expression, and release velocity; the captured bank is not expanded or mutated.
+Snapshots preserve traversal through bank edits. Octave configuration is fixed
+in the preset; it is not a scalar live control.
+
+Try [up-octaves](conformance/up-octaves.toml) with either MIDI host or load it
+through the WebAssembly player API. The limited file renderer rejects expanded
+octaves. [Shared traces](conformance/octaves.toml) cover both layouts and selectors.
+
 [Weighted walks](conformance/weighted-walk.toml) move through the bank in pitch
 order, breaking equal-pitch ties by source identity. `moves` contains signed
 rank offsets, `weights` contains their positive integer weights, and movement

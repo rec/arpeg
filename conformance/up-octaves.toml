@@ -1,0 +1,6 @@
+name = "up-octaves"
+title = "Up through three octaves"
+
+[body]
+rhythm = { kind = "grid", step = "1/4 beat" }
+octaves = { offsets = [0, 1, 2], traversal = "notes_first" }

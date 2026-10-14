@@ -392,7 +392,20 @@ rest, fold moves an out-of-range pitch by the fewest octaves into MIDI 0–127,
 and error reports the invalid pitch to the host, which must stop to release
 its last delivered note. Captured source pitches and controller values remain
 unchanged. Fractional offsets are rejected in this slice; microtonal realization,
-scale-degree transforms, octave expansion, and register limits remain unfinished.
+scale-degree transforms and register limits remain unfinished.
+
+Octave expansion is implemented in Python, Rust, and WebAssembly for live held,
+latched, history, and committed phrase playback. Configure
+`octaves = { offsets = [0, 1], traversal = "notes_first" }`; `[0]` is the default.
+Offsets are signed whole octaves in authored order. `notes_first` visits source
+notes within each layer; `octaves_first` visits layers within each source note.
+Descending/reverse-played selection reverses layers too. Expanded source/layer
+entries are selectable ranks, including for random algorithms and no-repeat.
+Selection offset applies to expanded ascending ranks before octave displacement
+and transposition. Sources and their expression remain unchanged; repeats and
+ties retain their realized pitch. Shared traces and snapshot/chord-edit tests
+cover traversal, rank offsets, and recorded expression. The limited file renderer
+rejects expansion; octave configuration is preset-only in this slice.
 
 Algorithmic selectors include weighted choice, shuffle-once, reshuffle-per-cycle,
 no-immediate-repeat, bounded random walks, interval envelopes, transition tables,

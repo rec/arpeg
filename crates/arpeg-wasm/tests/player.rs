@@ -5,6 +5,29 @@ use js_sys::Uint8Array;
 use wasm_bindgen_test::wasm_bindgen_test;
 
 #[wasm_bindgen_test]
+fn browser_player_loads_octave_profiles_without_frontend_changes() {
+    let mut player = MidiPlayer::new(
+        include_str!("../../../conformance/up-octaves.toml"),
+        "internal",
+        120,
+        500_000,
+    )
+    .unwrap();
+    player.accept(0, &[0x90, 60, 100], "both").unwrap();
+    for (i, key) in [60, 72, 84, 60].iter().enumerate() {
+        let output = player.advance(i as i64 * 125_000).unwrap();
+        assert_eq!(
+            Uint8Array::new(&output.get(output.length() - 1)).to_vec(),
+            [0x90, *key, 100]
+        );
+    }
+    assert_eq!(
+        Uint8Array::new(&player.stop(400_000).unwrap().get(0)).to_vec(),
+        [0x80, 60, 0]
+    );
+}
+
+#[wasm_bindgen_test]
 fn browser_player_returns_midi_bytes_and_exact_transport_state() {
     let mut player = MidiPlayer::new(
         include_str!("../../../conformance/up.toml"),

@@ -6,6 +6,7 @@ use std::path::Path;
 use arpeg_core::bank::CaptureMode;
 use arpeg_core::chance::Chance;
 use arpeg_core::live::Retrigger;
+use arpeg_core::octaves::{Octaves, Traversal};
 use arpeg_core::ports::PitchBoundary;
 use arpeg_core::rhythm::{PatternStep, Rhythm};
 use arpeg_core::{Bank, Beat, HeldNote, Selection, Walk, render_held};
@@ -27,6 +28,7 @@ pub mod output;
 pub mod player;
 
 pub struct HeldProfile {
+    pub octaves: Octaves,
     pub expression_sources: BTreeMap<Lane, Source>,
     pub selection_offset: i64,
     pub offset_rest_outside: bool,
@@ -41,6 +43,7 @@ pub struct HeldProfile {
 }
 
 pub struct CapturedProfile {
+    pub octaves: Octaves,
     pub expression_sources: BTreeMap<Lane, Source>,
     pub selection_offset: i64,
     pub offset_rest_outside: bool,
@@ -132,6 +135,7 @@ pub fn parse_profile(text: &str, path: Option<&Path>) -> Result<Profile, String>
             "probability",
             "transposition",
             "selection_offset",
+            "octaves",
         ]
         .contains(&key.as_str())
     }) {
@@ -605,8 +609,45 @@ pub fn parse_profile(text: &str, path: Option<&Path>) -> Result<Profile, String>
             (ranks, rest)
         }
     };
+    let octaves = match body.get("octaves") {
+        None => Octaves::default(),
+        Some(value) => {
+            let table = value.as_table().ok_or("octaves must be a table")?;
+            if table
+                .keys()
+                .any(|k| !["offsets", "traversal"].contains(&k.as_str()))
+            {
+                return Err("unsupported octaves field".into());
+            }
+            let offsets = match table.get("offsets") {
+                None => vec![0],
+                Some(value) => value
+                    .as_array()
+                    .ok_or("octave offsets must be an integer list")?
+                    .iter()
+                    .map(|v| {
+                        v.as_integer()
+                            .ok_or("octave offsets must be signed integers")
+                    })
+                    .collect::<Result<Vec<_>, _>>()?,
+            };
+            if offsets.is_empty() {
+                return Err("octave offsets must not be empty".into());
+            }
+            let traversal = match table.get("traversal") {
+                None => Traversal::NotesFirst,
+                Some(value) => match value.as_str() {
+                    Some("notes_first") => Traversal::NotesFirst,
+                    Some("octaves_first") => Traversal::OctavesFirst,
+                    _ => return Err("octave traversal must be notes_first or octaves_first".into()),
+                },
+            };
+            Octaves { offsets, traversal }
+        }
+    };
     Ok(match bank {
         ParsedBank::Classic(bank) => Profile::Classic(HeldProfile {
+            octaves,
             expression_sources,
             selection_offset,
             offset_rest_outside,
@@ -649,6 +690,7 @@ pub fn parse_profile(text: &str, path: Option<&Path>) -> Result<Profile, String>
                 return Err("captured playback currently requires grid rhythm".into());
             };
             Profile::Captured(CapturedProfile {
+                octaves,
                 expression_sources,
                 selection_offset,
                 offset_rest_outside,
@@ -781,6 +823,9 @@ pub fn render_file(profile: &str, input: &[u8], path: Option<&Path>) -> Result<V
     }
     if profile.selection_offset != 0 {
         return Err("selection offset currently requires live input".into());
+    }
+    if profile.octaves.offsets != [0] {
+        return Err("octave expansion currently requires live input".into());
     }
     if profile
         .expression_sources

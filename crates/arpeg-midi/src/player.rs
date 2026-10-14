@@ -69,6 +69,7 @@ impl MidiPlayer {
                 engine.ports.pitch_boundary = p.pitch_boundary;
                 engine.ports.selection_offset = p.selection_offset;
                 engine.ports.offset_rest_outside = p.offset_rest_outside;
+                engine.octaves = p.octaves;
                 Engine::Held(Box::new(engine))
             }
             Profile::Captured(p) => {
@@ -86,6 +87,7 @@ impl MidiPlayer {
                 engine.ports.pitch_boundary = p.pitch_boundary;
                 engine.ports.selection_offset = p.selection_offset;
                 engine.ports.offset_rest_outside = p.offset_rest_outside;
+                engine.bank.octaves = p.octaves;
                 Engine::History(Box::new(engine))
             }
         };

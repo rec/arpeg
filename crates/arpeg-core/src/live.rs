@@ -1,6 +1,7 @@
 //! Incremental decisions for a running, held-note arpeggiator.
 
 use crate::chance::{Chance, draw_below};
+use crate::octaves::{Octaves, Traversal};
 
 use crate::{
     Bank, Beat, Selection,
@@ -39,6 +40,8 @@ pub struct OutputEvent {
 #[derive(Clone, Copy, Debug)]
 struct InputNote {
     id: u64,
+    source_id: u64,
+    octave_index: usize,
     key: u8,
     velocity: u8,
     onset: Beat,
@@ -61,6 +64,7 @@ struct Attack {
 }
 
 pub struct LiveArpeggiator {
+    pub octaves: Octaves,
     bank_mode: Bank,
     pub chance: Chance,
     bank_revision: u64,
@@ -84,7 +88,7 @@ pub struct LiveArpeggiator {
     now: Beat,
     next_id: u64,
     next_output: u64,
-    previous_key: Option<(Beat, u64)>,
+    previous_key: Option<(i64, Beat, u64, i64, u64)>,
     input: Vec<InputNote>,
     bank: Vec<InputNote>,
     toggle_at: Option<Beat>,
@@ -154,6 +158,7 @@ impl LiveArpeggiator {
             next_id: 0,
             next_output: 0,
             previous_key: None,
+            octaves: Octaves::default(),
             input: Vec::new(),
             bank: Vec::new(),
             toggle_at: None,
@@ -174,6 +179,8 @@ impl LiveArpeggiator {
         let new_chord = self.input.is_empty();
         let note = InputNote {
             id: self.next_id,
+            source_id: self.next_id,
+            octave_index: 0,
             key,
             velocity,
             onset: at,
@@ -472,11 +479,25 @@ impl LiveArpeggiator {
     }
 
     fn schedule_step(&mut self, at: Beat, decision: RhythmDecision) -> Result<bool, &'static str> {
+        if self.octaves.offsets.is_empty() {
+            return Err("octave offsets must not be empty");
+        }
         let active = if self.bank_mode == Bank::Held {
             &self.input
         } else {
             &self.bank
         };
+        let active: Vec<_> = self
+            .octaves
+            .indices(active.len(), false)
+            .into_iter()
+            .map(|(i, j)| InputNote {
+                id: active[i].id * self.octaves.offsets.len() as u64 + j as u64,
+                source_id: active[i].id,
+                octave_index: j,
+                ..active[i]
+            })
+            .collect();
         if active.is_empty() {
             self.previous_key = None;
             self.pattern_position = 0;
@@ -497,7 +518,7 @@ impl LiveArpeggiator {
         }
         let selection = &self.selection;
         let mut ordered = active.clone();
-        ordered.sort_unstable_by_key(|note| selection_key(note, selection));
+        ordered.sort_unstable_by_key(|note| selection_key(note, selection, self.octaves.traversal));
         let selected = if let Selection::IndexPattern {
             indices,
             rest_outside,
@@ -521,7 +542,7 @@ impl LiveArpeggiator {
                 .filter_map(|(i, n)| {
                     if *no_repeat
                         && ordered.len() > 1
-                        && self.previous_key.is_some_and(|(_, id)| id == n.id)
+                        && self.previous_key.is_some_and(|(_, _, _, _, id)| id == n.id)
                     {
                         return None;
                     }
@@ -603,7 +624,7 @@ impl LiveArpeggiator {
                     && self.shuffle_order.len() > 1
                     && self
                         .previous_key
-                        .is_some_and(|(_, id)| self.shuffle_order[0] == id)
+                        .is_some_and(|(_, _, _, _, id)| self.shuffle_order[0] == id)
                 {
                     let chosen = 1 + draw_below(
                         seed,
@@ -640,7 +661,7 @@ impl LiveArpeggiator {
             ordered = indices.into_iter().map(|i| ordered[i]).collect();
             let previous = self
                 .previous_key
-                .and_then(|(_, id)| ordered.iter().position(|note| note.id == id));
+                .and_then(|(_, _, _, _, id)| ordered.iter().position(|note| note.id == id));
             ordered[previous.map_or(0, |i| (i + 1) % size)]
         } else if let Selection::Alternating { repeat_endpoints } = selection {
             if let Some(previous) = self.previous_key {
@@ -651,7 +672,7 @@ impl LiveArpeggiator {
                         ordered.reverse();
                     }
                     let next = ordered.iter().find(|note| {
-                        let key = selection_key(note, selection);
+                        let key = selection_key(note, selection, self.octaves.traversal);
                         if self.rising {
                             key > previous
                         } else {
@@ -666,12 +687,12 @@ impl LiveArpeggiator {
                         *ordered
                             .iter()
                             .find(|note| {
-                                let key = selection_key(note, selection);
+                                let key = selection_key(note, selection, self.octaves.traversal);
                                 (if self.rising {
                                     key >= previous
                                 } else {
                                     key <= previous
-                                }) && (*repeat_endpoints || note.id != previous.1)
+                                }) && (*repeat_endpoints || note.id != previous.4)
                             })
                             .unwrap_or(&ordered[0])
                     }
@@ -683,7 +704,7 @@ impl LiveArpeggiator {
         } else if let Selection::Walk(walk) = selection {
             let previous = self
                 .previous_key
-                .and_then(|(_, id)| ordered.iter().position(|note| note.id == id));
+                .and_then(|(_, _, _, _, id)| ordered.iter().position(|note| note.id == id));
             let should_move = previous.is_some()
                 || if self.previous_key.is_none() {
                     walk.start_move
@@ -721,15 +742,18 @@ impl LiveArpeggiator {
             *ordered
                 .iter()
                 .find(|note| {
-                    self.previous_key
-                        .is_none_or(|previous| selection_key(note, selection) > previous)
+                    self.previous_key.is_none_or(|previous| {
+                        selection_key(note, selection, self.octaves.traversal) > previous
+                    })
                 })
                 .unwrap_or(&ordered[0])
         };
-        self.previous_key = Some(selection_key(&selected, selection));
+        self.previous_key = Some(selection_key(&selected, selection, self.octaves.traversal));
         let selected = if self.ports.selection_offset != 0 {
             let mut ranked = ordered.clone();
-            ranked.sort_unstable_by_key(|n| (n.key, n.id));
+            ranked.sort_unstable_by_key(|n| {
+                selection_key(n, &Selection::Ascending, self.octaves.traversal)
+            });
             let rank = ranked.iter().position(|n| n.id == selected.id).unwrap();
             let Some(rank) = self.ports.offset_rank(rank, ranked.len()) else {
                 return Ok(false);
@@ -738,7 +762,10 @@ impl LiveArpeggiator {
         } else {
             selected
         };
-        let Some(key) = self.ports.realize_pitch(selected.key)? else {
+        let Some(key) = self.ports.realize_pitch(
+            i128::from(selected.key) + 12 * i128::from(self.octaves.offsets[selected.octave_index]),
+        )?
+        else {
             return Ok(false);
         };
         let interval = decision.duration / decision.repeats as i64;
@@ -781,7 +808,7 @@ impl LiveArpeggiator {
             at,
             kind: OutputKind::NoteOn {
                 id,
-                source_id: selected.id,
+                source_id: selected.source_id,
                 key: attack.key,
                 velocity: selected.velocity,
             },
@@ -791,14 +818,14 @@ impl LiveArpeggiator {
                 at,
                 kind: OutputKind::NoteOff {
                     id,
-                    source_id: selected.id,
+                    source_id: selected.source_id,
                     key: attack.key,
                 },
             });
         } else {
             self.sounding.push(SoundingNote {
                 id,
-                source_id: selected.id,
+                source_id: selected.source_id,
                 key: attack.key,
                 end,
             });
@@ -806,7 +833,11 @@ impl LiveArpeggiator {
     }
 }
 
-fn selection_key(note: &InputNote, selection: &Selection) -> (Beat, u64) {
+fn selection_key(
+    note: &InputNote,
+    selection: &Selection,
+    traversal: Traversal,
+) -> (i64, Beat, u64, i64, u64) {
     let position = match selection {
         Selection::Ascending
         | Selection::Walk(_)
@@ -820,5 +851,10 @@ fn selection_key(note: &InputNote, selection: &Selection) -> (Beat, u64) {
         Selection::Played => note.onset,
         Selection::ReversePlayed => -note.onset,
     };
-    (position, note.id)
+    let reverse = matches!(selection, Selection::Descending | Selection::ReversePlayed);
+    let layer = note.octave_index as i64 * if reverse { -1 } else { 1 };
+    match traversal {
+        Traversal::NotesFirst => (layer, position, note.source_id, 0, note.id),
+        Traversal::OctavesFirst => (0, position, note.source_id, layer, note.id),
+    }
 }

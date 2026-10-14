@@ -1,5 +1,6 @@
 //! Step-published history and explicitly committed phrase takes.
 
+use crate::octaves::Octaves;
 use crate::{
     Selection,
     capture::{CapturedPhrase, MidiCapture, MidiEvent, Profile, Timebase},
@@ -15,9 +16,11 @@ pub enum CaptureMode {
 pub struct BankNote {
     pub capture_id: String,
     pub note_id: String,
+    pub octave_index: usize,
 }
 
 pub struct CaptureBank {
+    pub octaves: Octaves,
     pub mode: CaptureMode,
     pub recording: Option<MidiCapture>,
     pub published: Vec<BankNote>,
@@ -51,6 +54,7 @@ impl CaptureBank {
             return Err("capture playback requires classic selection");
         }
         let mut bank = Self {
+            octaves: Octaves::default(),
             mode,
             recording: None,
             published: Vec::new(),
@@ -175,6 +179,7 @@ impl CaptureBank {
             notes.extend(take.phrase.notes.iter().map(|n| BankNote {
                 capture_id: take.phrase.capture_id.clone(),
                 note_id: n.note_id.clone(),
+                octave_index: 0,
             }));
         }
         if let CaptureMode::History(capacity) = self.mode {
@@ -187,6 +192,7 @@ impl CaptureBank {
                         .map(|n| BankNote {
                             capture_id: phrase.capture_id.clone(),
                             note_id: n.note_id.clone(),
+                            octave_index: 0,
                         }),
                 );
             }
@@ -212,8 +218,22 @@ impl CaptureBank {
             }
             self.selected_revision = self.revision;
         }
+        let ordered = self.ordered_notes(&self.selection)?;
+        let position = self
+            .last_selected
+            .as_ref()
+            .and_then(|r| ordered.iter().position(|n| n == r));
+        let selected = ordered[position.map_or(0, |i| (i + 1) % ordered.len())].clone();
+        self.last_selected = Some(selected.clone());
+        Ok(Some(selected))
+    }
+
+    pub fn ordered_notes(&self, selection: &Selection) -> Result<Vec<BankNote>, &'static str> {
+        if self.octaves.offsets.is_empty() {
+            return Err("octave offsets must not be empty");
+        }
         let mut ordered = self.published.clone();
-        match self.selection {
+        match selection {
             Selection::Ascending | Selection::Descending => {
                 let mut keyed = Vec::new();
                 for reference in ordered {
@@ -224,7 +244,7 @@ impl CaptureBank {
                         .find(|n| n.note_id == reference.note_id)
                         .ok_or("source note is missing")?;
                     let key = i32::from(note.key)
-                        * if self.selection == Selection::Descending {
+                        * if *selection == Selection::Descending {
                             -1
                         } else {
                             1
@@ -239,13 +259,16 @@ impl CaptureBank {
             Selection::ReversePlayed => ordered.reverse(),
             _ => {}
         }
-        let position = self
-            .last_selected
-            .as_ref()
-            .and_then(|r| ordered.iter().position(|n| n == r));
-        let selected = ordered[position.map_or(0, |i| (i + 1) % ordered.len())].clone();
-        self.last_selected = Some(selected.clone());
-        Ok(Some(selected))
+        let reverse = matches!(selection, Selection::Descending | Selection::ReversePlayed);
+        Ok(self
+            .octaves
+            .indices(ordered.len(), reverse)
+            .into_iter()
+            .map(|(i, j)| BankNote {
+                octave_index: j,
+                ..ordered[i].clone()
+            })
+            .collect())
     }
 
     pub fn source(&self, id: &str) -> Result<&CapturedPhrase, &'static str> {

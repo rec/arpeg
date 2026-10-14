@@ -309,6 +309,7 @@ class MidiPlayer(BaseModel):
             gate=body.gate,
             expression_source="recorded",
             bank=CaptureBank(
+                octaves=body.octaves,
                 mode=body.bank.kind,
                 history_size=body.bank.notes
                 if isinstance(body.bank, arpeggiator.HistoryBank)

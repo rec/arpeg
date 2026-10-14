@@ -10,6 +10,7 @@ pub mod gesture;
 pub mod history;
 pub mod live;
 pub mod marked_sample;
+pub mod octaves;
 pub mod ports;
 pub mod rhythm;
 

@@ -47,6 +47,8 @@ def render_held(
         raise ValueError("transposition currently requires live input")
     if body.selection_offset.ranks != 0:
         raise ValueError("selection offset currently requires live input")
+    if body.octaves.offsets != [0]:
+        raise ValueError("octave expansion currently requires live input")
     if any(s != "current" for s in body.expression.lanes.values()):
         raise ValueError(
             "per-lane recorded and Envelfo expression require live playback"

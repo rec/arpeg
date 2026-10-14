@@ -203,8 +203,8 @@ impl PerformancePorts {
         Some(shifted.rem_euclid(size as i128) as usize)
     }
 
-    pub fn realize_pitch(&self, key: u8) -> Result<Option<u8>, &'static str> {
-        let pitch = i128::from(key) + i128::from(self.transposition);
+    pub fn realize_pitch(&self, key: i128) -> Result<Option<u8>, &'static str> {
+        let pitch = key + i128::from(self.transposition);
         if (0..=127).contains(&pitch) {
             return Ok(Some(pitch as u8));
         }

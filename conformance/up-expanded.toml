@@ -30,6 +30,10 @@ boundary = "drop"
 ranks = 0
 boundary = "wrap"
 
+[body.octaves]
+offsets = [0]
+traversal = "notes_first"
+
 [body.expression]
 source = "current"
 timing = "original"

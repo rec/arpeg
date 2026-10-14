@@ -25,6 +25,7 @@ from ufor.arpeggiator import (
     IndexPattern,
     InsideOut,
     LatchedBank,
+    OctaveTraversal,
     OutsideIn,
     Pattern,
     Played,
@@ -34,6 +35,7 @@ from ufor.arpeggiator import (
 )
 
 from .chance import draw_below
+from .octaves import expanded_indices
 from .ports import PerformancePorts
 from .rhythm import RhythmDecision, decide_step, starts_cycle
 
@@ -158,7 +160,13 @@ class LiveArpeggiator(BaseModel):
     def note_on(self, at: Fraction, key: int, velocity: int) -> list[LiveEvent]:
         """Add a note, leaving the step at ``at`` for ``advance``."""
         self._check_time(at)
-        note = _InputNote(id=self.next_input_id, key=key, velocity=velocity, onset=at)
+        note = _InputNote(
+            id=self.next_input_id,
+            source_id=self.next_input_id,
+            key=key,
+            velocity=velocity,
+            onset=at,
+        )
         events = self._process_until(at, inclusive=False)
         new_chord = not self.input
         self.input.append(note)
@@ -398,6 +406,17 @@ class LiveArpeggiator(BaseModel):
 
     def _schedule_step(self, at: Fraction, decision: RhythmDecision) -> bool:
         active = self.input if isinstance(self.bank_mode, HeldBank) else self.bank
+        octaves = self.profile.body.octaves
+        active = [
+            active[i].model_copy(
+                update={
+                    "id": active[i].id * len(octaves.offsets) + j,
+                    "source_id": active[i].id,
+                    "octave_index": j,
+                }
+            )
+            for i, j in expanded_indices(len(active), octaves)
+        ]
         if not active:
             self.previous_note = None
             self.pattern_position = 0
@@ -579,13 +598,19 @@ class LiveArpeggiator(BaseModel):
             )
         self.previous_note = note
         if self.ports.selection_offset.ranks:
-            ranked = sorted(active, key=lambda n: (n.key, n.id))
+            ranked = sorted(
+                active, key=lambda n: self._entry_key(n, Fraction(n.key), False)
+            )
             if (
                 rank := self.ports.offset_rank(ranked.index(note), len(ranked))
             ) is None:
                 return False
             note = ranked[rank]
-        if (key := self.ports.realize_pitch(note.key)) is None:
+        if (
+            key := self.ports.realize_pitch(
+                note.key + 12 * octaves.offsets[note.octave_index]
+            )
+        ) is None:
             return False
         interval = decision.duration / decision.repeats
         self.pending.extend(
@@ -695,7 +720,7 @@ class LiveArpeggiator(BaseModel):
                 at=at,
                 kind="on",
                 id=output_id,
-                source_id=note.id,
+                source_id=note.source_id,
                 key=attack.key,
                 velocity=note.velocity,
             )
@@ -706,14 +731,16 @@ class LiveArpeggiator(BaseModel):
                     at=at,
                     kind="off",
                     id=output_id,
-                    source_id=note.id,
+                    source_id=note.source_id,
                     key=attack.key,
                     velocity=0,
                 )
             )
         else:
             self.sounding.append(
-                _SoundingNote(id=output_id, source_id=note.id, key=attack.key, end=end)
+                _SoundingNote(
+                    id=output_id, source_id=note.source_id, key=attack.key, end=end
+                )
             )
         return events
 
@@ -728,7 +755,7 @@ class LiveArpeggiator(BaseModel):
         self.pending.clear()
         return events
 
-    def _selection_key(self, note: _InputNote) -> tuple[Fraction, int]:
+    def _selection_key(self, note: _InputNote) -> tuple[int, Fraction, int, int]:
         selection = self.selection
         if isinstance(selection, Played):
             position = -note.onset if selection.direction == "reverse" else note.onset
@@ -736,11 +763,26 @@ class LiveArpeggiator(BaseModel):
             position = Fraction(
                 -note.key if isinstance(selection, Descending) else note.key
             )
-        return position, note.id
+        reverse = (
+            isinstance(selection, Descending)
+            or isinstance(selection, Played)
+            and selection.direction == "reverse"
+        )
+        return self._entry_key(note, position, reverse)
+
+    def _entry_key(
+        self, note: _InputNote, position: Fraction, reverse: bool
+    ) -> tuple[int, Fraction, int, int]:
+        layer = -note.octave_index if reverse else note.octave_index
+        if self.profile.body.octaves.traversal == OctaveTraversal.notes_first:
+            return layer, position, note.source_id, 0
+        return 0, position, note.source_id, layer
 
 
 class _InputNote(BaseModel, frozen=True):
     id: int
+    source_id: int
+    octave_index: int = 0
     key: int = Field(ge=0, le=127)
     velocity: int = Field(ge=1, le=127)
     onset: Fraction

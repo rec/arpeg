@@ -1,0 +1,128 @@
+[[cases]]
+name = "notes within each octave"
+profile = '''
+name = "octaves"
+title = "Octaves"
+[body]
+rhythm = { kind = "grid", step = "1/4 beat" }
+octaves = { offsets = [0, 1] }
+'''
+notes = [[60, 100], [64, 90], [67, 80]]
+keys = [60, 64, 67, 72, 76, 79, 60]
+
+[[cases]]
+name = "octaves within each note"
+profile = '''
+name = "octaves"
+title = "Octaves"
+[body]
+rhythm = { kind = "grid", step = "1/4 beat" }
+octaves = { offsets = [0, 1], traversal = "octaves_first" }
+'''
+notes = [[60, 100], [64, 90], [67, 80]]
+keys = [60, 72, 64, 76, 67, 79, 60]
+
+[[cases]]
+name = "descending reverses layers and notes"
+profile = '''
+name = "octaves"
+title = "Octaves"
+[body]
+selection = { kind = "descending" }
+rhythm = { kind = "grid", step = "1/4 beat" }
+octaves = { offsets = [0, 1] }
+'''
+notes = [[60, 100], [64, 90], [67, 80]]
+keys = [79, 76, 72, 67, 64, 60, 79]
+
+[[cases]]
+name = "authored layer order and overlapping source registers"
+profile = '''
+name = "octaves"
+title = "Octaves"
+[body]
+rhythm = { kind = "grid", step = "1/4 beat" }
+octaves = { offsets = [1, -1, 0] }
+'''
+notes = [[60, 100], [79, 90]]
+keys = [72, 91, 48, 67, 60, 79]
+
+[[cases]]
+name = "index ranks address expanded entries"
+profile = '''
+name = "octaves"
+title = "Octaves"
+[body]
+selection = { kind = "index_pattern", indices = [3, 0, 4] }
+rhythm = { kind = "grid", step = "1/4 beat" }
+octaves = { offsets = [0, 1] }
+'''
+notes = [[60, 100], [64, 90], [67, 80]]
+keys = [72, 60, 76, 72, 60, 76]
+
+[[cases]]
+name = "walk traverses expanded ranks"
+profile = '''
+name = "octaves"
+title = "Octaves"
+[body]
+selection = { kind = "walk", moves = [1], weights = [1], boundary = "wrap" }
+rhythm = { kind = "grid", step = "1/4 beat" }
+octaves = { offsets = [0, 1] }
+'''
+notes = [[60, 100], [64, 90], [67, 80]]
+keys = [60, 64, 67, 72, 76, 79, 60]
+
+[[cases]]
+name = "selection offset precedes octave pitch and transposition"
+profile = '''
+name = "octaves"
+title = "Octaves"
+[body]
+rhythm = { kind = "grid", step = "1/4 beat" }
+octaves = { offsets = [0, 1] }
+selection_offset = { ranks = 1 }
+transposition = { semitones = 2 }
+'''
+notes = [[60, 100], [64, 90]]
+keys = [66, 74, 78, 62]
+
+[[cases]]
+name = "choice no-repeat distinguishes octave entries"
+profile = '''
+name = "octaves"
+title = "Octaves"
+[body]
+selection = { kind = "choice", weights = [4294967295, 1], no_repeat = true }
+seed = 47
+rhythm = { kind = "grid", step = "1/4 beat" }
+octaves = { offsets = [0, 1] }
+'''
+notes = [[60, 100]]
+keys = [60, 72, 60, 72, 60, 72]
+
+[[cases]]
+name = "reverse played order visits reversed layers"
+profile = '''
+name = "octaves"
+title = "Octaves"
+[body]
+selection = { kind = "played", direction = "reverse" }
+rhythm = { kind = "grid", step = "1/4 beat" }
+octaves = { offsets = [0, 1], traversal = "octaves_first" }
+'''
+notes = [[64, 90], [60, 100]]
+keys = [76, 64, 72, 60]
+
+[[cases]]
+name = "center-out uses expanded ranks"
+profile = '''
+name = "octaves"
+title = "Octaves"
+[body]
+selection = { kind = "inside_out" }
+rhythm = { kind = "grid", step = "1/4 beat" }
+octaves = { offsets = [0, 1] }
+'''
+notes = [[60, 100], [64, 90], [67, 80]]
+keys = [67, 72, 64, 76, 60, 79]

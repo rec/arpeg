@@ -5,22 +5,26 @@ from __future__ import annotations
 from typing import Literal
 
 from pydantic import BaseModel, Field
+from ufor.arpeggiator import Octaves
 from ufor.arpeggiator_capture import CapturedPhrase
 from ufor.events import MidiEvent
 from ufor.time import Timebase
 
 from .capture import MidiCapture, MidiCaptureProfile
+from .octaves import expanded_indices
 
 
 class BankNote(BaseModel, frozen=True):
     capture_id: str
     note_id: str
+    octave_index: int = 0
 
 
 class CaptureBank(BaseModel):
     """Record takes, then publish bank changes at the caller's step boundary."""
 
     mode: Literal["history", "phrase"]
+    octaves: Octaves = Octaves()
     history_size: int = Field(default=8, ge=1)
     selection: Literal["ascending", "descending", "played"] = "ascending"
     direction: Literal["forward", "reverse"] = "forward"
@@ -143,8 +147,23 @@ class CaptureBank(BaseModel):
             if self.retrigger_on_edit:
                 self.last_selected = None
             self.selected_revision = self.revision
-        if self.selection == "played":
-            ordered = bank if self.direction == "forward" else list(reversed(bank))
+        ordered = self.ordered_notes(self.selection)
+        if self.last_selected in ordered:
+            index = ordered.index(self.last_selected) + 1
+        else:
+            index = 0
+        self.last_selected = ordered[index % len(ordered)]
+        return self.last_selected
+
+    def ordered_notes(
+        self, selection: Literal["ascending", "descending", "played"]
+    ) -> list[BankNote]:
+        if selection == "played":
+            ordered = (
+                self.published
+                if self.direction == "forward"
+                else list(reversed(self.published))
+            )
         else:
 
             def order(ref: BankNote) -> tuple[int, str, str]:
@@ -155,16 +174,19 @@ class CaptureBank(BaseModel):
                 )
                 if note.key is None:
                     raise ValueError("MIDI selection requires a source key")
-                key = note.key if self.selection == "ascending" else -note.key
+                key = note.key if selection == "ascending" else -note.key
                 return (key, ref.capture_id, ref.note_id)
 
-            ordered = sorted(bank, key=order)
-        if self.last_selected in ordered:
-            index = ordered.index(self.last_selected) + 1
-        else:
-            index = 0
-        self.last_selected = ordered[index % len(ordered)]
-        return self.last_selected
+            ordered = sorted(self.published, key=order)
+        reverse = (
+            selection == "descending"
+            or selection == "played"
+            and self.direction == "reverse"
+        )
+        return [
+            ordered[i].model_copy(update={"octave_index": j})
+            for i, j in expanded_indices(len(ordered), self.octaves, reverse)
+        ]
 
     def source(self, capture_id: str) -> CapturedPhrase:
         if (
