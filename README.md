@@ -118,6 +118,39 @@ and the limited file renderer rejects them.
 entries. [Shared register traces](conformance/register.toml) check boundaries,
 rests, exact folding, and transform order in Python, Rust, and WebAssembly.
 
+
+### Scale mapping and degree shifts
+
+Live held, latched, history, and committed phrase playback can map pitches into
+an explicit scale and move by scale degrees:
+
+```toml
+[body.scale]
+root = 0
+intervals = [0, 2, 4, 5, 7, 9, 11]
+degrees = 1
+mapping = "nearest"
+```
+
+This defines C major and moves each mapped note one degree upward: C becomes D,
+E becomes F, and B becomes the next C. Omit the table to disable the transform.
+Root is a pitch class from 0 (C) through 11 (B); intervals must start at zero and
+increase strictly within 0–11. Degrees is a signed integer, defaulting to zero.
+A zero shift still maps off-scale notes when the table is enabled.
+
+`nearest` is the default mapping, choosing the lower pitch on equal distances.
+`up` and `down` map to the next scale pitch in that direction; `drop` makes an
+off-scale selection a rest. An already in-scale pitch stays unchanged before the
+degree shift. Mapping extends through all octaves, including negative pitches.
+
+The order is selection, octave displacement, scale mapping and degree shift,
+semitone transposition, then register/MIDI limits. Semitone transposition can
+therefore move the result outside the configured scale. Source identities,
+velocities, expression, and selector ranks stay unchanged; repeats and ties keep
+the realized pitch. Scale settings are preset-only, and the limited MIDI file
+renderer rejects them. See [shared traces](conformance/scale.toml).
+
+
 [Weighted walks](conformance/weighted-walk.toml) move through the bank in pitch
 order, breaking equal-pitch ties by source identity. `moves` contains signed
 rank offsets, `weights` contains their positive integer weights, and movement

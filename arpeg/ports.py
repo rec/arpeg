@@ -1,10 +1,11 @@
 """Step-published performance values and bounded Envelfo output events."""
 
+from bisect import bisect_right
 from fractions import Fraction
 
 from pydantic import BaseModel, Field
 from ufor import arpeggiator_ports
-from ufor.arpeggiator import PitchRegister, SelectionOffset, Transposition
+from ufor.arpeggiator import PitchRegister, PitchScale, SelectionOffset, Transposition
 
 
 class PerformancePorts(BaseModel):
@@ -13,6 +14,7 @@ class PerformancePorts(BaseModel):
     transposition: Transposition = Transposition()
     selection_offset: SelectionOffset = SelectionOffset()
     register_limits: PitchRegister | None = None
+    scale: PitchScale | None = None
     pending: dict[arpeggiator_ports.ArpeggiatorInputPort, Fraction] = Field(
         default_factory=dict
     )
@@ -97,6 +99,21 @@ class PerformancePorts(BaseModel):
         return shifted % size
 
     def realize_pitch(self, key: int) -> int | None:
+        if (scale := self.scale) is not None:
+            octave, chroma = divmod(key - scale.root, 12)
+            size = len(scale.intervals)
+            rank = bisect_right(scale.intervals, chroma) - 1
+            lower = scale.intervals[rank]
+            if lower != chroma:
+                if scale.mapping == "drop":
+                    return None
+                upper = scale.intervals[rank + 1] if rank + 1 < size else 12
+                if scale.mapping == "up" or (
+                    scale.mapping == "nearest" and upper - chroma < chroma - lower
+                ):
+                    rank += 1
+            octave, rank = divmod(octave * size + rank + scale.degrees, size)
+            key = scale.root + octave * 12 + scale.intervals[rank]
         pitch = key + self.transposition.semitones
         limits = self.register_limits
         low, high = (limits.low, limits.high) if limits is not None else (0, 127)

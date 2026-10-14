@@ -116,6 +116,7 @@ class LiveArpeggiator(BaseModel):
                 transposition=body.transposition,
                 selection_offset=body.selection_offset,
                 register_limits=body.register_limits,
+                scale=body.scale,
             )
         return self
 

@@ -391,8 +391,8 @@ all its repeats retain their realized pitch. Drop advances selection and emits
 rest, fold moves an out-of-range pitch by the fewest octaves into MIDI 0–127,
 and error reports the invalid pitch to the host, which must stop to release
 its last delivered note. Captured source pitches and controller values remain
-unchanged. Fractional offsets are rejected in this slice; microtonal realization,
-scale-degree transforms remain unfinished.
+unchanged. Fractional offsets are rejected in this slice; microtonal realization
+remains unfinished. Scale-degree transforms are described below.
 
 Register limits are implemented in Python, Rust, and WebAssembly for live held,
 latched, history, and committed phrase playback. An optional
@@ -419,6 +419,23 @@ and transposition. Sources and their expression remain unchanged; repeats and
 ties retain their realized pitch. Shared traces and snapshot/chord-edit tests
 cover traversal, rank offsets, and recorded expression. The limited file renderer
 rejects expansion; octave configuration is preset-only in this slice.
+
+### Scale mapping completion
+
+Scale mapping and scale-degree transposition are implemented in Python, Rust,
+and WebAssembly for live held, latched, history, and committed phrase playback.
+An optional `scale = { root = 0, intervals = [0,2,4,5,7,9,11], degrees = 1,
+mapping = "nearest" }` table defines pitch-class root and strictly increasing
+semitone offsets starting at zero. Omission disables mapping; degrees defaults
+to zero. Nearest mapping chooses the lower pitch on ties; up/down/drop are
+configurable. Drop emits rest without changing selector progression. Mapping
+and signed degree movement occur after octave displacement and before chromatic
+transposition and register limits. Exact integer arithmetic preserves octave
+crossings and extreme offsets. Source identity and recorded expression stay
+unchanged; repeats/ties retain realized pitches. Settings are preset-only, and
+the limited file renderer rejects scale mapping. Shared native/WebAssembly traces
+and Python snapshot/history tests cover the behavior. Microtonal realization,
+inversions, and voicing remain unfinished.
 
 Algorithmic selectors include weighted choice, shuffle-once, reshuffle-per-cycle,
 no-immediate-repeat, bounded random walks, interval envelopes, transition tables,

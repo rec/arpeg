@@ -303,6 +303,7 @@ class MidiPlayer(BaseModel):
                 transposition=body.transposition,
                 selection_offset=body.selection_offset,
                 register_limits=body.register_limits,
+                scale=body.scale,
             ),
             seed=body.seed,
             name=self.profile.name,

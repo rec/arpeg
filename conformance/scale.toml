@@ -1,0 +1,47 @@
+[[cases]]
+name = "nearest ties lower"
+scale = {root=0, intervals=[0,2,4,5,7,9,11]}
+notes = [[61,100],[63,90],[66,80],[70,70]]
+keys = [60,62,65,69]
+
+[[cases]]
+name = "up wraps octave"
+scale = {root=2, intervals=[0,3,7], mapping="up"}
+notes = [[60,100],[63,90],[71,80]]
+keys = [62,65,74]
+
+[[cases]]
+name = "down with negative degree shift"
+scale = {root=0, intervals=[0,2,4,5,7,9,11], mapping="down", degrees=-1}
+notes = [[60,100],[63,90],[72,80]]
+keys = [59,60,71]
+
+[[cases]]
+name = "drop preserves progression"
+scale = {root=0, intervals=[0,2,4,5,7,9,11], mapping="drop", degrees=1}
+notes = [[60,100],[61,90],[64,80]]
+keys = [62,-1,65,62]
+
+[[cases]]
+name = "octaves then scale then chromatic shift then register"
+scale = {root=0, intervals=[0,2,4,5,7,9,11], degrees=1}
+notes = [[61,100]]
+octaves = [-1,0,1]
+semitones = 1
+limits = {low=60,high=72,boundary="fold"}
+keys = [63,63,63]
+
+[[cases]]
+name = "single degree negative octave root"
+scale = {root=2, intervals=[0], degrees=-1}
+notes = [[0,100],[127,90]]
+limits = {boundary="fold"}
+keys = [2,110]
+
+[[cases]]
+name = "extreme degree and octave exactness"
+scale = {root=0, intervals=[0,2,4,5,7,9,11], degrees=9223372036854775807}
+notes = [[60,100]]
+octaves = [-9223372036854775808]
+limits = {boundary="fold"}
+keys = [0]

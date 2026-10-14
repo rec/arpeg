@@ -21,6 +21,74 @@ pub enum PitchBoundary {
     Error,
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum ScaleMapping {
+    #[default]
+    Nearest,
+    Up,
+    Down,
+    Drop,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PitchScale {
+    root: u8,
+    intervals: Vec<u8>,
+    degrees: i64,
+    mapping: ScaleMapping,
+}
+
+impl PitchScale {
+    pub fn new(
+        root: u8,
+        intervals: Vec<u8>,
+        degrees: i64,
+        mapping: ScaleMapping,
+    ) -> Result<Self, &'static str> {
+        if root > 11
+            || intervals.first() != Some(&0)
+            || intervals.iter().any(|v| *v > 11)
+            || intervals.windows(2).any(|v| v[0] >= v[1])
+        {
+            return Err(
+                "scale root must be 0–11 and intervals must start at zero and increase strictly within 0–11",
+            );
+        }
+        Ok(Self {
+            root,
+            intervals,
+            degrees,
+            mapping,
+        })
+    }
+
+    pub fn map_pitch(&self, key: i128) -> Option<i128> {
+        let relative = key - i128::from(self.root);
+        let octave = relative.div_euclid(12);
+        let chroma = relative.rem_euclid(12) as u8;
+        let size = self.intervals.len();
+        let mut rank = self.intervals.partition_point(|v| *v <= chroma) - 1;
+        let lower = self.intervals[rank];
+        if lower != chroma {
+            if self.mapping == ScaleMapping::Drop {
+                return None;
+            }
+            let upper = self.intervals.get(rank + 1).copied().unwrap_or(12);
+            if self.mapping == ScaleMapping::Up
+                || self.mapping == ScaleMapping::Nearest && upper - chroma < chroma - lower
+            {
+                rank += 1;
+            }
+        }
+        let degree = octave * size as i128 + rank as i128 + i128::from(self.degrees);
+        Some(
+            i128::from(self.root)
+                + degree.div_euclid(size as i128) * 12
+                + i128::from(self.intervals[degree.rem_euclid(size as i128) as usize]),
+        )
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct PitchRegister {
     low: u8,
@@ -81,6 +149,7 @@ pub struct NoteEvent {
 }
 
 pub struct PerformancePorts {
+    pub scale: Option<PitchScale>,
     pub register_limits: Option<PitchRegister>,
     pub gate: Beat,
     pub density: Beat,
@@ -99,6 +168,7 @@ pub struct PerformancePorts {
 impl PerformancePorts {
     pub fn new(gate: Beat, density: Beat) -> Self {
         Self {
+            scale: None,
             register_limits: None,
             gate,
             density,
@@ -226,6 +296,13 @@ impl PerformancePorts {
     }
 
     pub fn realize_pitch(&self, key: i128) -> Result<Option<u8>, &'static str> {
+        let key = match &self.scale {
+            Some(scale) => match scale.map_pitch(key) {
+                Some(pitch) => pitch,
+                None => return Ok(None),
+            },
+            None => key,
+        };
         let pitch = key + i128::from(self.transposition);
         let (low, high, boundary) = self
             .register_limits
