@@ -1,6 +1,7 @@
 //! Portable MIDI host using the device-independent transport player.
 
 use crate::input::{Inbox, InputFailure, InputLimits};
+use crate::output::MidiDelivery;
 use crate::{
     Profile,
     player::{InputSource, MidiPlayer},
@@ -22,6 +23,8 @@ pub struct PlayOptions {
     pub clock_source: Option<usize>,
     pub timeout_us: i64,
     pub input: InputLimits,
+    pub output_bytes_per_second: Option<u64>,
+    pub output_burst_bytes: usize,
 }
 
 pub fn list_ports() -> Result<(), String> {
@@ -56,7 +59,11 @@ pub fn play(
         clock_source,
         timeout_us,
         input: limits,
+        output_bytes_per_second,
+        output_burst_bytes,
     } = options;
+    let mut delivery =
+        MidiDelivery::new(output_bytes_per_second, output_burst_bytes).map_err(str::to_owned)?;
     if limits.packets == 0 || limits.bytes == 0 || limits.max_message_bytes == 0 {
         return Err("input limits must be positive".into());
     }
@@ -196,6 +203,8 @@ pub fn play(
                 for data in parser.feed(&data)? {
                     send(
                         &mut output,
+                        &mut delivery,
+                        origin,
                         player
                             .accept(elapsed(arrival), &data, source)
                             .map_err(str::to_owned)?,
@@ -234,7 +243,7 @@ pub fn play(
                             if let Some(port) = port {
                                 match value.parse() {
                                     Ok(value) => match player.control(at, port, value) {
-                                        Ok(messages) => send(&mut output, messages)?,
+                                        Ok(messages) => send(&mut output, &mut delivery, origin, messages)?,
                                         Err(error) => eprintln!("{error}"),
                                     },
                                     Err(_) => eprintln!("controls require an exact rational value; transposition and selection_offset require whole numbers"),
@@ -259,11 +268,13 @@ pub fn play(
                     }
                 }
                 .map_err(str::to_owned)?;
-                send(&mut output, messages)?;
+                send(&mut output, &mut delivery, origin, messages)?;
             }
             failure.check()?;
             send(
                 &mut output,
+                &mut delivery,
+                origin,
                 player
                     .advance(elapsed(Instant::now()))
                     .map_err(str::to_owned)?,
@@ -275,17 +286,25 @@ pub fn play(
         }
         failure.check()
     })();
-    if let Ok(messages) = player.stop(elapsed(Instant::now())) {
-        let _ = send(&mut output, messages);
+    let messages = player.stop(elapsed(Instant::now())).unwrap_or_default();
+    if let Err(error) = delivery.cleanup(&messages, |data| {
+        output.send(data).map_err(|e| format!("MIDI send: {e}"))
+    }) {
+        eprintln!("MIDI cleanup failed: {error}");
+        return result.and(Err(error));
     }
     result
 }
 
-fn send(port: &mut MidiOutputConnection, messages: Vec<Vec<u8>>) -> Result<(), String> {
-    for data in messages {
-        port.send(&data).map_err(|e| format!("MIDI send: {e}"))?;
-    }
-    Ok(())
+fn send(
+    port: &mut MidiOutputConnection,
+    delivery: &mut MidiDelivery,
+    origin: Instant,
+    messages: Vec<Vec<u8>>,
+) -> Result<(), String> {
+    delivery.send(&messages, origin.elapsed().as_nanos(), |data| {
+        port.send(data).map_err(|e| format!("MIDI send: {e}"))
+    })
 }
 
 struct MidiMessages {

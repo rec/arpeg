@@ -268,6 +268,33 @@ These limits bound payload retained by arpeg, plus one packet being processed
 and Rust's partial SysEx per input. MIDI libraries and drivers manage their own
 buffers; Mido assembles messages before arpeg receives them.
 
+### Output bandwidth
+
+Output protection is disabled by default. Set `--output-bytes-per-second RATE`
+on either play command to enable it. `--output-burst-bytes BYTES` sets the burst
+allowance, defaulting to 64. Both values must be positive integers. For a DIN
+connection, for example, append:
+
+```sh
+--output-bytes-per-second 3125 --output-burst-bytes 64
+```
+
+Credit starts at the burst allowance, refills at the configured rate, and never
+exceeds that allowance. Each ordered batch returned by a player operation must
+fit the available credit before any of it is sent. A batch larger than the
+burst allowance is always refused. Accounting counts complete MIDI message
+bytes, including status and SysEx delimiters, without assuming running-status
+compression. Accepted batches retain every controller sample and their original
+order. The host adds no output queue, pacing delay, or controller thinning.
+
+On overload, the host refuses the batch, reports an error, and ends the session.
+Cleanup bypasses the budget and sends matching Note Offs for notes successfully
+accepted by the output port, including an older note whose proposed replacement
+was refused. The budget estimates the configured destination capacity; it cannot
+observe driver queues or guarantee actual device delivery. Traditional DIN MIDI
+supports 3125 bytes per second; faster destinations should use their own rate.
+[MIDI transport overview](https://devblogs.microsoft.com/windows-music-dev/midi-40-and-the-new-windows-midi-services/)
+
 ### Live clock and transport
 
 For external synchronization, add `--clock external` to either play command.

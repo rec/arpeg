@@ -22,6 +22,8 @@ pub mod expression;
 pub mod input;
 #[cfg(feature = "device-host")]
 pub mod live;
+#[cfg(feature = "device-host")]
+pub mod output;
 pub mod player;
 
 pub struct HeldProfile {

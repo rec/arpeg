@@ -9,6 +9,7 @@ import pytest
 
 from arpeg import midi
 from arpeg.inbox import InputOverflow
+from arpeg.output import OutputOverload
 
 
 class Output:
@@ -124,3 +125,28 @@ def test_console_capacity_failure_ends_play(
     with pytest.raises(InputOverflow, match="Console input overflow"):
         midi.Play(profile=Path("conformance/up.toml"), source=0, destination=0).run()
     assert host.output.messages == []
+
+
+def test_output_overload_releases_sent_note_instead_of_refused_attack(
+    host: Backend,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    now = 0
+
+    def next_step(_: float) -> None:
+        nonlocal now
+        now = 125_000_000
+        assert host.receive is not None
+        host.receive(mido.Message("note_on", note=64, velocity=90))
+
+    monkeypatch.setattr(midi, "perf_counter_ns", lambda: now)
+    monkeypatch.setattr(midi, "sleep", next_step)
+    with pytest.raises(OutputOverload):
+        midi.Play(
+            profile=Path("conformance/up.toml"),
+            source=0,
+            destination=0,
+            output_bytes_per_second=1,
+            output_burst_bytes=3,
+        ).run()
+    assert host.output.messages == [[0x90, 60, 100], [0x80, 60, 0]]

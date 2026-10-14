@@ -20,8 +20,9 @@ from .clock import ClockMode, TransportClock
 from .expression import entry_messages, envelfo_message, expression_lane
 from .gesture import RealizedMidiEvent
 from .history import LiveHistoryArpeggiator
-from .inbox import Inbox, InputFailure, InputOverflow
+from .inbox import Inbox, InputFailure
 from .live import LiveArpeggiator, LiveEvent
+from .output import MidiDelivery
 from .ports import PerformancePorts
 from .profile import parse_profile
 
@@ -52,6 +53,8 @@ class Play(BaseModel, frozen=True):
     input_packets: int = Field(default=4096, gt=0)
     input_bytes: int = Field(default=1048576, gt=0)
     max_message_bytes: int = Field(default=65536, gt=0)
+    output_bytes_per_second: int | None = Field(default=None, gt=0)
+    output_burst_bytes: int = Field(default=64, gt=0)
 
     def run(self) -> None:
         profile = parse_profile(self.profile.read_text(), self.profile)
@@ -87,6 +90,10 @@ class Play(BaseModel, frozen=True):
             failure=failure,
             label="Console input",
         )
+        delivery = MidiDelivery(
+            bytes_per_second=self.output_bytes_per_second,
+            burst_bytes=self.output_burst_bytes,
+        )
 
         def receive(message: mido.Message) -> None:
             incoming.put(
@@ -121,7 +128,6 @@ class Play(BaseModel, frozen=True):
                 "overdub, undo, clear, or quit."
             )
             stopped = False
-            messages: list[mido.Message] = []
             try:
                 while not stopped:
                     for _ in range(self.input_packets):
@@ -129,12 +135,17 @@ class Play(BaseModel, frozen=True):
                             at, message, source = incoming.get_nowait()
                         except Empty:
                             break
-                        messages.extend(player.accept(at, message, source=source))
+                        delivery.send(
+                            player.accept(at, message, source=source),
+                            perf_counter_ns(),
+                            output.send,
+                        )
                     for _ in range(commands.packets):
                         try:
                             command = commands.get_nowait()
                         except Empty:
                             break
+                        messages: list[mido.Message] = []
                         if command == "clear":
                             if isinstance(profile.body.bank, arpeggiator.HeldBank):
                                 print(
@@ -202,12 +213,14 @@ class Play(BaseModel, frozen=True):
                                 print(str(error), file=stderr)
                         else:
                             stopped = True
+                        delivery.send(messages, perf_counter_ns(), output.send)
                     failure.check()
                     if not stopped:
-                        messages.extend(player.advance(perf_counter_ns()))
-                    for message in messages:
-                        output.send(message)
-                    messages.clear()
+                        delivery.send(
+                            player.advance(perf_counter_ns()),
+                            perf_counter_ns(),
+                            output.send,
+                        )
                     if player.take_events().exhausted:
                         print(
                             "Arpeggiator event buffers exhausted; "
@@ -215,16 +228,10 @@ class Play(BaseModel, frozen=True):
                             file=stderr,
                         )
                     sleep(0.001)
-            except InputOverflow:
-                # Preserve releases already produced before ownership changed.
-                for message in messages:
-                    output.send(message)
-                raise
             except KeyboardInterrupt:
                 pass
             finally:
-                for message in player.stop(perf_counter_ns()):
-                    output.send(message)
+                delivery.cleanup(player.stop(perf_counter_ns()), output.send)
 
 
 class MidiPlayer(BaseModel):

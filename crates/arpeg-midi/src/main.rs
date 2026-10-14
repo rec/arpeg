@@ -43,6 +43,8 @@ fn run() -> Result<(), String> {
             let mut clock_source = None;
             let mut timeout_us = 500_000;
             let mut input = InputLimits::default();
+            let mut output_bytes_per_second = None;
+            let mut output_burst_bytes = 64;
             let mut pairs = options.chunks_exact(2);
             for pair in &mut pairs {
                 match pair[0].as_str() {
@@ -79,6 +81,22 @@ fn run() -> Result<(), String> {
                             _ => input.max_message_bytes = value,
                         }
                     }
+                    "--output-bytes-per-second" => {
+                        output_bytes_per_second = Some(
+                            pair[1]
+                                .parse::<u64>()
+                                .ok()
+                                .filter(|v| *v > 0)
+                                .ok_or("output byte rate must be a positive integer")?,
+                        );
+                    }
+                    "--output-burst-bytes" => {
+                        output_burst_bytes = pair[1]
+                            .parse::<usize>()
+                            .ok()
+                            .filter(|v| *v > 0)
+                            .ok_or("output burst allowance must be a positive integer")?;
+                    }
                     _ => return Err(format!("unknown play option: {}", pair[0])),
                 }
             }
@@ -95,12 +113,14 @@ fn run() -> Result<(), String> {
                     clock_source,
                     timeout_us,
                     input,
+                    output_bytes_per_second,
+                    output_burst_bytes,
                 },
             )?;
         }
         _ => {
             return Err(
-                "usage: arpeg validate PROFILE | arpeg render-file PROFILE INPUT.mid OUTPUT.mid | arpeg list-ports | arpeg play PROFILE SOURCE_INDEX DESTINATION_INDEX BPM [--clock internal|external] [--clock-source INDEX] [--clock-timeout-ms MS] [--input-packets COUNT] [--input-bytes BYTES] [--max-message-bytes BYTES]"
+                "usage: arpeg validate PROFILE | arpeg render-file PROFILE INPUT.mid OUTPUT.mid | arpeg list-ports | arpeg play PROFILE SOURCE_INDEX DESTINATION_INDEX BPM [--clock internal|external] [--clock-source INDEX] [--clock-timeout-ms MS] [--input-packets COUNT] [--input-bytes BYTES] [--max-message-bytes BYTES] [--output-bytes-per-second BYTES] [--output-burst-bytes BYTES]"
                     .into(),
             );
         }

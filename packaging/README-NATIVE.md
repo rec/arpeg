@@ -47,3 +47,12 @@ Overflow releases owned notes, reports the error, and ends playback. Restart
 the session to obtain fresh input state. There is no queue-age cutoff. Console
 input is also bounded at 32 queued commands and 1024 bytes per line.
 These limits cover arpeg's retained input, not MIDI-library/driver buffers.
+
+Output bandwidth protection is disabled by default. Enable it with
+`--output-bytes-per-second RATE`; `--output-burst-bytes BYTES` sets the burst
+allowance (default 64). Both values require positive integers. A DIN destination
+can use `--output-bytes-per-second 3125`. The host admits each complete output
+batch before sending and adds no pacing queue or controller thinning. A batch
+larger than the allowance is refused even after idle time. On overload, playback
+ends with an error; cleanup bypasses the budget and sends Note Offs only for notes
+accepted by the port. Driver buffers and actual device delivery are not measured.

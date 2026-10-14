@@ -816,8 +816,14 @@ queues now have configurable packet, payload-byte, and message/SysEx limits in
 both native hosts; console input is bounded too. Overflow reports an error,
 releases owned output, and ends the session, without a queue-age cutoff or
 coalescing. Capacity, concurrent-producer, fragmented-SysEx, and Python fake-port
-cleanup tests cover the policy. MIDI-library/driver buffering and transport
-bandwidth management remain outside these host limits.
+cleanup tests cover the policy. Both native hosts also provide an optional
+output byte-rate budget with a configurable 64-byte default burst allowance.
+Whole player-produced batches are admitted before sending, without controller
+thinning, pacing, or another output queue. Overload ends playback; cleanup
+bypasses the budget and releases notes actually accepted by the output port.
+Exact refill, burst-cap, failed-send, release, and refused-handoff tests cover
+this policy. MIDI-library/driver buffering and physical delivery remain outside
+these host guarantees.
 
 Each slice gets focused commits and its own passing checks. No dependency or
 roadmap changes are authorized by writing this plan. During implementation,

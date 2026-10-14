@@ -91,11 +91,23 @@ session. Fake-port Python tests verify cleanup, including a release produced
 just before overflow. Rust tests cover fragmented SysEx and capacity reservation
 before payload allocation. There is no queue-age cutoff.
 
+Native hosts now offer an optional output byte budget, disabled by default.
+`--output-bytes-per-second` sets the refill rate and `--output-burst-bytes` sets
+the allowance (default 64 bytes). Whole player-produced batches are admitted
+before any sends, retaining order and controller samples. Overload refuses the
+batch, reports an error, and ends playback. Cleanup bypasses the budget and uses
+a ledger of notes accepted by the port, rather than the player's potentially
+newer generated note. Python/Rust tests cover exact refill boundaries, burst
+caps, failed sends, release velocity, and refused note-entry groups; a Python
+fake-port test verifies cleanup when the player has already selected a new note.
+
 Hosts timestamp callbacks, use 1 ms polling, and send due output immediately;
 they do not yet use driver timestamps or future output scheduling. There is no
-controller bandwidth limiter/coalescer. A long stall can therefore produce a
-late burst within capacity; sustained producer overload ends the session.
-The limits cover arpeg's retained payload, not MIDI-library or driver buffers.
+controller coalescer or pacing queue. A long stall can produce a late burst
+within capacity, or end a session when its configured output budget is exceeded.
+Sustained input overload also ends the session.
+The input limits cover arpeg's retained payload, not MIDI-library or driver buffers.
+The output budget estimates capacity, without measuring driver queue occupancy.
 Python receives already assembled Mido messages. Automated checks do not
 establish a latency ceiling or prove device operation under a MIDI storm.
 
