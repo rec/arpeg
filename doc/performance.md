@@ -82,14 +82,22 @@ downloads to the release.
 
 ## Remaining limitations and hardware checks
 
-The Python and Rust device hosts still have unbounded incoming-message queues.
-They timestamp callbacks, use 1 ms polling, and send due output immediately;
+The Python and Rust device hosts bound incoming queues at 4096 packets and
+1 MiB of MIDI payload, with a 64 KiB packet/assembled SysEx limit. Limits are
+configurable, shared across note and clock inputs, and tested at capacity
+boundaries and with concurrent producers. Console input is also bounded.
+Overflow is fatal: release owned output, report the failure, and end the play
+session. Fake-port Python tests verify cleanup, including a release produced
+just before overflow. Rust tests cover fragmented SysEx and capacity reservation
+before payload allocation. There is no queue-age cutoff.
+
+Hosts timestamp callbacks, use 1 ms polling, and send due output immediately;
 they do not yet use driver timestamps or future output scheduling. There is no
 controller bandwidth limiter/coalescer. A long stall can therefore produce a
-late burst, and sustained producer overload can grow the host queue. The bounded
-event lists and cleanup tests do not establish bounded input memory or a latency
-ceiling. These need a separate overflow/quality policy before claiming storm-safe
-device operation.
+late burst within capacity; sustained producer overload ends the session.
+The limits cover arpeg's retained payload, not MIDI-library or driver buffers.
+Python receives already assembled Mido messages. Automated checks do not
+establish a latency ceiling or prove device operation under a MIDI storm.
 
 Hardware verification is pending. When the devices are available:
 

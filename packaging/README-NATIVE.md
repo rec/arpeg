@@ -39,3 +39,11 @@ The full command list appears when playback starts. External MIDI Clock is
 available with `--clock external`; `--clock-source INDEX` selects a separate
 clock input. Stop and clock loss release the output notes the player owns.
 Hardware timing and receiver articulation still need physical verification.
+
+Input defaults to 4096 queued packets, 1048576 queued payload bytes, and 65536
+bytes per packet or assembled SysEx. Change these with `--input-packets`,
+`--input-bytes`, and `--max-message-bytes`; all require positive integers.
+Overflow releases owned notes, reports the error, and ends playback. Restart
+the session to obtain fresh input state. There is no queue-age cutoff. Console
+input is also bounded at 32 queued commands and 1024 bytes per line.
+These limits cover arpeg's retained input, not MIDI-library/driver buffers.

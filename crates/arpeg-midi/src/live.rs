@@ -1,5 +1,6 @@
 //! Portable MIDI host using the device-independent transport player.
 
+use crate::input::{Inbox, InputFailure, InputLimits};
 use crate::{
     Profile,
     player::{InputSource, MidiPlayer},
@@ -7,15 +8,21 @@ use crate::{
 use arpeg_core::{Bank, clock::ClockMode, ports::InputPort};
 use midir::{Ignore, MidiInput, MidiOutput, MidiOutputConnection};
 use std::{
-    io,
+    io::{self, BufRead, Read},
     sync::{
         Arc,
         atomic::{AtomicBool, Ordering},
-        mpsc,
     },
     thread,
     time::{Duration, Instant},
 };
+
+pub struct PlayOptions {
+    pub mode: ClockMode,
+    pub clock_source: Option<usize>,
+    pub timeout_us: i64,
+    pub input: InputLimits,
+}
 
 pub fn list_ports() -> Result<(), String> {
     let input = MidiInput::new("arpeg input").map_err(|e| format!("MIDI input: {e}"))?;
@@ -42,10 +49,17 @@ pub fn play(
     source_index: usize,
     destination_index: usize,
     bpm: u32,
-    mode: ClockMode,
-    clock_source: Option<usize>,
-    timeout_us: i64,
+    options: PlayOptions,
 ) -> Result<(), String> {
+    let PlayOptions {
+        mode,
+        clock_source,
+        timeout_us,
+        input: limits,
+    } = options;
+    if limits.packets == 0 || limits.bytes == 0 || limits.max_message_bytes == 0 {
+        return Err("input limits must be positive".into());
+    }
     if clock_source.is_some() && mode != ClockMode::External {
         return Err("clock source requires external clock".into());
     }
@@ -66,8 +80,10 @@ pub fn play(
         .get(destination_index)
         .ok_or("MIDI destination index is unavailable")?;
     let separate = clock_source.is_some_and(|i| i != source_index);
-    let (sender, receiver) = mpsc::channel();
-    let clock_sender = sender.clone();
+    let failure = Arc::new(InputFailure::default());
+    let receiver = Arc::new(Inbox::new(limits, "MIDI input", Arc::clone(&failure)));
+    let sender = Arc::clone(&receiver);
+    let clock_sender = Arc::clone(&receiver);
     let _input_connection = input
         .connect(
             source,
@@ -78,7 +94,8 @@ pub fn play(
                 } else {
                     InputSource::Both
                 };
-                let _ = sender.send((Instant::now(), data.to_vec(), source));
+                let arrival = Instant::now();
+                sender.put(data.len(), || (arrival, data.to_vec(), source));
             },
             sender,
         )
@@ -97,7 +114,8 @@ pub fn play(
                     port,
                     "arpeg clock",
                     move |_timestamp, data, sender| {
-                        let _ = sender.send((Instant::now(), data.to_vec(), InputSource::Clock));
+                        let arrival = Instant::now();
+                        sender.put(data.len(), || (arrival, data.to_vec(), InputSource::Clock));
                     },
                     clock_sender,
                 )
@@ -113,19 +131,43 @@ pub fn play(
     let signal = Arc::clone(&stopped);
     ctrlc::set_handler(move || signal.store(true, Ordering::SeqCst)).map_err(|e| e.to_string())?;
     let keyboard = Arc::clone(&stopped);
-    let (command_sender, commands) = mpsc::channel();
+    let commands = Arc::new(Inbox::new(
+        InputLimits {
+            packets: 32,
+            bytes: 32768,
+            max_message_bytes: 1024,
+        },
+        "Console input",
+        Arc::clone(&failure),
+    ));
+    let command_sender = Arc::clone(&commands);
+    let command_failure = Arc::clone(&failure);
     thread::spawn(move || {
-        let mut line = String::new();
+        let stdin = io::stdin();
+        let mut reader = stdin.lock();
         loop {
-            line.clear();
-            if io::stdin().read_line(&mut line).unwrap_or(0) == 0 {
+            let mut line = Vec::new();
+            if (&mut reader)
+                .take(1025)
+                .read_until(b'\n', &mut line)
+                .unwrap_or(0)
+                == 0
+            {
                 break;
             }
+            if line.len() > 1024 {
+                command_failure.fail("Console input overflow; play session ended".into());
+                return;
+            }
+            let Ok(line) = String::from_utf8(line) else {
+                break;
+            };
             let command = line.trim();
             if command.is_empty() || command == "quit" {
                 break;
             }
-            if command_sender.send(command.to_owned()).is_err() {
+            command_sender.put(line.len(), || command.to_owned());
+            if command_failure.check().is_err() {
                 return;
             }
         }
@@ -138,17 +180,20 @@ pub fn play(
     let elapsed = |now: Instant| {
         i64::try_from(now.saturating_duration_since(origin).as_micros()).unwrap_or(i64::MAX)
     };
-    let mut notes = MidiMessages::default();
-    let mut clocks = MidiMessages::default();
+    let mut notes = MidiMessages::new(limits.max_message_bytes);
+    let mut clocks = MidiMessages::new(limits.max_message_bytes);
     let result = (|| -> Result<(), String> {
         while !stopped.load(Ordering::SeqCst) {
-            while let Ok((arrival, data, source)) = receiver.try_recv() {
+            for _ in 0..limits.packets {
+                let Some((arrival, data, source)) = receiver.pop()? else {
+                    break;
+                };
                 let parser = if matches!(source, InputSource::Clock) {
                     &mut clocks
                 } else {
                     &mut notes
                 };
-                for data in parser.feed(&data) {
+                for data in parser.feed(&data)? {
                     send(
                         &mut output,
                         player
@@ -157,7 +202,10 @@ pub fn play(
                     )?;
                 }
             }
-            while let Ok(command) = commands.try_recv() {
+            for _ in 0..32 {
+                let Some(command) = commands.pop()? else {
+                    break;
+                };
                 let at = elapsed(Instant::now());
                 let messages = match command.as_str() {
                     "start" => player.accept(at, &[0xfa], InputSource::Both),
@@ -213,6 +261,7 @@ pub fn play(
                 .map_err(str::to_owned)?;
                 send(&mut output, messages)?;
             }
+            failure.check()?;
             send(
                 &mut output,
                 player
@@ -224,7 +273,7 @@ pub fn play(
             }
             thread::sleep(Duration::from_millis(1));
         }
-        Ok(())
+        failure.check()
     })();
     if let Ok(messages) = player.stop(elapsed(Instant::now())) {
         let _ = send(&mut output, messages);
@@ -239,15 +288,24 @@ fn send(port: &mut MidiOutputConnection, messages: Vec<Vec<u8>>) -> Result<(), S
     Ok(())
 }
 
-#[derive(Default)]
 struct MidiMessages {
     status: u8,
     data: Vec<u8>,
     sysex: Option<Vec<u8>>,
+    max_message_bytes: usize,
 }
 
 impl MidiMessages {
-    fn feed(&mut self, bytes: &[u8]) -> Vec<Vec<u8>> {
+    fn new(max_message_bytes: usize) -> Self {
+        Self {
+            status: 0,
+            data: Vec::new(),
+            sysex: None,
+            max_message_bytes,
+        }
+    }
+
+    fn feed(&mut self, bytes: &[u8]) -> Result<Vec<Vec<u8>>, String> {
         let mut messages = Vec::new();
         for &byte in bytes {
             if byte >= 0xf8 {
@@ -255,6 +313,9 @@ impl MidiMessages {
                 continue;
             }
             if let Some(sysex) = &mut self.sysex {
+                if sysex.len() == self.max_message_bytes {
+                    return Err("MIDI SysEx overflow; play session ended".into());
+                }
                 sysex.push(byte);
                 if byte == 0xf7 {
                     messages.push(self.sysex.take().expect("active SysEx"));
@@ -294,7 +355,10 @@ impl MidiMessages {
                 }
             }
         }
-        messages
+        if messages.iter().any(|m| m.len() > self.max_message_bytes) {
+            return Err("MIDI message overflow; play session ended".into());
+        }
+        Ok(messages)
     }
 }
 
@@ -304,28 +368,52 @@ mod tests {
 
     #[test]
     fn decodes_running_status_and_velocity_zero_releases() {
-        let mut parser = MidiMessages::default();
-        assert!(parser.feed(&[0x90, 60]).is_empty());
+        let mut parser = MidiMessages::new(65536);
+        assert!(parser.feed(&[0x90, 60]).unwrap().is_empty());
         assert_eq!(
-            parser.feed(&[100, 64, 90, 60, 0]),
+            parser.feed(&[100, 64, 90, 60, 0]).unwrap(),
             [vec![0x90, 60, 100], vec![0x90, 64, 90], vec![0x90, 60, 0]]
         );
     }
 
     #[test]
     fn keeps_controller_bend_system_and_realtime_messages() {
-        let mut parser = MidiMessages::default();
+        let mut parser = MidiMessages::new(65536);
         assert_eq!(
-            parser.feed(&[0xb2, 2, 13, 0xe2, 64, 81]),
+            parser.feed(&[0xb2, 2, 13, 0xe2, 64, 81]).unwrap(),
             [vec![0xb2, 2, 13], vec![0xe2, 64, 81]]
         );
         assert_eq!(
-            parser.feed(&[0xf8, 0xc2, 7, 0xf0, 1]),
+            parser.feed(&[0xf8, 0xc2, 7, 0xf0, 1]).unwrap(),
             [vec![0xf8], vec![0xc2, 7]]
         );
         assert_eq!(
-            parser.feed(&[0xf8, 2, 0xf7]),
+            parser.feed(&[0xf8, 2, 0xf7]).unwrap(),
             [vec![0xf8], vec![0xf0, 1, 2, 0xf7]]
+        );
+    }
+
+    #[test]
+    fn sysex_limit_includes_delimiters_and_spans_packets() {
+        let mut parser = MidiMessages::new(4);
+        assert!(parser.feed(&[0xf0, 1]).unwrap().is_empty());
+        assert_eq!(
+            parser.feed(&[0xf8, 2, 0xf7]).unwrap(),
+            [vec![0xf8], vec![0xf0, 1, 2, 0xf7]]
+        );
+        assert!(parser.feed(&[0xf0, 1, 2, 3]).unwrap().is_empty());
+        assert!(parser.feed(&[0xf7]).unwrap_err().contains("SysEx overflow"));
+    }
+
+    #[test]
+    fn fragmented_short_messages_also_obey_message_limit() {
+        let mut parser = MidiMessages::new(2);
+        assert!(parser.feed(&[0x90, 60]).unwrap().is_empty());
+        assert!(
+            parser
+                .feed(&[100])
+                .unwrap_err()
+                .contains("message overflow")
         );
     }
 }

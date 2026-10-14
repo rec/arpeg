@@ -19,6 +19,8 @@ use expression::{Lane, Source};
 pub mod expression;
 
 #[cfg(feature = "device-host")]
+pub mod input;
+#[cfg(feature = "device-host")]
 pub mod live;
 pub mod player;
 

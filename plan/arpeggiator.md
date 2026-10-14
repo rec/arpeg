@@ -812,7 +812,12 @@ executables with profiles and checksums, then attaches them after the release
 checks pass. Repeatable Python/Rust synthetic timing/load probes and dense-capture
 cleanup tests are in place; results and limits are recorded in
 `doc/performance.md`. Hardware/driver loopback verification is pending. Input
-queues remain unbounded, and transport bandwidth management is not implemented.
+queues now have configurable packet, payload-byte, and message/SysEx limits in
+both native hosts; console input is bounded too. Overflow reports an error,
+releases owned output, and ends the session, without a queue-age cutoff or
+coalescing. Capacity, concurrent-producer, fragmented-SysEx, and Python fake-port
+cleanup tests cover the policy. MIDI-library/driver buffering and transport
+bandwidth management remain outside these host limits.
 
 Each slice gets focused commits and its own passing checks. No dependency or
 roadmap changes are authorized by writing this plan. During implementation,

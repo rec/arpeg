@@ -3,8 +3,8 @@
 from contextlib import ExitStack
 from fractions import Fraction
 from pathlib import Path
-from queue import Empty, SimpleQueue
-from sys import exit, stderr
+from queue import Empty
+from sys import exit, stderr, stdin
 from threading import Thread
 from time import perf_counter_ns, sleep
 from typing import Annotated, Literal, Self
@@ -20,6 +20,7 @@ from .clock import ClockMode, TransportClock
 from .expression import entry_messages, envelfo_message, expression_lane
 from .gesture import RealizedMidiEvent
 from .history import LiveHistoryArpeggiator
+from .inbox import Inbox, InputFailure, InputOverflow
 from .live import LiveArpeggiator, LiveEvent
 from .ports import PerformancePorts
 from .profile import parse_profile
@@ -48,6 +49,9 @@ class Play(BaseModel, frozen=True):
     clock: ClockMode = ClockMode.internal
     clock_source: int | None = Field(default=None, ge=0)
     clock_timeout_ms: int = Field(default=500, gt=0)
+    input_packets: int = Field(default=4096, gt=0)
+    input_bytes: int = Field(default=1048576, gt=0)
+    max_message_bytes: int = Field(default=65536, gt=0)
 
     def run(self) -> None:
         profile = parse_profile(self.profile.read_text(), self.profile)
@@ -69,16 +73,29 @@ class Play(BaseModel, frozen=True):
         if self.clock_source is not None and self.clock_source >= len(sources):
             raise ValueError("MIDI clock source index is unavailable")
         separate = self.clock_source is not None and self.clock_source != self.source
-        incoming: SimpleQueue[
-            tuple[int, mido.Message, Literal["notes", "clock", "both"]]
-        ] = SimpleQueue()
-        commands: SimpleQueue[str] = SimpleQueue()
+        failure = InputFailure()
+        incoming = Inbox[tuple[int, mido.Message, Literal["notes", "clock", "both"]]](
+            packets=self.input_packets,
+            bytes=self.input_bytes,
+            max_message_bytes=self.max_message_bytes,
+            failure=failure,
+        )
+        commands = Inbox[str](
+            packets=32,
+            bytes=32768,
+            max_message_bytes=1024,
+            failure=failure,
+            label="Console input",
+        )
 
         def receive(message: mido.Message) -> None:
-            incoming.put((perf_counter_ns(), message, "notes" if separate else "both"))
+            incoming.put(
+                (perf_counter_ns(), message, "notes" if separate else "both"),
+                len(message),
+            )
 
         def receive_clock(message: mido.Message) -> None:
-            incoming.put((perf_counter_ns(), message, "clock"))
+            incoming.put((perf_counter_ns(), message, "clock"), len(message))
 
         Thread(target=_read_commands, args=(commands,), daemon=True).start()
         with ExitStack() as stack:
@@ -104,16 +121,16 @@ class Play(BaseModel, frozen=True):
                 "overdub, undo, clear, or quit."
             )
             stopped = False
+            messages: list[mido.Message] = []
             try:
                 while not stopped:
-                    messages: list[mido.Message] = []
-                    while True:
+                    for _ in range(self.input_packets):
                         try:
                             at, message, source = incoming.get_nowait()
                         except Empty:
                             break
                         messages.extend(player.accept(at, message, source=source))
-                    while True:
+                    for _ in range(commands.packets):
                         try:
                             command = commands.get_nowait()
                         except Empty:
@@ -185,10 +202,12 @@ class Play(BaseModel, frozen=True):
                                 print(str(error), file=stderr)
                         else:
                             stopped = True
+                    failure.check()
                     if not stopped:
                         messages.extend(player.advance(perf_counter_ns()))
                     for message in messages:
                         output.send(message)
+                    messages.clear()
                     if player.take_events().exhausted:
                         print(
                             "Arpeggiator event buffers exhausted; "
@@ -196,6 +215,11 @@ class Play(BaseModel, frozen=True):
                             file=stderr,
                         )
                     sleep(0.001)
+            except InputOverflow:
+                # Preserve releases already produced before ownership changed.
+                for message in messages:
+                    output.send(message)
+                raise
             except KeyboardInterrupt:
                 pass
             finally:
@@ -653,15 +677,16 @@ def main() -> None:
         exit(str(error))
 
 
-def _read_commands(commands: SimpleQueue[str]) -> None:
+def _read_commands(commands: Inbox[str]) -> None:
     while True:
-        try:
-            command = input().strip()
-        except EOFError:
-            commands.put("quit")
+        line = stdin.readline(commands.max_message_bytes + 1)
+        size = len(line.encode())
+        if size > commands.max_message_bytes:
+            commands.put("", size)
             return
+        command = line.strip()
         if command in ("", "quit"):
-            commands.put("quit")
+            commands.put("quit", 4)
             return
         if command in (
             "clear",
@@ -687,7 +712,9 @@ def _read_commands(commands: SimpleQueue[str]) -> None:
             )
             and len(command.split()) == 2
         ):
-            commands.put(command)
+            commands.put(command, size)
+            if commands.failure.reason is not None:
+                return
         else:
             print(
                 "enter start, pause, continue, tempo BPM, gate FRACTION, "

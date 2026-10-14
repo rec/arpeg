@@ -4,7 +4,8 @@ use std::{env, fs, process};
 use arpeg_midi::{parse_profile, render_file};
 
 use arpeg_core::clock::ClockMode;
-use arpeg_midi::live::{list_ports, play};
+use arpeg_midi::input::InputLimits;
+use arpeg_midi::live::{PlayOptions, list_ports, play};
 
 fn main() {
     if let Err(error) = run() {
@@ -41,6 +42,7 @@ fn run() -> Result<(), String> {
             let mut mode = ClockMode::Internal;
             let mut clock_source = None;
             let mut timeout_us = 500_000;
+            let mut input = InputLimits::default();
             let mut pairs = options.chunks_exact(2);
             for pair in &mut pairs {
                 match pair[0].as_str() {
@@ -65,6 +67,18 @@ fn run() -> Result<(), String> {
                             .and_then(|t| t.checked_mul(1000))
                             .ok_or("invalid clock timeout")?
                     }
+                    "--input-packets" | "--input-bytes" | "--max-message-bytes" => {
+                        let value = pair[1]
+                            .parse::<usize>()
+                            .ok()
+                            .filter(|v| *v > 0)
+                            .ok_or("input limits must be positive integers")?;
+                        match pair[0].as_str() {
+                            "--input-packets" => input.packets = value,
+                            "--input-bytes" => input.bytes = value,
+                            _ => input.max_message_bytes = value,
+                        }
+                    }
                     _ => return Err(format!("unknown play option: {}", pair[0])),
                 }
             }
@@ -76,14 +90,17 @@ fn run() -> Result<(), String> {
                 source,
                 destination,
                 bpm,
-                mode,
-                clock_source,
-                timeout_us,
+                PlayOptions {
+                    mode,
+                    clock_source,
+                    timeout_us,
+                    input,
+                },
             )?;
         }
         _ => {
             return Err(
-                "usage: arpeg validate PROFILE | arpeg render-file PROFILE INPUT.mid OUTPUT.mid | arpeg list-ports | arpeg play PROFILE SOURCE_INDEX DESTINATION_INDEX BPM [--clock internal|external] [--clock-source INDEX] [--clock-timeout-ms MS]"
+                "usage: arpeg validate PROFILE | arpeg render-file PROFILE INPUT.mid OUTPUT.mid | arpeg list-ports | arpeg play PROFILE SOURCE_INDEX DESTINATION_INDEX BPM [--clock internal|external] [--clock-source INDEX] [--clock-timeout-ms MS] [--input-packets COUNT] [--input-bytes BYTES] [--max-message-bytes BYTES]"
                     .into(),
             );
         }

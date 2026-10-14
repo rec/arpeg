@@ -247,6 +247,27 @@ cargo run -p arpeg-midi -- play conformance/alternating.toml SOURCE_INDEX DESTIN
 cargo run -p arpeg-midi -- play conformance/history-wind.toml SOURCE_INDEX DESTINATION_INDEX 120
 ```
 
+### Input capacity
+
+Both play commands accept these positive integer limits:
+
+| Option | Default | Limit |
+| --- | ---: | --- |
+| `--input-packets` | 4096 | Queued MIDI packets across note and clock inputs |
+| `--input-bytes` | 1048576 | Queued MIDI payload bytes across those inputs |
+| `--max-message-bytes` | 65536 | One packet or assembled SysEx message, including delimiters |
+
+Python receives complete Mido messages; Rust also bounds SysEx assembled across
+packets. Overflow releases owned output notes, reports an error, and ends the
+session. Restart playback to obtain fresh input state. There is no queue-age
+cutoff or controller coalescing. Console input is limited to 32 queued commands
+and 1024 UTF-8 bytes per line, including its newline, with the same overflow
+policy. Callbacks never wait for queue space.
+
+These limits bound payload retained by arpeg, plus one packet being processed
+and Rust's partial SysEx per input. MIDI libraries and drivers manage their own
+buffers; Mido assembles messages before arpeg receives them.
+
 ### Live clock and transport
 
 For external synchronization, add `--clock external` to either play command.
