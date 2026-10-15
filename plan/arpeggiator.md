@@ -434,8 +434,27 @@ transposition and register limits. Exact integer arithmetic preserves octave
 crossings and extreme offsets. Source identity and recorded expression stay
 unchanged; repeats/ties retain realized pitches. Settings are preset-only, and
 the limited file renderer rejects scale mapping. Shared native/WebAssembly traces
-and Python snapshot/history tests cover the behavior. Microtonal realization,
-inversions, and voicing remain unfinished.
+and Python snapshot/history tests cover the behavior. Microtonal realization
+and broader voicing remain unfinished.
+
+### Chord inversion completion
+
+Preset-only `inversion = 0` is implemented for held and latched banks in Python,
+Rust, and WebAssembly. Positive counts repeatedly move the lowest source note
+strictly above the highest by whole octaves; negative counts move the highest
+below the lowest. Source identity resolves equal pitches. Counts continue across
+full rotations, and a single note moves one octave per rotation. Empty banks
+remain silent. Direct calculation handles the full signed 64-bit count range.
+Inversion precedes octave expansion, scale mapping, chromatic transposition, and
+register/MIDI limits. Pitch-based selector ranks and selection offsets follow the
+inverted pitches; played order follows source onsets. Chord edits recalculate
+from original pitches while scheduled repeats/ties retain their realized pitch.
+Sources and expressive gestures remain attached. Shared traces cover ordering,
+wide chords, duplicates, multiple rotations, scale order, and extreme counts;
+Python tests also cover snapshots, latched edits, and pending repeats.
+Nonzero inversion rejects history/phrase/region banks and the limited file
+renderer. Grouping time-spanning notes into chords and broader voicing remain
+unfinished.
 
 Algorithmic selectors include weighted choice, shuffle-once, reshuffle-per-cycle,
 no-immediate-repeat, bounded random walks, interval envelopes, transition tables,

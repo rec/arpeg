@@ -1,0 +1,104 @@
+[[cases]]
+name = "first inversion"
+inversion = 1
+notes = [[60,100],[64,90],[67,80]]
+keys = [64,67,72]
+sources = [1,2,0]
+
+[[cases]]
+name = "downward inversion"
+inversion = -1
+notes = [[60,100],[64,90],[67,80]]
+keys = [55,60,64]
+sources = [2,0,1]
+
+[[cases]]
+name = "wide chord moves past the end"
+inversion = 1
+notes = [[48,100],[64,90],[67,80]]
+keys = [64,67,72]
+sources = [1,2,0]
+
+[[cases]]
+name = "complete rotations then another note"
+inversion = 4
+notes = [[60,100],[64,90],[67,80]]
+keys = [76,79,84]
+sources = [1,2,0]
+
+[[cases]]
+name = "downward multiple rotations"
+inversion = -4
+notes = [[60,100],[64,90],[67,80]]
+keys = [43,48,52]
+sources = [2,0,1]
+
+[[cases]]
+name = "duplicates keep their source identities"
+inversion = 1
+notes = [[60,100],[60,90],[64,80]]
+keys = [60,64,72]
+sources = [1,2,0]
+
+[[cases]]
+name = "negative duplicate rotation"
+inversion = -1
+notes = [[60,100],[64,90],[64,80]]
+keys = [52,60,64]
+sources = [1,0,2]
+
+[[cases]]
+name = "played order keeps onset order"
+inversion = 1
+selection = {kind="played"}
+notes = [[60,100],[64,90],[67,80]]
+keys = [72,64,67]
+sources = [0,1,2]
+
+[[cases]]
+name = "indices address inverted ranks"
+inversion = 1
+selection = {kind="index_pattern",indices=[2,0,1]}
+notes = [[60,100],[64,90],[67,80]]
+keys = [72,64,67]
+sources = [0,1,2]
+
+[[cases]]
+name = "descending with octave layers"
+inversion = 1
+selection = {kind="descending"}
+octaves = {offsets=[0,1]}
+notes = [[60,100],[64,90],[67,80]]
+keys = [84,79,76,72,67,64]
+sources = [0,2,1,0,2,1]
+
+[[cases]]
+name = "inversion before scale mapping"
+inversion = 1
+scale = {root=0,intervals=[0,7]}
+notes = [[60,100],[64,90],[67,80]]
+keys = [67,67,72]
+sources = [1,2,0]
+
+[[cases]]
+name = "single note full positive range"
+inversion = 9223372036854775807
+limits = {boundary="fold"}
+notes = [[60,100]]
+keys = [120]
+sources = [0]
+
+[[cases]]
+name = "single note full negative range"
+inversion = -9223372036854775808
+limits = {boundary="fold"}
+notes = [[60,100]]
+keys = [0]
+sources = [0]
+
+[[cases]]
+name = "out of range drops without filtering"
+inversion = 1
+notes = [[120,100],[124,90],[127,80]]
+keys = [124,127,-1]
+sources = [1,2,-1]

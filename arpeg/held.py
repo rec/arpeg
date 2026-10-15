@@ -51,6 +51,8 @@ def render_held(
         raise ValueError("octave expansion currently requires live input")
     if body.scale is not None:
         raise ValueError("scale mapping currently requires live input")
+    if body.inversion:
+        raise ValueError("inversion currently requires live input")
     if body.register_limits is not None:
         raise ValueError("register limits currently require live input")
     if any(s != "current" for s in body.expression.lanes.values()):

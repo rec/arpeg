@@ -8,6 +8,7 @@ kind = "arpeggiator"
 [body]
 gate = "4/5"
 probability = "1"
+inversion = 0
 retrigger = "on_empty"
 
 [body.bank]

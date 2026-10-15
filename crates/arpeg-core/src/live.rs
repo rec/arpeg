@@ -1,6 +1,7 @@
 //! Incremental decisions for a running, held-note arpeggiator.
 
 use crate::chance::{Chance, draw_below};
+use crate::inversion::inversion_offsets;
 use crate::octaves::{Octaves, Traversal};
 
 use crate::{
@@ -42,9 +43,16 @@ struct InputNote {
     id: u64,
     source_id: u64,
     octave_index: usize,
+    inversion_offset: i128,
     key: u8,
     velocity: u8,
     onset: Beat,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+enum SelectionPosition {
+    Onset(Beat),
+    Pitch(i128),
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -64,6 +72,7 @@ struct Attack {
 }
 
 pub struct LiveArpeggiator {
+    pub inversion: i64,
     pub octaves: Octaves,
     bank_mode: Bank,
     pub chance: Chance,
@@ -88,7 +97,7 @@ pub struct LiveArpeggiator {
     now: Beat,
     next_id: u64,
     next_output: u64,
-    previous_key: Option<(i64, Beat, u64, i64, u64)>,
+    previous_key: Option<(i64, SelectionPosition, u64, i64, u64)>,
     input: Vec<InputNote>,
     bank: Vec<InputNote>,
     toggle_at: Option<Beat>,
@@ -159,6 +168,7 @@ impl LiveArpeggiator {
             next_output: 0,
             previous_key: None,
             octaves: Octaves::default(),
+            inversion: 0,
             input: Vec::new(),
             bank: Vec::new(),
             toggle_at: None,
@@ -181,6 +191,7 @@ impl LiveArpeggiator {
             id: self.next_id,
             source_id: self.next_id,
             octave_index: 0,
+            inversion_offset: 0,
             key,
             velocity,
             onset: at,
@@ -487,6 +498,10 @@ impl LiveArpeggiator {
         } else {
             &self.bank
         };
+        let offsets = inversion_offsets(
+            &active.iter().map(|n| n.key).collect::<Vec<_>>(),
+            self.inversion,
+        );
         let active: Vec<_> = self
             .octaves
             .indices(active.len(), false)
@@ -495,6 +510,7 @@ impl LiveArpeggiator {
                 id: active[i].id * self.octaves.offsets.len() as u64 + j as u64,
                 source_id: active[i].id,
                 octave_index: j,
+                inversion_offset: offsets[i],
                 ..active[i]
             })
             .collect();
@@ -763,7 +779,9 @@ impl LiveArpeggiator {
             selected
         };
         let Some(key) = self.ports.realize_pitch(
-            i128::from(selected.key) + 12 * i128::from(self.octaves.offsets[selected.octave_index]),
+            i128::from(selected.key)
+                + selected.inversion_offset
+                + 12 * i128::from(self.octaves.offsets[selected.octave_index]),
         )?
         else {
             return Ok(false);
@@ -837,7 +855,7 @@ fn selection_key(
     note: &InputNote,
     selection: &Selection,
     traversal: Traversal,
-) -> (i64, Beat, u64, i64, u64) {
+) -> (i64, SelectionPosition, u64, i64, u64) {
     let position = match selection {
         Selection::Ascending
         | Selection::Walk(_)
@@ -846,10 +864,14 @@ fn selection_key(
         | Selection::Shuffle { .. }
         | Selection::IndexPattern { .. }
         | Selection::InsideOut
-        | Selection::OutsideIn => Beat::from_integer(i64::from(note.key)),
-        Selection::Descending => -Beat::from_integer(i64::from(note.key)),
-        Selection::Played => note.onset,
-        Selection::ReversePlayed => -note.onset,
+        | Selection::OutsideIn => {
+            SelectionPosition::Pitch(i128::from(note.key) + note.inversion_offset)
+        }
+        Selection::Descending => {
+            SelectionPosition::Pitch(-(i128::from(note.key) + note.inversion_offset))
+        }
+        Selection::Played => SelectionPosition::Onset(note.onset),
+        Selection::ReversePlayed => SelectionPosition::Onset(-note.onset),
     };
     let reverse = matches!(selection, Selection::Descending | Selection::ReversePlayed);
     let layer = note.octave_index as i64 * if reverse { -1 } else { 1 };

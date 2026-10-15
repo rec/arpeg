@@ -35,6 +35,7 @@ from ufor.arpeggiator import (
 )
 
 from .chance import draw_below
+from .inversion import inversion_offsets
 from .octaves import expanded_indices
 from .ports import PerformancePorts
 from .rhythm import RhythmDecision, decide_step, starts_cycle
@@ -408,6 +409,9 @@ class LiveArpeggiator(BaseModel):
 
     def _schedule_step(self, at: Fraction, decision: RhythmDecision) -> bool:
         active = self.input if isinstance(self.bank_mode, HeldBank) else self.bank
+        offsets = inversion_offsets(
+            [n.key for n in active], self.profile.body.inversion
+        )
         octaves = self.profile.body.octaves
         active = [
             active[i].model_copy(
@@ -415,6 +419,7 @@ class LiveArpeggiator(BaseModel):
                     "id": active[i].id * len(octaves.offsets) + j,
                     "source_id": active[i].id,
                     "octave_index": j,
+                    "inversion_offset": offsets[i],
                 }
             )
             for i, j in expanded_indices(len(active), octaves)
@@ -601,7 +606,10 @@ class LiveArpeggiator(BaseModel):
         self.previous_note = note
         if self.ports.selection_offset.ranks:
             ranked = sorted(
-                active, key=lambda n: self._entry_key(n, Fraction(n.key), False)
+                active,
+                key=lambda n: self._entry_key(
+                    n, Fraction(n.key + n.inversion_offset), False
+                ),
             )
             if (
                 rank := self.ports.offset_rank(ranked.index(note), len(ranked))
@@ -610,7 +618,9 @@ class LiveArpeggiator(BaseModel):
             note = ranked[rank]
         if (
             key := self.ports.realize_pitch(
-                note.key + 12 * octaves.offsets[note.octave_index]
+                note.key
+                + note.inversion_offset
+                + 12 * octaves.offsets[note.octave_index]
             )
         ) is None:
             return False
@@ -763,7 +773,9 @@ class LiveArpeggiator(BaseModel):
             position = -note.onset if selection.direction == "reverse" else note.onset
         else:
             position = Fraction(
-                -note.key if isinstance(selection, Descending) else note.key
+                -(note.key + note.inversion_offset)
+                if isinstance(selection, Descending)
+                else note.key + note.inversion_offset
             )
         reverse = (
             isinstance(selection, Descending)
@@ -785,6 +797,7 @@ class _InputNote(BaseModel, frozen=True):
     id: int
     source_id: int
     octave_index: int = 0
+    inversion_offset: int = 0
     key: int = Field(ge=0, le=127)
     velocity: int = Field(ge=1, le=127)
     onset: Fraction

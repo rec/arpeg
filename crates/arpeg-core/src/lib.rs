@@ -8,6 +8,7 @@ pub mod chance;
 pub mod clock;
 pub mod gesture;
 pub mod history;
+pub mod inversion;
 pub mod live;
 pub mod marked_sample;
 pub mod octaves;

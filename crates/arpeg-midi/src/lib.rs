@@ -28,6 +28,7 @@ pub mod output;
 pub mod player;
 
 pub struct HeldProfile {
+    pub inversion: i64,
     pub register_limits: Option<PitchRegister>,
     pub scale: Option<PitchScale>,
     pub octaves: Octaves,
@@ -141,6 +142,7 @@ pub fn parse_profile(text: &str, path: Option<&Path>) -> Result<Profile, String>
             "selection_offset",
             "octaves",
             "register_limits",
+            "inversion",
             "scale",
         ]
         .contains(&key.as_str())
@@ -651,6 +653,10 @@ pub fn parse_profile(text: &str, path: Option<&Path>) -> Result<Profile, String>
             Octaves { offsets, traversal }
         }
     };
+    let inversion = match body.get("inversion") {
+        None => 0,
+        Some(v) => v.as_integer().ok_or("inversion must be a signed integer")?,
+    };
     let scale = match body.get("scale") {
         None => None,
         Some(value) => {
@@ -734,6 +740,7 @@ pub fn parse_profile(text: &str, path: Option<&Path>) -> Result<Profile, String>
     };
     Ok(match bank {
         ParsedBank::Classic(bank) => Profile::Classic(HeldProfile {
+            inversion,
             register_limits,
             scale,
             octaves,
@@ -750,6 +757,9 @@ pub fn parse_profile(text: &str, path: Option<&Path>) -> Result<Profile, String>
             retrigger,
         }),
         ParsedBank::Captured(mode) => {
+            if inversion != 0 {
+                return Err("inversion requires a held or latched bank".into());
+            }
             if matches!(selection, Selection::Choice { .. }) {
                 return Err("choice selection currently requires a held or latched bank".into());
             }
@@ -917,6 +927,9 @@ pub fn render_file(profile: &str, input: &[u8], path: Option<&Path>) -> Result<V
     }
     if profile.octaves.offsets != [0] {
         return Err("octave expansion currently requires live input".into());
+    }
+    if profile.inversion != 0 {
+        return Err("inversion currently requires live input".into());
     }
     if profile.scale.is_some() {
         return Err("scale mapping currently requires live input".into());

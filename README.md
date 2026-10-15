@@ -119,6 +119,36 @@ entries. [Shared register traces](conformance/register.toml) check boundaries,
 rests, exact folding, and transform order in Python, Rust, and WebAssembly.
 
 
+### Chord inversions
+
+Held and latched presets can rotate a chord before octave expansion:
+
+```toml
+[body]
+inversion = 1
+rhythm = { kind = "grid", step = "1/4 beat" }
+```
+
+Zero is the default. Each positive rotation moves the lowest note by enough
+whole octaves to put it strictly above the highest note. Negative counts move
+the highest below the lowest. C4–E4–G4 becomes E4–G4–C5 at `1`, or G3–C4–E4
+at `-1`. A wide C3–E4–G4 chord also becomes E4–G4–C5 at `1`.
+Counts continue through multiple rotations; they do not wrap back to the input
+register. A single note moves one octave per rotation; an empty bank is silent.
+Equal pitches use source identity to choose which note moves first.
+
+Pitch-based selectors, index patterns, weights, and selection offsets use the
+inverted ranks. As-played selection retains onset order. Each note retains its
+source identity, velocity, and expression. Chord edits recalculate the voicing
+from the current source chord; pending repeats and ties keep their realized pitch.
+
+The transform order is inversion, octave expansion, scale mapping and degree
+shift, semitone transposition, then register/MIDI limits. Limit policies handle
+any out-of-range results. Inversion is preset-only and requires held or latched
+banks; history/phrase chord grouping is deferred, and the limited file renderer
+rejects nonzero inversion. [Shared traces](conformance/inversion.toml) cover
+ordering, wide chords, duplicates, and extreme signed counts.
+
 ### Scale mapping and degree shifts
 
 Live held, latched, history, and committed phrase playback can map pitches into
