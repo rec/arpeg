@@ -16,7 +16,10 @@ fn live_notes_follow_input_and_release_when_bank_empties() {
     let mut arp = LiveArpeggiator::musical(
         Bank::Held,
         Selection::Ascending,
-        Rhythm::Grid { step: beat(1, 4) },
+        Rhythm::Grid {
+            swing: arpeg_core::Beat::new(1, 2),
+            step: beat(1, 4),
+        },
         beat(4, 5),
         Retrigger::OnEmpty,
         Chance::default(),
@@ -81,7 +84,10 @@ fn live_step_order_is_independent_of_poll_intervals() {
     let mut a = LiveArpeggiator::musical(
         Bank::Held,
         Selection::Ascending,
-        Rhythm::Grid { step: beat(1, 4) },
+        Rhythm::Grid {
+            swing: arpeg_core::Beat::new(1, 2),
+            step: beat(1, 4),
+        },
         beat(1, 1),
         Retrigger::OnEmpty,
         Chance::default(),
@@ -90,7 +96,10 @@ fn live_step_order_is_independent_of_poll_intervals() {
     let mut b = LiveArpeggiator::musical(
         Bank::Held,
         Selection::Ascending,
-        Rhythm::Grid { step: beat(1, 4) },
+        Rhythm::Grid {
+            swing: arpeg_core::Beat::new(1, 2),
+            step: beat(1, 4),
+        },
         beat(1, 1),
         Retrigger::OnEmpty,
         Chance::default(),
@@ -114,7 +123,10 @@ fn simultaneous_note_ons_join_the_first_step() {
     let mut arp = LiveArpeggiator::musical(
         Bank::Held,
         Selection::Ascending,
-        Rhythm::Grid { step: beat(1, 4) },
+        Rhythm::Grid {
+            swing: arpeg_core::Beat::new(1, 2),
+            step: beat(1, 4),
+        },
         beat(1, 1),
         Retrigger::OnEmpty,
         Chance::default(),
@@ -194,6 +206,7 @@ fn live_classic_matches_shared_python_rust_traces() {
                         .collect(),
                 },
                 Some(rhythm) => Rhythm::Euclidean {
+                    swing: arpeg_core::Beat::new(1, 2),
                     step: ratio(
                         rhythm["step"]
                             .as_str()
@@ -205,7 +218,10 @@ fn live_classic_matches_shared_python_rust_traces() {
                     pulses: rhythm["pulses"].as_i64().unwrap(),
                     rotation: rhythm["rotation"].as_i64().unwrap(),
                 },
-                None => Rhythm::Grid { step: beat(1, 4) },
+                None => Rhythm::Grid {
+                    swing: arpeg_core::Beat::new(1, 2),
+                    step: beat(1, 4),
+                },
             };
             let selection = match case.get("selection") {
                 Some(s) if s["kind"] == "choice" => Selection::Choice {

@@ -33,7 +33,9 @@ def decide_step(
                 final_gate = max(attack_gate, held + tied_duration * gate)
                 held += tied_duration
     else:
-        duration = Fraction(rhythm.step.removesuffix(" beat"))
+        duration = grid_duration(
+            Fraction(rhythm.step.removesuffix(" beat")), rhythm.swing, index
+        )
         repeats = int(allows_step(rhythm, index))
         attack_gate = final_gate = duration * gate
     return RhythmDecision(
@@ -56,3 +58,27 @@ def allows_step(rhythm: Grid | Euclidean, index: int) -> bool:
         return True
     phase = (index - rhythm.rotation) % rhythm.steps
     return (phase * rhythm.pulses) % rhythm.steps < rhythm.pulses
+
+
+def grid_duration(step: Fraction, swing: Fraction, index: int) -> Fraction:
+    """Stretch the first interval and shorten the second, preserving pair duration."""
+    return 2 * step * (swing if index % 2 == 0 else 1 - swing)
+
+
+def grid_onset(step: Fraction, swing: Fraction, index: int) -> Fraction:
+    pairs, second = divmod(index, 2)
+    return 2 * step * (pairs + (swing if second else 0))
+
+
+def grid_position(
+    step: Fraction, swing: Fraction, at: Fraction
+) -> tuple[int, Fraction]:
+    """Find the first opportunity at or after a beat, retaining absolute pair phase."""
+    pair = 2 * step
+    pairs, offset = divmod(at, pair)
+    if offset == 0:
+        return 2 * pairs, at
+    middle = pair * (pairs + swing)
+    if at <= middle:
+        return 2 * pairs + 1, middle
+    return 2 * pairs + 2, pair * (pairs + 1)

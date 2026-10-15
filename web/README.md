@@ -47,7 +47,9 @@ begins after all keys have been released. Identical characters from different
 physical keys retain separate input identities. Browser key auto-repeat is
 ignored. Each occurrence start appends text; ends do not remove it.
 
-This small example uses 120 BPM, a quarter-beat step, and an 80% gate. Leaving
+Before starting, choose straight timing, 2:1 swing, or 3:1 swing. Swing stays
+fixed during playback; starts move first, then the 80% gate follows each new
+interval. This small example uses 120 BPM and a quarter-beat average step. Leaving
 the input area stops playback, releases input state, and clears the latched bank;
 returning requires Start. Clear text erases only the displayed result. Characters
 are handled within this page, with no global keyboard capture or typing into

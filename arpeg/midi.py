@@ -321,6 +321,7 @@ class MidiPlayer(BaseModel):
             seed=body.seed,
             name=self.profile.name,
             step=Fraction(body.rhythm.step.removesuffix(" beat")),
+            swing=body.rhythm.swing,
             gate=body.gate,
             expression_source="recorded",
             bank=CaptureBank(

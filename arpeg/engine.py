@@ -5,7 +5,6 @@ from __future__ import annotations
 from abc import abstractmethod
 from fractions import Fraction
 from functools import cached_property
-from math import ceil
 from typing import Generic, Literal, Self, TypeVar
 
 from pydantic import BaseModel, Field, SerializeAsAny, model_validator
@@ -30,7 +29,7 @@ from ufor.arpeggiator import (
 )
 
 from .chance import draw_below
-from .rhythm import RhythmDecision, decide_step, starts_cycle
+from .rhythm import RhythmDecision, decide_step, grid_position, starts_cycle
 from .timing_ports import TimingPorts
 
 Payload = TypeVar("Payload")
@@ -366,8 +365,7 @@ class Arpeggiator(BaseModel, Generic[Payload, Event]):
         else:
             assert isinstance(rhythm, (Grid, Euclidean))
             step = Fraction(rhythm.step.removesuffix(" beat"))
-            self.step_index = ceil(at / step)
-            self.next_step = self.step_index * step
+            self.step_index, self.next_step = grid_position(step, rhythm.swing, at)
         self.now = at
         self.previous_note = None
         self.rising = True

@@ -24,6 +24,7 @@ fn opaque_tokens_match_python_with_independent_overlapping_occurrences() {
                 },
                 Selection::Ascending,
                 Rhythm::Grid {
+                    swing: arpeg_core::Beat::new(1, 2),
                     step: Beat::new(1, 4),
                 },
                 TokenPorts {
@@ -83,6 +84,7 @@ fn descending_supports_the_full_signed_rank_range() {
         Bank::Held,
         Selection::Descending,
         Rhythm::Grid {
+            swing: arpeg_core::Beat::new(1, 2),
             step: Beat::new(1, 4),
         },
         TokenPorts {

@@ -30,6 +30,7 @@ fn euclidean_renderer_matches_shared_exact_trace() {
         Bank::Held,
         Selection::Ascending,
         Rhythm::Euclidean {
+            swing: arpeg_core::Beat::new(1, 2),
             step: Beat::new(1, 4),
             steps: 8,
             pulses: 3,
@@ -124,7 +125,10 @@ fn held_chord_matches_shared_exact_trace() {
             &notes,
             bank,
             selection,
-            Rhythm::Grid { step },
+            Rhythm::Grid {
+                step,
+                swing: Beat::new(1, 2),
+            },
             Beat::new(4, 5),
             through,
         )
@@ -183,6 +187,7 @@ fn latch_replace_and_add_keep_their_distinct_banks() {
             bank,
             Selection::Played,
             Rhythm::Grid {
+                swing: arpeg_core::Beat::new(1, 2),
                 step: Beat::new(1, 4),
             },
             Beat::new(4, 5),

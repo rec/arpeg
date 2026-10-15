@@ -542,6 +542,23 @@ ties extend a particular active occurrence or become rests when none exists.
 Default: rejected hits do not advance, repeats reuse one choice, and a tie
 without a preceding occurrence is a rest.
 
+### Preset swing completion
+
+Grid and Euclidean rhythms now accept exact `swing` shares from 1/2 inclusive
+to 1 exclusive, defaulting to 1/2. A share of 2/3 produces 2:1 swing. Starts
+are placed first; gates use the resulting long/short intervals. Pair duration
+is unchanged, and parity follows the absolute local step count through rests,
+empty banks, chance rejection, chord edits, and Euclidean loop boundaries.
+Odd-length loops alternate their swing alignment. Pause, seeking, and Python
+snapshots preserve the next swung opportunity.
+
+Implemented in the generic Python/Rust engine, musical MIDI adapters, recorded
+history/phrase grid playback, limited file rendering, and WebAssembly. The
+keyboard-to-text example offers swing before starting. Custom-pattern swing
+and live swing modulation remain deferred. Shared exact traces cover grid
+starts/gates, rotated odd-length Euclidean loops, zero gates, irregular polling,
+and Python snapshots, with recorded-gesture and transport-position checks.
+
 ### Deterministic operation order
 
 At each rhythm opportunity:

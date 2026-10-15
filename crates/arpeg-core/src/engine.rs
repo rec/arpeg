@@ -346,9 +346,8 @@ impl<P: Processor> Arpeggiator<P> {
         let output = self.release_all(at);
         self.ports.cancel_pending();
         match &self.rhythm {
-            Rhythm::Grid { step } | Rhythm::Euclidean { step, .. } => {
-                self.step_index = (at / step).ceil().to_integer();
-                self.next_step = *step * self.step_index;
+            Rhythm::Grid { step, swing } | Rhythm::Euclidean { step, swing, .. } => {
+                (self.step_index, self.next_step) = crate::rhythm::grid_position(*step, *swing, at);
             }
             Rhythm::Pattern { steps } => {
                 let cycle: Beat = (0..steps.len())

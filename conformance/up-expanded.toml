@@ -22,6 +22,7 @@ repeats = 1
 [body.rhythm]
 kind = "grid"
 step = "1/4 beat"
+swing = "1/2"
 
 [body.transposition]
 semitones = 0

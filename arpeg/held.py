@@ -18,7 +18,7 @@ from ufor.arpeggiator_capture import CapturedPhrase, Occurrence, SourceNote
 from ufor.base import Identifier
 from ufor.control import Clock, TempoMap
 
-from .rhythm import allows_step
+from .rhythm import allows_step, grid_duration, grid_onset
 
 
 def render_held(
@@ -97,7 +97,9 @@ def render_held(
     previous_key: tuple[Fraction, str] | None = None
     revision = 0
     for index in range(ceil(through / step)):
-        at = index * step
+        at = grid_onset(step, body.rhythm.swing, index)
+        if at >= through:
+            break
         active = _bank_at(note_times, body.bank, at)
         bank = {n.note_id for n in active}
         if bank != previous_bank:
@@ -118,7 +120,7 @@ def render_held(
             ordered[0],
         )
         previous_key = _selection_key(note, selection)
-        gate_end = at + step * body.gate
+        gate_end = at + grid_duration(step, body.rhythm.swing, index) * body.gate
         for boundary in sorted(
             {
                 t

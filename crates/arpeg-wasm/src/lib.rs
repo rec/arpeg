@@ -201,7 +201,13 @@ pub struct TokenPlayer {
 #[wasm_bindgen]
 impl TokenPlayer {
     #[wasm_bindgen(constructor)]
-    pub fn new(order: &str, latch: bool, step: &str, gate: &str) -> Result<TokenPlayer, JsValue> {
+    pub fn new(
+        order: &str,
+        latch: bool,
+        step: &str,
+        gate: &str,
+        swing: &str,
+    ) -> Result<TokenPlayer, JsValue> {
         use arpeg_core::{
             Bank, Beat, Selection,
             chance::Chance,
@@ -237,7 +243,12 @@ impl TokenPlayer {
         let engine = Arpeggiator::new(
             bank,
             selection,
-            Rhythm::Grid { step },
+            Rhythm::Grid {
+                step,
+                swing: swing
+                    .parse()
+                    .map_err(|_| JsValue::from_str("swing must be an exact rational"))?,
+            },
             ports,
             Retrigger::OnEmpty,
             Chance::default(),

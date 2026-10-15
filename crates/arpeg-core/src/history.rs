@@ -14,6 +14,7 @@ pub struct HistoryArpeggiator {
     capture_profile: Profile,
     next_capture_id: u64,
     step: Tick,
+    pub swing: Tick,
     pub ports: PerformancePorts,
     pub chance: Chance,
     step_index: i64,
@@ -46,6 +47,7 @@ impl HistoryArpeggiator {
             capture_profile: profile,
             next_capture_id: 0,
             step,
+            swing: Tick::new(1, 2),
             ports: PerformancePorts::new(gate, Tick::from_integer(1)),
             chance: Chance::default(),
             step_index: 0,
@@ -195,15 +197,14 @@ impl HistoryArpeggiator {
         self.processed_to = at;
         self.capture_to = tick;
         self.inclusive = true;
-        self.next_step = self.next_step.max((at / self.step).ceil() * self.step);
-        self.step_index = (self.next_step / self.step).ceil().to_integer();
+        (self.step_index, self.next_step) =
+            crate::rhythm::grid_position(self.step, self.swing, at.max(self.next_step));
         output
     }
 
     pub fn relocate(&mut self, at: Tick, tick: i64) -> Vec<RealizedEvent> {
         let output = self.pause(at, tick);
-        self.next_step = (at / self.step).ceil() * self.step;
-        self.step_index = (at / self.step).ceil().to_integer();
+        (self.step_index, self.next_step) = crate::rhythm::grid_position(self.step, self.swing, at);
         self.ports.cancel_pending();
         self.bank.last_selected = None;
         self.inclusive = false;
@@ -250,7 +251,8 @@ impl HistoryArpeggiator {
                             / (through - self.processed_to)
                 };
                 self.play_step(deadline, source_at.floor().to_integer(), &mut output)?;
-                self.next_step += self.step;
+                self.next_step +=
+                    crate::rhythm::grid_duration(self.step, self.swing, self.step_index);
                 self.step_index += 1;
             } else {
                 let event = self.queue.remove(0);
@@ -353,7 +355,10 @@ impl HistoryArpeggiator {
             &[Placement {
                 note_id: note.note_id.clone(),
                 onset: at,
-                gate: Some(self.step * self.ports.gate),
+                gate: Some(
+                    crate::rhythm::grid_duration(self.step, self.swing, self.step_index)
+                        * self.ports.gate,
+                ),
             }],
             &[0],
             Timing::Fit,

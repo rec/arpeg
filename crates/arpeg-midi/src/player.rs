@@ -101,6 +101,7 @@ impl MidiPlayer {
                     CaptureProfile::default(),
                     false,
                 )?;
+                engine.swing = p.swing;
                 engine.chance = p.chance;
                 engine.ports.transposition = p.transposition;
                 engine.ports.pitch_boundary = p.pitch_boundary;

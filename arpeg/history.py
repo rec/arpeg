@@ -1,7 +1,7 @@
 """Live history and phrase takes captured in microseconds and played in exact beats."""
 
 from fractions import Fraction
-from math import ceil, floor
+from math import floor
 from typing import Literal, Self
 
 from pydantic import BaseModel, Field, model_validator
@@ -14,12 +14,14 @@ from .capture import MidiCaptureProfile
 from .chance import draw_below
 from .gesture import MidiGestureRenderer, MidiPlacement, RealizedMidiEvent
 from .ports import PerformancePorts
+from .rhythm import grid_duration, grid_position
 
 
 class LiveHistoryArpeggiator(BaseModel):
     """Play completed history notes or explicitly committed phrase gestures."""
 
     step: Fraction
+    swing: Fraction = Field(default=Fraction(1, 2), ge=0.5, lt=1)
     gate: Fraction = Fraction(4, 5)
     ports: PerformancePorts | None = None
     seed: int | None = None
@@ -153,14 +155,14 @@ class LiveHistoryArpeggiator(BaseModel):
         self.processed_to = at
         self.capture_to = tick
         self.inclusive = True
-        self.next_step = max(self.next_step, ceil(at / self.step) * self.step)
-        self.step_index = ceil(self.next_step / self.step)
+        self.step_index, self.next_step = grid_position(
+            self.step, self.swing, max(at, self.next_step)
+        )
         return output
 
     def relocate(self, at: Fraction, tick: int) -> list[RealizedMidiEvent]:
         output = self.pause(at, tick)
-        self.next_step = ceil(at / self.step) * self.step
-        self.step_index = ceil(at / self.step)
+        self.step_index, self.next_step = grid_position(self.step, self.swing, at)
         assert self.ports is not None
         self.ports.pending.clear()
         self.bank.last_selected = None
@@ -205,7 +207,7 @@ class LiveHistoryArpeggiator(BaseModel):
                     / (through - self.processed_to)
                 )
                 output.extend(self._play_step(deadline, floor(source_at)))
-                self.next_step += self.step
+                self.next_step += grid_duration(self.step, self.swing, self.step_index)
                 self.step_index += 1
             else:
                 event = self.queue.pop(0)
@@ -312,7 +314,8 @@ class LiveHistoryArpeggiator(BaseModel):
                     MidiPlacement(
                         note_id=selected.note_id,
                         onset=at,
-                        gate=self.step * self.ports.gate,
+                        gate=grid_duration(self.step, self.swing, self.step_index)
+                        * self.ports.gate,
                     )
                 ]
             )

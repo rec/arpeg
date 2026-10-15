@@ -130,7 +130,6 @@ pub fn render_held<'a>(
     if matches!(rhythm, rhythm::Rhythm::Pattern { .. }) {
         return Err("pattern rhythm currently requires live input");
     }
-    let step = rhythm.decide_step(0, gate).duration;
     if gate < Beat::from_integer(0) {
         return Err("gate must be nonnegative");
     }
@@ -142,7 +141,11 @@ pub fn render_held<'a>(
     let mut previous_key: Option<(Beat, &str)> = None;
     let mut revision = 0;
     let mut at = Beat::from_integer(0);
+    let mut index = 0;
     while at < through {
+        let decision = rhythm.decide_step(index, gate);
+        let step = decision.duration;
+        index += 1;
         let mut active = bank_at(notes, bank_mode, at);
         let mut bank: Vec<_> = active.iter().map(|note| note.id).collect();
         bank.sort_unstable();
@@ -155,7 +158,7 @@ pub fn render_held<'a>(
             at += step;
             continue;
         }
-        if !rhythm.allows_step((at / step).to_integer()) {
+        if decision.repeats == 0 {
             at += step;
             continue;
         }
@@ -166,7 +169,7 @@ pub fn render_held<'a>(
             .unwrap_or(&active[0]);
         previous_key = Some(selection_key(note, &selection));
 
-        let mut gate_end = at + step * gate;
+        let mut gate_end = at + decision.gate;
         let mut boundaries: Vec<_> = notes
             .iter()
             .flat_map(|note| [note.onset, note.release])

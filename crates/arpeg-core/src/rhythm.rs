@@ -6,9 +6,11 @@ use crate::Beat;
 pub enum Rhythm {
     Grid {
         step: Beat,
+        swing: Beat,
     },
     Euclidean {
         step: Beat,
+        swing: Beat,
         steps: i64,
         pulses: i64,
         rotation: i64,
@@ -55,7 +57,7 @@ impl Rhythm {
 
     pub fn validate(&self) -> Result<(), &'static str> {
         match self {
-            Self::Grid { step } | Self::Euclidean { step, .. }
+            Self::Grid { step, .. } | Self::Euclidean { step, .. }
                 if *step <= Beat::from_integer(0) =>
             {
                 return Err("rhythm step must be positive");
@@ -71,6 +73,11 @@ impl Rhythm {
                 }
             }
             _ => {}
+        }
+        if let Self::Grid { swing, .. } | Self::Euclidean { swing, .. } = self {
+            if *swing < Beat::new(1, 2) || *swing >= Beat::from_integer(1) {
+                return Err("swing must be at least 1/2 and less than 1");
+            }
         }
         if let Self::Euclidean { steps, pulses, .. } = self {
             if *steps <= 0 || *pulses < 0 || pulses > steps {
@@ -106,12 +113,15 @@ impl Rhythm {
 
     pub fn decide_step(&self, index: i64, gate: Beat) -> RhythmDecision {
         match self {
-            Self::Grid { step } | Self::Euclidean { step, .. } => RhythmDecision {
-                duration: *step,
-                repeats: usize::from(self.allows_step(index)),
-                gate: *step * gate,
-                final_gate: *step * gate,
-            },
+            Self::Grid { step, swing } | Self::Euclidean { step, swing, .. } => {
+                let duration = grid_duration(*step, *swing, index);
+                RhythmDecision {
+                    duration,
+                    repeats: usize::from(self.allows_step(index)),
+                    gate: duration * gate,
+                    final_gate: duration * gate,
+                }
+            }
             Self::Pattern { steps } => {
                 let position = index as usize % steps.len();
                 let step = steps[position];
@@ -144,5 +154,40 @@ impl Rhythm {
                 }
             }
         }
+    }
+}
+
+/// Duration of a swung interval, independent of rhythm mask and loop length.
+pub fn grid_duration(step: Beat, swing: Beat, index: i64) -> Beat {
+    step * 2
+        * if index % 2 == 0 {
+            swing
+        } else {
+            Beat::from_integer(1) - swing
+        }
+}
+
+pub fn grid_onset(step: Beat, swing: Beat, index: i64) -> Beat {
+    step * 2
+        * (Beat::from_integer(index.div_euclid(2))
+            + if index.rem_euclid(2) == 0 {
+                Beat::from_integer(0)
+            } else {
+                swing
+            })
+}
+
+/// First opportunity at or after a beat, retaining absolute pair phase.
+pub fn grid_position(step: Beat, swing: Beat, at: Beat) -> (i64, Beat) {
+    let pair = step * 2;
+    let pairs = (at / pair).floor().to_integer();
+    if at == pair * pairs {
+        return (2 * pairs, at);
+    }
+    let middle = grid_onset(step, swing, 2 * pairs + 1);
+    if at <= middle {
+        (2 * pairs + 1, middle)
+    } else {
+        (2 * pairs + 2, pair * (pairs + 1))
     }
 }

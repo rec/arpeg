@@ -57,6 +57,25 @@ covered in [test/test_live.py](test/test_live.py) and the shared
 [live traces](conformance/live-classic.json). The standalone executable uses the Rust
 engine, so Python is not required when playing from MIDI ports.
 
+Grid and Euclidean rhythms support preset swing in Python and Rust/WebAssembly:
+
+```toml
+rhythm = {kind = "grid", step = "1/4 beat", swing = "2/3"}
+```
+
+`swing` is the first interval's share of each two-step pair: `"1/2"` is
+straight (the default), `"2/3"` is 2:1, and `"3/4"` is 3:1. It must be at
+least one half and less than one. With the example above, starts occur at
+0, 1/3, 1/2, 5/6, and 1 beat. Gates then use each swung interval, so 80%
+gate gives lengths 4/15 and 2/15 beat alternately. Pair phase continues
+through rests, empty banks, chord edits, and odd-length Euclidean loops.
+Pause and seeking retain the correct next swung opportunity. Recorded
+history/phrase gestures fit these intervals too. Custom patterns do not
+accept swing yet, and there is no live swing control. See the playable
+[up-swing preset](conformance/up-swing.toml) and shared
+[exact traces](conformance/swing.toml). The text example offers swing before
+starting; its setting stays fixed during playback.
+
 Held and latched banks also accept [Euclidean rhythm](conformance/euclidean.toml)
 in Python and Rust, for live playing or file rendering. Three pulses in eight
 steps gives `10010010`; positive rotation moves hits later. Rests leave note

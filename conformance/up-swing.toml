@@ -1,0 +1,5 @@
+name = "up-swing"
+title = "Up with two-to-one swing"
+
+[body]
+rhythm = {kind="grid",step="1/4 beat",swing="2/3"}
