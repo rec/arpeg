@@ -602,6 +602,16 @@ entry state, pause, boundary timing, and cleanup with coarse and frequent pollin
 Phrase playback currently uses a grid with classic note orders, fit timing,
 and carried gaps, matching history playback.
 
+### enveLFO integration
+
+The optional Python `arpeg.envelfo.EnveLFOBridge` and separate Rust
+`arpeg-envelfo` crate connect hits to a standalone Envelope and named Patch
+outputs to expression lanes, without coupling the cores. See
+[the integration contract and examples](doc/envelfo.md) for host clock ownership,
+continuation, and scheduling phases. The initial bridge returns newly triggered
+expression after note-on at the same timestamp. This is an explicit decision
+to revisit, not a guarantee of pre-note-on expression.
+
 ### Envelfo control ports
 
 Live MIDI expression has one declared source per lane. For example:

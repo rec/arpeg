@@ -1,0 +1,96 @@
+# Host observations are seconds; arpeg independently owns its beat position.
+# Deliver note messages, then hits, then observe and return expression.
+profile = '''
+name = "envelfo-composition"
+title = "Hit-triggered envelope and independent expressive LFO"
+[body]
+rhythm = { kind = "grid", step = "1/4 beat" }
+expression = { lanes = { breath = "envelfo", pressure = "envelfo" } }
+'''
+
+[[actions]]
+at_us = 0
+data = [[224, 0, 80], [144, 60, 100]]
+breath = 0.0
+accent = 0.0
+output = [[224, 0, 80], [144, 60, 100], [176, 2, 0], [208, 0]]
+
+[[actions]]
+at_us = 62500
+data = [[224, 0, 72]]
+breath = 0.125
+accent = 0.25
+output = [[224, 0, 72], [176, 2, 16], [208, 32]]
+
+[[actions]]
+at_us = 100000
+breath = 0.2
+accent = 0.4
+output = [[128, 60, 0]]
+
+[[actions]]
+at_us = 125000
+breath = 0.25
+accent = 0.0
+output = [[176, 2, 25], [224, 0, 72], [208, 51], [144, 60, 100], [176, 2, 32], [208, 0]]
+
+[[actions]]
+at_us = 200000
+tempo = 60
+data = [[176, 2, 99], [224, 0, 70]]
+breath = 0.4
+accent = 0.3
+output = [[224, 0, 70], [176, 2, 51], [208, 38]]
+
+[[actions]]
+at_us = 250000
+breath = 0.5
+accent = 0.5
+output = [[128, 60, 0]]
+
+[[actions]]
+at_us = 300000
+breath = 0.6
+accent = 0.0
+output = [[176, 2, 64], [224, 0, 70], [208, 64], [144, 60, 100], [176, 2, 76], [208, 0]]
+
+[[actions]]
+at_us = 325000
+stop = true
+breath = 0.65
+accent = 0.1
+output = [[128, 60, 0]]
+
+[[actions]]
+at_us = 350000
+data = [[224, 0, 68]]
+breath = 0.7
+accent = 0.2
+output = []
+
+[[actions]]
+at_us = 400000
+data = [[250]]
+breath = 0.8
+accent = 0.0
+output = [[176, 2, 89], [224, 0, 68], [208, 25], [144, 60, 100], [176, 2, 102], [208, 0]]
+
+[[actions]]
+at_us = 425000
+data = [[242, 2, 0]]
+breath = 0.85
+accent = 0.0
+output = [[128, 60, 0], [176, 2, 102], [224, 0, 68], [208, 0], [144, 60, 100], [176, 2, 108], [208, 0]]
+
+[[actions]]
+at_us = 450000
+data = [[144, 60, 0]]
+breath = 0.9
+accent = 0.1
+output = [[128, 60, 0]]
+
+[[actions]]
+at_us = 500000
+breath = 1.0
+accent = 0.3
+output = []

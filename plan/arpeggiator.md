@@ -660,6 +660,20 @@ Use the existing event ordering/capacity rules for connections. Feedback require
 an explicit delay of at least one scheduling quantum and a bounded event budget.
 Do not add an unbounded same-timestamp loop between a Envelfo and an arpeggiator.
 
+The first standalone integration is implemented in Python's optional
+`arpeg.envelfo` module and the separate `arpeg-envelfo` Rust crate. The host maps
+hit timestamps, starts the Envelope, observes the Patch, and returns named
+expression controls after arpeg's note messages at the same timestamp. Neither
+core depends on the other. See [the contract](../doc/envelfo.md) and shared
+`conformance/envelfo-composition.toml` wire trace.
+
+Revisit this ordering: an instrument that latches expression at note-on receives
+the previous entry value before the newly triggered expression. Pre-note-on
+observation would require separating scheduling from MIDI realization. This is
+deliberately deferred, not silently assumed to work already. Rust continuation
+here is an in-memory bridge clone; serialized combined host snapshots remain
+separate work.
+
 ## 10. MIDI realization and faithful cleanup
 
 The core emits note/control intent. A destination profile maps that intent to
