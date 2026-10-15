@@ -19,7 +19,7 @@ class EnveLFOBridge(BaseModel):
     """Host-owned Patch state with one hit target and explicit expression lanes.
 
     Deliver each hit at its host timestamp before observing that timestamp.
-    Apply returned controls after arpeg's note messages, at the same timestamp.
+    Supply returned controls to the player's realization phase before note-on.
     No transport reset, note-off routing, or observation cadence is implicit.
     """
 

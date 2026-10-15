@@ -19,13 +19,23 @@ note-end to release automatically: a rhythmic hit Envelope is not a voice gate.
 
 For each scheduled timestamp:
 
-1. Deliver input and transport changes using arpeg's existing ordering.
-2. Advance arpeg to that timestamp and collect its MIDI messages and port events.
+1. Deliver input and transport changes using arpeg's existing ordering. Supply
+   any tempo change through `schedule`'s tempo argument, not the one-call
+   `set_tempo` method, so an attack at that boundary stays unrealized.
+2. Call `player.schedule` for that timestamp, then drain its port events. This
+   advances the note engine but does not construct or send the scheduled MIDI.
 3. Deliver its hit events to `bridge.receive` at their exact **host seconds**.
 4. Call `bridge.observe` once after all same-time hits, supplying the explicit
    next-delivery time for Threshold edges.
-5. Pass returned expression controls to the MIDI player's existing `control`
-   method at that same timestamp, after the note messages from step 2.
+5. Pass the returned expression controls to `player.realize`. Due releases and
+   replacement note-offs precede the fresh entry controllers and note-ons.
+   A continuing note receives the new samples once; a released or muted note
+   receives no extra controllers. Deliver the returned MIDI in order.
+
+All same-time hits are delivered before one observation, preserving the existing
+shared-channel expression policy. Each attack at that boundary uses that sample;
+no per-note observation or extra clock advancement is implicit. The ordinary
+`advance` method runs the same schedule/realize path without new samples.
 
 Do not substitute an event's beat position for host seconds. Supply Python's
 `tempo_map` or Rust's per-child `ClockMapping` when the Patch has beat-clock
@@ -35,19 +45,29 @@ follows its host's elapsed-beat mapping. A transport seek relocates arpeg but
 does not implicitly reset every enveLFO child. Send explicit Patch commands when
 a particular Envelope or LFO should reset, release, or seek.
 
-**Ordering decision to revisit:** the first integration deliberately sends
-newly hit-triggered expression **after the note-on, at the same timestamp**.
-The note's entry bundle can therefore contain the previous expression value.
-This preserves arpeg's current delivery behavior, but may matter for instruments
-that latch expression at note-on. Reconsider pre-note-on observation after
-separating note scheduling from MIDI realization; do not claim that the current
-bridge provides it. This decision is covered by the shared wire trace.
+The original after-note-on decision has been replaced by this explicit two-phase
+path. Newly triggered expression is now available to instruments that latch
+controllers at note-on. An Envelope still starts at its defined initial value,
+which may legitimately be zero; the bridge does not advance its attack to invent
+a nonzero onset.
+
+Do not use `player.control` between these phases. Supply expression samples to
+`realize` instead. Other player mutations require realization first; `stop` is
+the exception, cancelling unsent attacks and releasing only actually realized
+notes. Draining port events is allowed between phases. Note lifecycle events
+are produced during realization, so drain again afterwards if the host consumes
+`note_start`/`note_end` events. A cancelled scheduled hit does not undo any enveLFO
+commands the host has already delivered.
 
 A host may wake irregularly, but must still process every scheduled boundary
 chronologically. Advancing the player far ahead and then feeding old hits back
 at the wake-up time loses their timing and cannot be repaired by this bridge.
 Merge arpeg deadlines, enveLFO event/next-delivery deadlines, external input,
-and the chosen expression-observation schedule. This is an explicit host
+and the chosen expression-observation schedule. `realize` rejects fresh samples
+if its pending batch spans multiple attack boundaries. A single fractional
+boundary remains valid when the host wakes at the next representable clock tick;
+note and decision beat timestamps remain exact. An invalid ownership/range
+control leaves the batch available for correction. This is an explicit host
 composition, not a second autonomous scheduler or a fixed-rate polling loop.
 Drain port batches after operations and honor `exhausted`; never silently drop
 an over-capacity batch. Feedback, density, gate, and selection mappings are not
@@ -95,7 +115,7 @@ At a host-selected boundary, with `player`, `at_ns`, and `next_delivery` supplie
 by that host:
 
 ```python
-messages = player.advance(at_ns)
+player.schedule(at_ns)  # Or schedule(at_ns, tempo=bpm) at a tempo boundary.
 at = Fraction(at_ns, 1_000_000_000)  # relative to the Patch's chosen host epoch
 batch = player.take_events()
 if batch.exhausted:
@@ -105,8 +125,7 @@ for event in batch.events:
     events.extend(bridge.receive(at, event))
 observation = bridge.observe(at, next_delivery=next_delivery)
 events.extend(observation.events)
-for command in observation.controls:
-    messages.extend(player.control(at_ns, command))
+messages = player.realize(observation.controls)
 ```
 
 The bridge returns all named floating-point values as well as rational
@@ -117,7 +136,9 @@ An out-of-range sample fails before committing the bridge observation.
 Host event times remain exact rationals, never floating-point approximations.
 
 Save `player.model_dump_json()` and `bridge.model_dump_json()` together at the
-same phase boundary. Restore with their respective `model_validate_json`
+same phase boundary, including between scheduling and realization if needed.
+The player retains its pending engine output; do not schedule it a second time.
+Restore with their respective `model_validate_json`
 methods. The bridge includes Patch definitions, child state, pending deliveries,
 and retained values. Resupply the same host clock mapping after restoration.
 Any messages or returned events already collected but not yet delivered belong
@@ -145,7 +166,7 @@ let mut bridge = EnveLFOBridge::new(
     ],
 )?;
 
-let mut messages = player.advance(at_us)?;
+player.schedule(at_us, None)?; // Or Some(bpm) at a tempo boundary.
 let batch = player.take_events();
 assert!(!batch.exhausted);
 let at = Time::new(at_us, 1_000_000)?;
@@ -154,9 +175,7 @@ for event in &batch.events {
     // Deliver or retain returned enveLFO events in the host.
 }
 let observation = bridge.observe(at, next_delivery, &Seconds)?;
-for (port, value) in observation.controls {
-    messages.extend(player.control(at_us, port, value)?);
-}
+let messages = player.realize(&observation.controls)?;
 ```
 
 Rust bridge continuation uses `Clone`, including pending Patch deliveries.
@@ -170,6 +189,9 @@ Run `cargo test -p arpeg-envelfo` without Python or MIDI devices. Run
 `uv run pytest test/test_envelfo.py` for Python. Both consume
 [one shared trace](../conformance/envelfo-composition.toml), covering expressive
 controllers between notes, tempo changes, stop/start, seek, and final release.
+The independent [pre-note wire cases](../conformance/pre-note-expression.toml)
+cover all three expression lanes, overlapping replacements, boundary tempo
+changes, muted updates and captured phrases with recorded/current lane ownership.
 
 ## Additional work beyond the prompt
 

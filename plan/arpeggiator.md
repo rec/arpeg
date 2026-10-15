@@ -663,16 +663,19 @@ Do not add an unbounded same-timestamp loop between a Envelfo and an arpeggiator
 The first standalone integration is implemented in Python's optional
 `arpeg.envelfo` module and the separate `arpeg-envelfo` Rust crate. The host maps
 hit timestamps, starts the Envelope, observes the Patch, and returns named
-expression controls after arpeg's note messages at the same timestamp. Neither
+expression controls before MIDI realization at the same timestamp. Neither
 core depends on the other. See [the contract](../doc/envelfo.md) and shared
 `conformance/envelfo-composition.toml` wire trace.
 
-Revisit this ordering: an instrument that latches expression at note-on receives
-the previous entry value before the newly triggered expression. Pre-note-on
-observation would require separating scheduling from MIDI realization. This is
-deliberately deferred, not silently assumed to work already. Rust continuation
-here is an in-memory bridge clone; serialized combined host snapshots remain
-separate work.
+The after-note-on ordering has been replaced by explicit scheduling and
+realization in both players. Hosts schedule each boundary, deliver all same-time
+hits, observe once, and pass expression to realization. Existing note-off ordering,
+recorded/current lane ownership and ordinary one-call playback are preserved.
+Python snapshots retain pending batches; stopping cancels unsent attacks without
+inventing note lifecycle events. Shared wire traces cover overlap, boundary tempo
+changes, captured phrases, stop/start/seek, and continued controller updates.
+Rust bridge continuation remains an in-memory clone; serialized combined host
+snapshots remain separate work.
 
 ## 10. MIDI realization and faithful cleanup
 

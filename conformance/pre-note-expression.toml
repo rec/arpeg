@@ -1,0 +1,113 @@
+# Independent wire expectations for the scheduling/realization boundary.
+[[cases]]
+name = "held-overlap-tempo-and-muted-expression"
+profile = "envelfo-expression"
+
+[[cases.actions]]
+at_us = 0
+data = [[144, 60, 100], [144, 64, 90]]
+schedule = true
+controls = [["breath", "1/2"], ["bend", "1/2"], ["pressure", "1/4"]]
+output = [[176, 2, 64], [224, 0, 96], [208, 32], [144, 60, 100]]
+
+[[cases.actions]]
+at_us = 62500
+schedule = true
+controls = [["breath", "3/4"], ["bend", "-1/2"], ["pressure", "1/2"]]
+output = [[176, 2, 95], [224, 0, 32], [208, 64]]
+
+[[cases.actions]]
+at_us = 125000
+schedule = true
+controls = [["breath", "1/4"], ["bend", "0"], ["pressure", "1"]]
+output = [[128, 60, 0], [176, 2, 32], [224, 0, 64], [208, 127], [144, 64, 90]]
+
+[[cases.actions]]
+at_us = 250000
+schedule = true
+tempo = 60
+controls = [["breath", "1"], ["bend", "1"], ["pressure", "0"]]
+output = [[128, 64, 0], [176, 2, 127], [224, 127, 127], [208, 0], [144, 60, 100]]
+
+[[cases.actions]]
+at_us = 375000
+schedule = true
+controls = [["breath", "0"]]
+output = [[176, 2, 0]]
+
+[[cases.actions]]
+at_us = 500000
+schedule = true
+controls = [["breath", "1/2"], ["bend", "0"], ["pressure", "1/2"]]
+output = [[128, 60, 0], [176, 2, 64], [224, 0, 64], [208, 64], [144, 64, 90]]
+
+[[cases.actions]]
+at_us = 600000
+stop = true
+schedule = true
+controls = [["breath", "1"], ["bend", "1"], ["pressure", "1"]]
+output = [[128, 64, 0]]
+
+[[cases]]
+name = "captured-phrase-preserves-recorded-and-current-lanes"
+profile = "envelfo-phrase"
+
+[[cases.actions]]
+at_us = 0
+data = [[224, 0, 64], [208, 21]]
+output = []
+
+[[cases.actions]]
+at_us = 0
+capture = "record"
+output = []
+
+[[cases.actions]]
+at_us = 0
+data = [[144, 60, 100]]
+output = []
+
+[[cases.actions]]
+at_us = 10000
+data = [[224, 0, 96], [208, 42]]
+output = []
+
+[[cases.actions]]
+at_us = 20000
+data = [[128, 60, 20]]
+output = []
+
+[[cases.actions]]
+at_us = 20000
+capture = "commit"
+output = []
+
+[[cases.actions]]
+at_us = 125000
+schedule = true
+controls = [["breath", "1/2"]]
+output = [[176, 2, 64], [208, 42], [224, 0, 64], [144, 60, 100]]
+
+[[cases.actions]]
+at_us = 150000
+schedule = true
+controls = [["breath", "3/4"]]
+output = [[176, 2, 95]]
+
+[[cases.actions]]
+at_us = 175000
+schedule = true
+controls = [["breath", "1/4"]]
+output = [[224, 0, 96], [176, 2, 32]]
+
+[[cases.actions]]
+at_us = 225000
+schedule = true
+controls = [["breath", "1"]]
+output = [[128, 60, 20]]
+
+[[cases.actions]]
+at_us = 250000
+schedule = true
+controls = [["breath", "1"]]
+output = [[176, 2, 127], [208, 42], [224, 0, 64], [144, 60, 100]]

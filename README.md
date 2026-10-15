@@ -634,9 +634,10 @@ The optional Python `arpeg.envelfo.EnveLFOBridge` and separate Rust
 `arpeg-envelfo` crate connect hits to a standalone Envelope and named Patch
 outputs to expression lanes, without coupling the cores. See
 [the integration contract and examples](doc/envelfo.md) for host clock ownership,
-continuation, and scheduling phases. The initial bridge returns newly triggered
-expression after note-on at the same timestamp. This is an explicit decision
-to revisit, not a guarantee of pre-note-on expression.
+continuation, and scheduling phases. Both players expose `schedule` and `realize`:
+schedule the boundary, deliver hits to enveLFO, observe once, then realize MIDI
+with the fresh expression before note-on. Ordinary `advance` uses the same path
+without new samples. Python snapshots also preserve an unrealized batch.
 
 ### Envelfo control ports
 

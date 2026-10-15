@@ -57,17 +57,17 @@ fn composition_matches_python_wire_trace() {
                     output.extend(player.accept(tick, &bytes, InputSource::Both).unwrap());
                 }
             }
-            if let Some(tempo) = action.get("tempo") {
-                output.extend(
-                    player
-                        .set_tempo(tick, tempo.as_integer().unwrap().try_into().unwrap())
-                        .unwrap(),
-                );
-            }
             if action.get("stop").and_then(toml::Value::as_bool) == Some(true) {
                 output.extend(player.stop(tick).unwrap());
             }
-            output.extend(player.advance(tick).unwrap());
+            player
+                .schedule(
+                    tick,
+                    action
+                        .get("tempo")
+                        .map(|t| t.as_integer().unwrap().try_into().unwrap()),
+                )
+                .unwrap();
             let batch = player.take_events();
             assert!(!batch.exhausted);
             let at = Time::new(tick, 1_000_000).unwrap();
@@ -84,9 +84,7 @@ fn composition_matches_python_wire_trace() {
             for name in ["breath", "accent"] {
                 assert!((result.values[name] - action[name].as_float().unwrap()).abs() < 1e-12);
             }
-            for (port, value) in result.controls {
-                output.extend(player.control(tick, port, value).unwrap());
-            }
+            output.extend(player.realize(&result.controls).unwrap());
             let expected: Vec<Vec<u8>> = action["output"]
                 .as_array()
                 .unwrap()

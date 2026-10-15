@@ -1,5 +1,5 @@
 # Host observations are seconds; arpeg independently owns its beat position.
-# Deliver note messages, then hits, then observe and return expression.
+# Schedule notes, deliver hits, observe once, then realize expression before note-on.
 profile = '''
 name = "envelfo-composition"
 title = "Hit-triggered envelope and independent expressive LFO"
@@ -13,7 +13,7 @@ at_us = 0
 data = [[224, 0, 80], [144, 60, 100]]
 breath = 0.0
 accent = 0.0
-output = [[224, 0, 80], [144, 60, 100], [176, 2, 0], [208, 0]]
+output = [[176, 2, 0], [224, 0, 80], [208, 0], [144, 60, 100]]
 
 [[actions]]
 at_us = 62500
@@ -32,7 +32,7 @@ output = [[128, 60, 0]]
 at_us = 125000
 breath = 0.25
 accent = 0.0
-output = [[176, 2, 25], [224, 0, 72], [208, 51], [144, 60, 100], [176, 2, 32], [208, 0]]
+output = [[176, 2, 32], [224, 0, 72], [208, 0], [144, 60, 100]]
 
 [[actions]]
 at_us = 200000
@@ -52,7 +52,7 @@ output = [[128, 60, 0]]
 at_us = 300000
 breath = 0.6
 accent = 0.0
-output = [[176, 2, 64], [224, 0, 70], [208, 64], [144, 60, 100], [176, 2, 76], [208, 0]]
+output = [[176, 2, 76], [224, 0, 70], [208, 0], [144, 60, 100]]
 
 [[actions]]
 at_us = 325000
@@ -73,14 +73,14 @@ at_us = 400000
 data = [[250]]
 breath = 0.8
 accent = 0.0
-output = [[176, 2, 89], [224, 0, 68], [208, 25], [144, 60, 100], [176, 2, 102], [208, 0]]
+output = [[176, 2, 102], [224, 0, 68], [208, 0], [144, 60, 100]]
 
 [[actions]]
 at_us = 425000
 data = [[242, 2, 0]]
 breath = 0.85
 accent = 0.0
-output = [[128, 60, 0], [176, 2, 102], [224, 0, 68], [208, 0], [144, 60, 100], [176, 2, 108], [208, 0]]
+output = [[128, 60, 0], [176, 2, 108], [224, 0, 68], [208, 0], [144, 60, 100]]
 
 [[actions]]
 at_us = 450000

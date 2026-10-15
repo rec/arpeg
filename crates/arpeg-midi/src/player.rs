@@ -26,6 +26,13 @@ enum Engine {
     History(Box<HistoryArpeggiator>),
 }
 
+struct ScheduledMidi {
+    active: bool,
+    notes: Vec<OutputEvent>,
+    history: Vec<RealizedEvent>,
+    release: bool,
+}
+
 pub struct MidiPlayer {
     bend_range: Option<f64>,
     tuning_offset: f64,
@@ -35,6 +42,7 @@ pub struct MidiPlayer {
     wall_us: i64,
     input_tick: i64,
     ordinal: u32,
+    scheduled: Option<ScheduledMidi>,
     expression_sources: std::collections::BTreeMap<Lane, Source>,
     expression: std::collections::BTreeMap<u8, Vec<u8>>,
     envelfo_expression: std::collections::BTreeMap<Lane, arpeg_core::Beat>,
@@ -114,6 +122,7 @@ impl MidiPlayer {
             wall_us: 0,
             input_tick: -1,
             ordinal: 0,
+            scheduled: None,
             expression_sources,
             expression: std::collections::BTreeMap::new(),
             envelfo_expression: std::collections::BTreeMap::new(),
@@ -132,6 +141,7 @@ impl MidiPlayer {
         data: &[u8],
         source: InputSource,
     ) -> Result<Vec<Vec<u8>>, &'static str> {
+        self.check_ready()?;
         let transport = matches!(data[0], 0xf8 | 0xfa | 0xfb | 0xfc | 0xf2);
         if transport {
             if matches!(source, InputSource::Notes)
@@ -246,28 +256,106 @@ impl MidiPlayer {
     }
 
     pub fn advance(&mut self, at_us: i64) -> Result<Vec<Vec<u8>>, &'static str> {
-        if self.origin_us.is_none() {
-            return Ok(Vec::new());
+        self.schedule(at_us, None)?;
+        self.realize(&[])
+    }
+
+    /// Advance once without constructing MIDI. Drain hits, observe expression,
+    /// then call `realize`. Hosts must visit each attack boundary in order.
+    /// A tempo change applies after settling this boundary, as in `set_tempo`.
+    pub fn schedule(&mut self, at_us: i64, tempo: Option<u32>) -> Result<(), &'static str> {
+        self.check_ready()?;
+        if tempo.is_some_and(|bpm| bpm == 0 || bpm > 1000 || self.clock.mode != ClockMode::Internal)
+        {
+            return Err("tempo requires internal clock and BPM between 1 and 1000");
         }
-        let tick = self.elapsed(at_us);
-        let was_active = self.clock.active();
-        let at = self.clock.advance(tick);
-        if was_active && !self.clock.active() {
-            return self.pause(tick);
-        }
-        if !self.clock.active() {
-            return Ok(Vec::new());
-        }
-        Ok(match &mut self.engine {
-            Engine::Held(e) => {
-                let events = e.advance(at)?;
-                self.note_messages(events)?
+        let mut scheduled = ScheduledMidi {
+            active: self.clock.active(),
+            notes: Vec::new(),
+            history: Vec::new(),
+            release: false,
+        };
+        if self.origin_us.is_some() {
+            let tick = self.elapsed(at_us);
+            let was_active = self.clock.active();
+            let at = self.clock.advance(tick);
+            scheduled.release = was_active && !self.clock.active();
+            if scheduled.release {
+                match &mut self.engine {
+                    Engine::Held(e) => scheduled.notes = e.pause(at),
+                    Engine::History(e) => scheduled.history = e.pause(at, tick),
+                }
+            } else if self.clock.active() {
+                match &mut self.engine {
+                    Engine::Held(e) => scheduled.notes = e.advance(at)?,
+                    Engine::History(e) => {
+                        scheduled.history = e.advance(at, tick.max(self.input_tick))?
+                    }
+                }
             }
-            Engine::History(e) => {
-                let events = e.advance(at, tick.max(self.input_tick))?;
-                self.history_messages(events)?
+        }
+        if let Some(bpm) = tempo {
+            let tick = self.elapsed(at_us);
+            self.clock.set_tempo(tick, bpm)?;
+        }
+        scheduled.active = self.clock.active();
+        self.scheduled = Some(scheduled);
+        Ok(())
+    }
+
+    /// Apply expression before pending attacks, or once to a continuing note.
+    /// Invalid controls leave the pending batch available for correction.
+    /// This does not advance clocks, generate hits, or observe an enveLFO.
+    pub fn realize(
+        &mut self,
+        controls: &[(InputPort, arpeg_core::Beat)],
+    ) -> Result<Vec<Vec<u8>>, &'static str> {
+        let scheduled = self
+            .scheduled
+            .as_ref()
+            .ok_or("schedule MIDI before realization")?;
+        let samples = controls
+            .iter()
+            .map(|&(p, v)| self.expression_sample(p, v))
+            .collect::<Result<Vec<_>, _>>()?;
+        let attacks: Vec<_> = scheduled
+            .notes
+            .iter()
+            .filter_map(|e| matches!(e.kind, OutputKind::NoteOn { .. }).then_some(e.at))
+            .chain(
+                scheduled
+                    .history
+                    .iter()
+                    .filter_map(|e| (e.data[0] == 0x90 && e.data[2] > 0).then_some(e.at)),
+            )
+            .collect();
+        if !samples.is_empty()
+            && attacks
+                .first()
+                .is_some_and(|first| attacks.iter().any(|at| at != first))
+        {
+            return Err("expression requires scheduling each attack boundary");
+        }
+        for (lane, value, _) in &samples {
+            self.envelfo_expression.insert(*lane, *value);
+        }
+        let scheduled = self.scheduled.take().expect("checked scheduled batch");
+        let mut output = self.note_messages(scheduled.notes)?;
+        output.extend(self.history_messages(scheduled.history)?);
+        if scheduled.release {
+            self.release_output(&mut output);
+        }
+        if !samples.is_empty() && attacks.is_empty() && scheduled.active && self.sounding.is_some()
+        {
+            for (_, _, data) in samples {
+                output.push(expression::tuning_message(
+                    data,
+                    self.tuning_offset,
+                    self.bend_range,
+                )?);
             }
-        })
+        }
+        Ok(output)
     }
 
     pub fn clear(&mut self, at_us: i64) -> Result<Vec<Vec<u8>>, &'static str> {
@@ -288,6 +376,7 @@ impl MidiPlayer {
     }
 
     pub fn capture(&mut self, at_us: i64, command: &str) -> Result<Vec<Vec<u8>>, &'static str> {
+        self.check_ready()?;
         let Engine::History(engine) = &self.engine else {
             return Err("capture controls require a phrase bank");
         };
@@ -343,11 +432,10 @@ impl MidiPlayer {
         port: InputPort,
         value: arpeg_core::Beat,
     ) -> Result<Vec<Vec<u8>>, &'static str> {
+        self.check_ready()?;
         let sample = if let Some(lane) = expression::control_lane(port) {
-            if self.expression_sources[&lane] != Source::Envelfo {
-                return Err("expression lane is not owned by Envelfo");
-            }
-            Some((lane, expression::envelfo_message(lane, value)?))
+            let (_, _, data) = self.expression_sample(port, value)?;
+            Some((lane, data))
         } else {
             match &self.engine {
                 Engine::Held(e) => PerformancePorts::check_control(port, value, e.chance.seed)?,
@@ -417,31 +505,59 @@ impl MidiPlayer {
     }
 
     pub fn set_tempo(&mut self, at_us: i64, bpm: u32) -> Result<Vec<Vec<u8>>, &'static str> {
-        if bpm == 0 || bpm > 1000 || self.clock.mode != ClockMode::Internal {
-            return Err("tempo requires internal clock and BPM between 1 and 1000");
-        }
-        let output = self.advance(at_us)?;
-        let tick = self.elapsed(at_us);
-        self.clock.set_tempo(tick, bpm)?;
-        Ok(output)
+        self.schedule(at_us, Some(bpm))?;
+        self.realize(&[])
     }
 
     fn pause(&mut self, tick: i64) -> Result<Vec<Vec<u8>>, &'static str> {
+        let cancelled = self.scheduled.take().is_some();
         let mut output = match &mut self.engine {
             Engine::Held(e) => {
                 let events = e.pause(self.clock.beat);
-                self.note_messages(events)?
+                if cancelled {
+                    Vec::new()
+                } else {
+                    self.note_messages(events)?
+                }
             }
             Engine::History(e) => {
                 let events = e.pause(self.clock.beat, tick);
-                self.history_messages(events)?
+                if cancelled {
+                    Vec::new()
+                } else {
+                    self.history_messages(events)?
+                }
             }
         };
+        self.release_output(&mut output);
+        Ok(output)
+    }
+
+    fn release_output(&mut self, output: &mut Vec<Vec<u8>>) {
         if let Some((_, key)) = self.sounding.take() {
             output.push(vec![0x80, key, 0]);
             self.end_note(self.clock.beat, 0);
         }
-        Ok(output)
+    }
+
+    fn check_ready(&self) -> Result<(), &'static str> {
+        if self.scheduled.is_some() {
+            return Err("realize scheduled MIDI before changing the player");
+        }
+        Ok(())
+    }
+
+    fn expression_sample(
+        &self,
+        port: InputPort,
+        value: arpeg_core::Beat,
+    ) -> Result<(Lane, arpeg_core::Beat, Vec<u8>), &'static str> {
+        let lane =
+            expression::control_lane(port).ok_or("realization accepts only expression controls")?;
+        if self.expression_sources[&lane] != Source::Envelfo {
+            return Err("expression lane is not owned by Envelfo");
+        }
+        Ok((lane, value, expression::envelfo_message(lane, value)?))
     }
 
     fn note_messages(&mut self, events: Vec<OutputEvent>) -> Result<Vec<Vec<u8>>, &'static str> {

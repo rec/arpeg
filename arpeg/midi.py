@@ -235,6 +235,15 @@ class Play(BaseModel, frozen=True):
                 delivery.cleanup(player.stop(perf_counter_ns()), output.send)
 
 
+class ScheduledMidi(BaseModel, frozen=True):
+    """Engine output awaiting expression and MIDI realization at a host boundary."""
+
+    active: bool
+    notes: list[LiveEvent] = Field(default_factory=list)
+    history: list[RealizedMidiEvent] = Field(default_factory=list)
+    release: bool = False
+
+
 class MidiPlayer(BaseModel):
     """Convert source microseconds and transport beats into owned MIDI output."""
 
@@ -244,6 +253,7 @@ class MidiPlayer(BaseModel):
     wall_us: int = 0
     input_tick: int = -1
     ordinal: int = 0
+    scheduled: ScheduledMidi | None = None
     engine: LiveArpeggiator | LiveHistoryArpeggiator | None = None
     expression: dict[int, list[int]] = Field(default_factory=dict)
     envelfo_expression: dict[arpeggiator.ExpressionLane, Fraction] = Field(
@@ -334,6 +344,7 @@ class MidiPlayer(BaseModel):
         *,
         source: Literal["notes", "clock", "both"] = "both",
     ) -> list[mido.Message]:
+        self._check_ready()
         assert self.engine is not None
         data = message.bytes()
         transport = data[0] in (0xF8, 0xFA, 0xFB, 0xFC, 0xF2)
@@ -427,20 +438,80 @@ class MidiPlayer(BaseModel):
         return output
 
     def advance(self, at_ns: int) -> list[mido.Message]:
+        self.schedule(at_ns)
+        return self.realize()
+
+    def schedule(self, at_ns: int, *, tempo: int | None = None) -> None:
+        """Advance once without MIDI realization; drain hits before ``realize``.
+
+        Hosts supplying expression must visit each scheduled boundary in order.
+        A tempo change applies after settling this boundary, as in ``set_tempo``.
+        """
+        self._check_ready()
         assert self.engine is not None
-        if self.origin_ns is None:
-            return []
-        tick = self._elapsed(at_ns)
-        was_active = self.clock.active
-        at = self.clock.advance(tick)
-        if was_active and not self.clock.active:
-            return self._pause(tick)
-        if not self.clock.active:
-            return []
-        if isinstance(engine := self.engine, LiveArpeggiator):
-            return self._note_messages(engine.advance(at))
-        tick = max(tick, self.input_tick)
-        return self._history_messages(engine.advance(at, tick))
+        if tempo is not None and (
+            self.clock.mode != ClockMode.internal or not 1 <= tempo <= 1000
+        ):
+            raise ValueError("tempo requires internal clock and BPM between 1 and 1000")
+        notes: list[LiveEvent] = []
+        history: list[RealizedMidiEvent] = []
+        release = False
+        if self.origin_ns is not None:
+            tick = self._elapsed(at_ns)
+            was_active = self.clock.active
+            at = self.clock.advance(tick)
+            release = was_active and not self.clock.active
+            if release:
+                if isinstance(engine := self.engine, LiveArpeggiator):
+                    notes = engine.pause(at)
+                else:
+                    history = engine.pause(at, tick)
+            elif self.clock.active:
+                if isinstance(engine := self.engine, LiveArpeggiator):
+                    notes = engine.advance(at)
+                else:
+                    history = engine.advance(at, max(tick, self.input_tick))
+        if tempo is not None:
+            self.clock.set_tempo(self._elapsed(at_ns), tempo)
+        self.scheduled = ScheduledMidi(
+            active=self.clock.active,
+            notes=notes,
+            history=history,
+            release=release,
+        )
+
+    def realize(
+        self, controls: list[arpeggiator_ports.ArpeggiatorControl] | None = None
+    ) -> list[mido.Message]:
+        """Apply expression to pending attacks, or to a continuing note once.
+
+        Invalid control ownership leaves the pending batch available for correction.
+        No clock advancement, new hit, or extra observation is implicit.
+        """
+        if (scheduled := self.scheduled) is None:
+            raise ValueError("schedule MIDI before realization")
+        samples = [self._expression_sample(c) for c in controls or []]
+        attacks = [e.at for e in scheduled.notes if e.kind == "on"] + [
+            e.at for e in scheduled.history if e.data[0] == 0x90 and e.data[2] > 0
+        ]
+        if samples and attacks and any(t != attacks[0] for t in attacks):
+            raise ValueError("expression requires scheduling each attack boundary")
+        for lane, value, _ in samples:
+            self.envelfo_expression[lane] = value
+        output = self._note_messages(scheduled.notes) + self._history_messages(
+            scheduled.history
+        )
+        if scheduled.release:
+            output.extend(self._release_output())
+        if samples and not attacks and scheduled.active and self.output_key is not None:
+            output.extend(
+                mido.Message.from_bytes(
+                    tuning_message(d, self.tuning_offset, self.profile.body.bend_range)
+                )
+                for _, _, d in samples
+            )
+        self.scheduled = None
+        return output
 
     def clear(self, at_ns: int) -> list[mido.Message]:
         assert self.engine is not None
@@ -457,13 +528,11 @@ class MidiPlayer(BaseModel):
         return self._pause(tick)
 
     def set_tempo(self, at_ns: int, bpm: int) -> list[mido.Message]:
-        if self.clock.mode != ClockMode.internal or not 1 <= bpm <= 1000:
-            raise ValueError("tempo requires internal clock and BPM between 1 and 1000")
-        output = self.advance(at_ns)
-        self.clock.set_tempo(self._elapsed(at_ns), bpm)
-        return output
+        self.schedule(at_ns, tempo=bpm)
+        return self.realize()
 
     def capture(self, at_ns: int, command: str) -> list[mido.Message]:
+        self._check_ready()
         if (
             not isinstance(self.engine, LiveHistoryArpeggiator)
             or self.engine.bank.mode != "phrase"
@@ -502,6 +571,7 @@ class MidiPlayer(BaseModel):
     def control(
         self, at_ns: int, control: arpeggiator_ports.ArpeggiatorControl
     ) -> list[mido.Message]:
+        self._check_ready()
         assert self.engine is not None and self.engine.ports is not None
         lane = (
             arpeggiator.ExpressionLane(control.port.value)
@@ -509,9 +579,7 @@ class MidiPlayer(BaseModel):
             else None
         )
         if lane is not None:
-            policy = self.profile.body.expression
-            if policy.lanes.get(lane, policy.source) != "envelfo":
-                raise ValueError(f"{lane} is not owned by Envelfo")
+            _, _, data = self._expression_sample(control)
         else:
             self.engine.ports.check_control(control, self.profile.body.seed)
         tick = self._elapsed(at_ns)
@@ -533,7 +601,7 @@ class MidiPlayer(BaseModel):
                 output.append(
                     mido.Message.from_bytes(
                         tuning_message(
-                            envelfo_message(lane, control.value),
+                            data,
                             self.tuning_offset,
                             self.profile.body.bend_range,
                         )
@@ -597,16 +665,39 @@ class MidiPlayer(BaseModel):
 
     def _pause(self, tick: int) -> list[mido.Message]:
         assert self.engine is not None
+        cancelled = self.scheduled is not None
+        self.scheduled = None
         if isinstance(engine := self.engine, LiveArpeggiator):
-            output = self._note_messages(engine.pause(self.clock.beat))
+            notes = engine.pause(self.clock.beat)
+            output = [] if cancelled else self._note_messages(notes)
         else:
-            output = self._history_messages(engine.pause(self.clock.beat, tick))
+            history = engine.pause(self.clock.beat, tick)
+            output = [] if cancelled else self._history_messages(history)
+        return output + self._release_output()
+
+    def _release_output(self) -> list[mido.Message]:
+        output: list[mido.Message] = []
         if self.output_key is not None:
             output.append(mido.Message.from_bytes([128, self.output_key, 0]))
             self._end_note(self.clock.beat, 0)
             self.output_key = None
             self.output_id = None
         return output
+
+    def _check_ready(self) -> None:
+        if self.scheduled is not None:
+            raise ValueError("realize scheduled MIDI before changing the player")
+
+    def _expression_sample(
+        self, control: arpeggiator_ports.ArpeggiatorControl
+    ) -> tuple[arpeggiator.ExpressionLane, Fraction, list[int]]:
+        if control.port.value not in ("breath", "bend", "pressure"):
+            raise ValueError("realization accepts only expression controls")
+        lane = arpeggiator.ExpressionLane(control.port.value)
+        policy = self.profile.body.expression
+        if policy.lanes.get(lane, policy.source) != "envelfo":
+            raise ValueError(f"{lane} is not owned by Envelfo")
+        return lane, control.value, envelfo_message(lane, control.value)
 
     def _note_messages(self, events: list[LiveEvent]) -> list[mido.Message]:
         output: list[mido.Message] = []

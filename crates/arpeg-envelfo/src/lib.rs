@@ -1,7 +1,7 @@
 //! Host-clock connections between arpeg and enveLFO, without device or audio IO.
 //!
-//! Deliver hits at their host timestamps, then observe once and apply expression
-//! after arpeg's note messages at that same timestamp. The host owns cadence,
+//! Schedule arpeg, deliver hits at their host timestamps, then observe once and
+//! realize MIDI with fresh expression before note-on. The host owns cadence,
 //! transport mapping, lane ownership and delivery. Neither core depends on the
 //! other. Cloning a bridge preserves pending Patch deliveries and random state.
 

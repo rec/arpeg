@@ -30,11 +30,10 @@ def test_composition_trace_and_restoration(poll_us: int | None) -> None:
                 assert not any(e.port == "hit" for e in batch.events)
         for data in action.get("data", []):
             output.extend(player.accept(tick, mido.Message.from_bytes(data)))
-        if "tempo" in action:
-            output.extend(player.set_tempo(tick, action["tempo"]))
         if action.get("stop"):
             output.extend(player.stop(tick))
-        output.extend(player.advance(tick))
+        player.schedule(tick, tempo=action.get("tempo"))
+        player = MidiPlayer.model_validate_json(player.model_dump_json())
         batch = player.take_events()
         assert not batch.exhausted
         at = Fraction(action["at_us"], 1_000_000)
@@ -44,8 +43,7 @@ def test_composition_trace_and_restoration(poll_us: int | None) -> None:
         assert result.values == pytest.approx(
             {"breath": action["breath"], "accent": action["accent"]}
         )
-        for command in result.controls:
-            output.extend(player.control(tick, command))
+        output.extend(player.realize(result.controls))
         assert [m.bytes() for m in output] == action["output"], action
         player = MidiPlayer.model_validate_json(player.model_dump_json())
         bridge = EnveLFOBridge.model_validate_json(bridge.model_dump_json())
