@@ -29,6 +29,7 @@ pub mod player;
 
 pub struct HeldProfile {
     pub inversion: i64,
+    pub voicing: Vec<i64>,
     pub register_limits: Option<PitchRegister>,
     pub scale: Option<PitchScale>,
     pub octaves: Octaves,
@@ -143,6 +144,7 @@ pub fn parse_profile(text: &str, path: Option<&Path>) -> Result<Profile, String>
             "octaves",
             "register_limits",
             "inversion",
+            "voicing",
             "scale",
         ]
         .contains(&key.as_str())
@@ -653,6 +655,22 @@ pub fn parse_profile(text: &str, path: Option<&Path>) -> Result<Profile, String>
             Octaves { offsets, traversal }
         }
     };
+    let voicing = match body.get("voicing") {
+        None => Vec::new(),
+        Some(value) => {
+            let shifts = value.as_array().ok_or("voicing must be an integer list")?;
+            if shifts.is_empty() {
+                return Err("voicing must not be empty".into());
+            }
+            shifts
+                .iter()
+                .map(|v| {
+                    v.as_integer()
+                        .ok_or("voicing offsets must be signed integers")
+                })
+                .collect::<Result<Vec<_>, _>>()?
+        }
+    };
     let inversion = match body.get("inversion") {
         None => 0,
         Some(v) => v.as_integer().ok_or("inversion must be a signed integer")?,
@@ -741,6 +759,7 @@ pub fn parse_profile(text: &str, path: Option<&Path>) -> Result<Profile, String>
     Ok(match bank {
         ParsedBank::Classic(bank) => Profile::Classic(HeldProfile {
             inversion,
+            voicing,
             register_limits,
             scale,
             octaves,
@@ -757,6 +776,9 @@ pub fn parse_profile(text: &str, path: Option<&Path>) -> Result<Profile, String>
             retrigger,
         }),
         ParsedBank::Captured(mode) => {
+            if !voicing.is_empty() {
+                return Err("voicing requires a held or latched bank".into());
+            }
             if inversion != 0 {
                 return Err("inversion requires a held or latched bank".into());
             }
@@ -930,6 +952,9 @@ pub fn render_file(profile: &str, input: &[u8], path: Option<&Path>) -> Result<V
     }
     if profile.inversion != 0 {
         return Err("inversion currently requires live input".into());
+    }
+    if !profile.voicing.is_empty() {
+        return Err("voicing currently requires live input".into());
     }
     if profile.scale.is_some() {
         return Err("scale mapping currently requires live input".into());

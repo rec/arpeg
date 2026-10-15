@@ -53,6 +53,8 @@ def render_held(
         raise ValueError("scale mapping currently requires live input")
     if body.inversion:
         raise ValueError("inversion currently requires live input")
+    if body.voicing is not None:
+        raise ValueError("voicing currently requires live input")
     if body.register_limits is not None:
         raise ValueError("register limits currently require live input")
     if any(s != "current" for s in body.expression.lanes.values()):

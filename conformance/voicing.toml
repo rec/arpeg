@@ -1,0 +1,129 @@
+[[cases]]
+name = "raise middle chord rank"
+voicing = [0,1,0]
+notes = [[60,100],[64,90],[67,80]]
+keys = [60,67,76]
+sources = [0,2,1]
+
+[[cases]]
+name = "missing ranks stay unchanged"
+voicing = [0,1]
+notes = [[60,100],[64,90],[67,80],[71,70]]
+keys = [60,67,71,76]
+sources = [0,2,3,1]
+
+[[cases]]
+name = "extra offsets are unused"
+voicing = [0,-1,3,4]
+notes = [[60,100],[64,90]]
+keys = [52,60]
+sources = [1,0]
+
+[[cases]]
+name = "voicing ranks follow inversion"
+inversion = 1
+voicing = [0,1,0]
+notes = [[60,100],[64,90],[67,80]]
+keys = [64,72,79]
+sources = [1,0,2]
+
+[[cases]]
+name = "descending voiced ranks"
+voicing = [0,1,0]
+selection = {kind="descending"}
+notes = [[60,100],[64,90],[67,80]]
+keys = [76,67,60]
+sources = [1,2,0]
+
+[[cases]]
+name = "played order follows source onsets"
+voicing = [0,1,0]
+selection = {kind="played"}
+notes = [[60,100],[64,90],[67,80]]
+keys = [60,76,67]
+sources = [0,1,2]
+
+[[cases]]
+name = "index patterns use voiced ranks"
+voicing = [0,1,0]
+selection = {kind="index_pattern",indices=[2,0,1]}
+notes = [[60,100],[64,90],[67,80]]
+keys = [76,60,67]
+sources = [1,0,2]
+
+[[cases]]
+name = "walk uses voiced ranks"
+voicing = [0,1,0]
+selection = {kind="walk",moves=[1],weights=[1]}
+notes = [[60,100],[64,90],[67,80]]
+keys = [60,67,76]
+sources = [0,2,1]
+
+[[cases]]
+name = "selection offset uses voiced ranks"
+voicing = [0,1,0]
+selection_offset = {ranks=1}
+notes = [[60,100],[64,90],[67,80]]
+keys = [67,76,60]
+sources = [2,1,0]
+
+[[cases]]
+name = "duplicate notes keep their identities"
+voicing = [1,0,0]
+notes = [[60,100],[60,90],[64,80]]
+keys = [60,64,72]
+sources = [1,2,0]
+
+[[cases]]
+name = "unison after voicing uses source identity"
+voicing = [1,0]
+notes = [[60,100],[72,90]]
+keys = [72,72]
+sources = [0,1]
+
+[[cases]]
+name = "voicing before layered expansion"
+voicing = [0,1]
+octaves = {offsets=[0,1]}
+notes = [[60,100],[64,90]]
+keys = [60,76,72,88]
+sources = [0,1,0,1]
+
+[[cases]]
+name = "octaves within each voiced note"
+voicing = [0,1,0]
+octaves = {offsets=[0,1],traversal="octaves_first"}
+notes = [[60,100],[64,90],[67,80]]
+keys = [60,72,67,79,76,88]
+sources = [0,0,2,2,1,1]
+
+[[cases]]
+name = "voicing before scale mapping"
+voicing = [0,1,0]
+scale = {root=0,intervals=[0,7]}
+notes = [[60,100],[64,90],[67,80]]
+keys = [60,67,79]
+sources = [0,2,1]
+
+[[cases]]
+name = "full positive offset folds exactly"
+voicing = [9223372036854775807]
+limits = {boundary="fold"}
+notes = [[60,100]]
+keys = [120]
+sources = [0]
+
+[[cases]]
+name = "full negative offset folds exactly"
+voicing = [-9223372036854775808]
+limits = {boundary="fold"}
+notes = [[60,100]]
+keys = [0]
+sources = [0]
+
+[[cases]]
+name = "out of range drops and selector advances"
+voicing = [0,8]
+notes = [[60,100],[64,90]]
+keys = [60,-1,60]
+sources = [0,-1,0]

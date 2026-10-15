@@ -412,6 +412,14 @@ class LiveArpeggiator(BaseModel):
         offsets = inversion_offsets(
             [n.key for n in active], self.profile.body.inversion
         )
+        voiced = [0] * len(active)
+        if (voicing := self.profile.body.voicing) is not None:
+            ranked = sorted(
+                range(len(active)),
+                key=lambda i: (active[i].key + offsets[i], active[i].id),
+            )
+            for i, j in enumerate(ranked[: len(voicing)]):
+                voiced[j] = 12 * voicing[i]
         octaves = self.profile.body.octaves
         active = [
             active[i].model_copy(
@@ -420,6 +428,7 @@ class LiveArpeggiator(BaseModel):
                     "source_id": active[i].id,
                     "octave_index": j,
                     "inversion_offset": offsets[i],
+                    "voicing_offset": voiced[i],
                 }
             )
             for i, j in expanded_indices(len(active), octaves)
@@ -608,7 +617,7 @@ class LiveArpeggiator(BaseModel):
             ranked = sorted(
                 active,
                 key=lambda n: self._entry_key(
-                    n, Fraction(n.key + n.inversion_offset), False
+                    n, Fraction(n.key + n.inversion_offset + n.voicing_offset), False
                 ),
             )
             if (
@@ -620,6 +629,7 @@ class LiveArpeggiator(BaseModel):
             key := self.ports.realize_pitch(
                 note.key
                 + note.inversion_offset
+                + note.voicing_offset
                 + 12 * octaves.offsets[note.octave_index]
             )
         ) is None:
@@ -773,9 +783,9 @@ class LiveArpeggiator(BaseModel):
             position = -note.onset if selection.direction == "reverse" else note.onset
         else:
             position = Fraction(
-                -(note.key + note.inversion_offset)
+                -(note.key + note.inversion_offset + note.voicing_offset)
                 if isinstance(selection, Descending)
-                else note.key + note.inversion_offset
+                else note.key + note.inversion_offset + note.voicing_offset
             )
         reverse = (
             isinstance(selection, Descending)
@@ -798,6 +808,7 @@ class _InputNote(BaseModel, frozen=True):
     source_id: int
     octave_index: int = 0
     inversion_offset: int = 0
+    voicing_offset: int = 0
     key: int = Field(ge=0, le=127)
     velocity: int = Field(ge=1, le=127)
     onset: Fraction

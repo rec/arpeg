@@ -44,6 +44,7 @@ struct InputNote {
     source_id: u64,
     octave_index: usize,
     inversion_offset: i128,
+    voicing_offset: i128,
     key: u8,
     velocity: u8,
     onset: Beat,
@@ -73,6 +74,7 @@ struct Attack {
 
 pub struct LiveArpeggiator {
     pub inversion: i64,
+    pub voicing: Vec<i64>,
     pub octaves: Octaves,
     bank_mode: Bank,
     pub chance: Chance,
@@ -169,6 +171,7 @@ impl LiveArpeggiator {
             previous_key: None,
             octaves: Octaves::default(),
             inversion: 0,
+            voicing: Vec::new(),
             input: Vec::new(),
             bank: Vec::new(),
             toggle_at: None,
@@ -192,6 +195,7 @@ impl LiveArpeggiator {
             source_id: self.next_id,
             octave_index: 0,
             inversion_offset: 0,
+            voicing_offset: 0,
             key,
             velocity,
             onset: at,
@@ -502,6 +506,16 @@ impl LiveArpeggiator {
             &active.iter().map(|n| n.key).collect::<Vec<_>>(),
             self.inversion,
         );
+        let mut voiced = vec![0; active.len()];
+        if !self.voicing.is_empty() {
+            let mut ranked: Vec<_> = (0..active.len()).collect();
+            ranked.sort_unstable_by_key(|i| {
+                (i128::from(active[*i].key) + offsets[*i], active[*i].id)
+            });
+            for (i, shift) in ranked.into_iter().zip(&self.voicing) {
+                voiced[i] = 12 * i128::from(*shift);
+            }
+        }
         let active: Vec<_> = self
             .octaves
             .indices(active.len(), false)
@@ -511,6 +525,7 @@ impl LiveArpeggiator {
                 source_id: active[i].id,
                 octave_index: j,
                 inversion_offset: offsets[i],
+                voicing_offset: voiced[i],
                 ..active[i]
             })
             .collect();
@@ -781,6 +796,7 @@ impl LiveArpeggiator {
         let Some(key) = self.ports.realize_pitch(
             i128::from(selected.key)
                 + selected.inversion_offset
+                + selected.voicing_offset
                 + 12 * i128::from(self.octaves.offsets[selected.octave_index]),
         )?
         else {
@@ -864,12 +880,12 @@ fn selection_key(
         | Selection::Shuffle { .. }
         | Selection::IndexPattern { .. }
         | Selection::InsideOut
-        | Selection::OutsideIn => {
-            SelectionPosition::Pitch(i128::from(note.key) + note.inversion_offset)
-        }
-        Selection::Descending => {
-            SelectionPosition::Pitch(-(i128::from(note.key) + note.inversion_offset))
-        }
+        | Selection::OutsideIn => SelectionPosition::Pitch(
+            i128::from(note.key) + note.inversion_offset + note.voicing_offset,
+        ),
+        Selection::Descending => SelectionPosition::Pitch(
+            -(i128::from(note.key) + note.inversion_offset + note.voicing_offset),
+        ),
         Selection::Played => SelectionPosition::Onset(note.onset),
         Selection::ReversePlayed => SelectionPosition::Onset(-note.onset),
     };

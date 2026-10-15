@@ -435,7 +435,7 @@ crossings and extreme offsets. Source identity and recorded expression stay
 unchanged; repeats/ties retain realized pitches. Settings are preset-only, and
 the limited file renderer rejects scale mapping. Shared native/WebAssembly traces
 and Python snapshot/history tests cover the behavior. Microtonal realization
-and broader voicing remain unfinished.
+remains unfinished; chord voicing is described below.
 
 ### Chord inversion completion
 
@@ -453,8 +453,26 @@ Sources and expressive gestures remain attached. Shared traces cover ordering,
 wide chords, duplicates, multiple rotations, scale order, and extreme counts;
 Python tests also cover snapshots, latched edits, and pending repeats.
 Nonzero inversion rejects history/phrase/region banks and the limited file
-renderer. Grouping time-spanning notes into chords and broader voicing remain
-unfinished.
+renderer. Grouping time-spanning notes into chords remains unfinished.
+
+### Chord voicing completion
+
+Preset-only `voicing = [0, 1, 0]` is implemented for held and latched banks in
+Python, Rust, and WebAssembly. Signed whole-octave offsets address ascending
+ranks after inversion, with source identity breaking equal-pitch ties.
+Unspecified ranks stay unchanged and extra offsets are unused. Omission disables
+voicing; configured lists must be nonempty and contain signed 64-bit integers.
+Voicing precedes octave expansion, scale mapping, chromatic transposition, and
+register/MIDI limits. Pitch-based selectors, indices, weights, and selection
+offsets follow the voiced pitches; played order retains source onsets.
+Original input pitches, identities, velocities, and gestures remain intact.
+Chord edits recalculate voicing while pending repeats/ties retain realized pitch.
+Shared traces cover transform order, rank offsets, walk/index selection, octave
+layouts, duplicates, range drops, and exact extreme-offset folding. Python tests
+also cover snapshots, latched edits, repeat retention, and ties. Configured voicing
+requires held or latched banks even when every offset is zero. The limited file
+renderer rejects configured voicing. Chord grouping for history/phrase banks and
+microtonal realization remain unfinished.
 
 Algorithmic selectors include weighted choice, shuffle-once, reshuffle-per-cycle,
 no-immediate-repeat, bounded random walks, interval envelopes, transition tables,

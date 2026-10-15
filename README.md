@@ -149,6 +149,33 @@ banks; history/phrase chord grouping is deferred, and the limited file renderer
 rejects nonzero inversion. [Shared traces](conformance/inversion.toml) cover
 ordering, wide chords, duplicates, and extreme signed counts.
 
+### Chord voicing
+
+Held and latched presets can assign octave shifts to ascending chord ranks:
+
+```toml
+[body]
+voicing = [0, 1, 0]
+rhythm = { kind = "grid", step = "1/4 beat" }
+```
+
+For C4–E4–G4, this raises E by one octave, producing C4–G4–E5 in ascending
+playback. Omit `voicing` to disable it. Lists must be nonempty and contain signed
+whole-octave offsets. Unspecified ranks stay unchanged; extra offsets are unused.
+Equal pitches are ranked by source identity.
+
+Voicing applies after inversion, using the inverted chord's ascending ranks.
+For C4–E4–G4, `inversion = 1` and `voicing = [0, 1, 0]` produce E4–C5–G5
+in ascending playback. Octave expansion, scale mapping, semitone transposition,
+and register/MIDI limits follow. Pitch-based selectors, indices, weights, and
+selection offsets use the voiced ranks; played order retains source onsets.
+
+Source identities, velocities, and expressive gestures stay attached to their
+notes. Chord edits reassign voicing from the current inverted chord; scheduled
+repeats and ties keep their realized pitch. Settings are preset-only and require
+held or latched banks. History/phrase chord grouping remains deferred, and the
+limited file renderer rejects voicing. See [shared traces](conformance/voicing.toml).
+
 ### Scale mapping and degree shifts
 
 Live held, latched, history, and committed phrase playback can map pitches into

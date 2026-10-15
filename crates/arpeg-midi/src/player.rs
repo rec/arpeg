@@ -73,6 +73,7 @@ impl MidiPlayer {
                 engine.ports.offset_rest_outside = p.offset_rest_outside;
                 engine.octaves = p.octaves;
                 engine.inversion = p.inversion;
+                engine.voicing = p.voicing;
                 Engine::Held(Box::new(engine))
             }
             Profile::Captured(p) => {
