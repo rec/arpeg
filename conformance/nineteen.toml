@@ -1,0 +1,11 @@
+name = "nineteen"
+title = "Nineteen equal divisions"
+
+[body]
+bend_range = 2
+rhythm = { kind = "grid", step = "1/4 beat" }
+
+[body.tuning]
+source = { kind = "computed", notes_per_octave = 19, octave_ratio = "2" }
+root_note = 69
+root_frequency = "440"

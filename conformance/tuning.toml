@@ -1,0 +1,71 @@
+[[cases]]
+name = "nineteen divisions"
+body = {tuning={source={kind="computed",notes_per_octave=19}},bend_range=2}
+input = [[144,70,100]]
+output = [[224,27,52],[144,70,100]]
+
+[[cases]]
+name = "tuning and current bend combine"
+body = {tuning={source={kind="computed",notes_per_octave=19}},bend_range=2}
+input = [[224,0,96],[144,70,100]]
+output = [[224,27,84],[144,70,100]]
+
+[[cases]]
+name = "computed denominator limit"
+body = {tuning={source={kind="computed",notes_per_octave=19,denominator_limit=16}},bend_range=2}
+input = [[144,70,100]]
+output = [[224,75,65],[144,70,100]]
+
+[[cases]]
+name = "ratio table"
+body = {tuning={source={kind="ratios",values=["1","9/8","5/4"],repeat_ratio="2"}},bend_range=2}
+input = [[144,70,100]]
+output = [[224,32,65],[144,71,100]]
+
+[[cases]]
+name = "interval pattern"
+body = {tuning={source={kind="intervals",intervals=["9/8","10/9","8/5"]}},bend_range=2}
+input = [[144,71,100]]
+output = [[224,79,59],[144,73,100]]
+
+[[cases]]
+name = "finite frequency table and expression grammar"
+body = {tuning={source={kind="frequencies",first_note=69,values=["440","440/(2/3)"]}},bend_range=2}
+input = [[144,70,100]]
+output = [[224,80,64],[144,76,100]]
+
+[[cases]]
+name = "three to one octave expansion"
+body = {tuning={source={kind="computed",notes_per_octave=13,octave_ratio="3"}},bend_range=2,octaves={offsets=[1]}}
+input = [[144,69,100]]
+output = [[224,80,64],[144,88,100]]
+
+[[cases]]
+name = "three to one inversion"
+body = {tuning={source={kind="computed",notes_per_octave=13,octave_ratio="3"}},bend_range=2,inversion=1}
+input = [[144,69,100]]
+output = [[224,80,64],[144,88,100]]
+
+[[cases]]
+name = "three to one voicing"
+body = {tuning={source={kind="computed",notes_per_octave=13,octave_ratio="3"}},bend_range=2,voicing=[1]}
+input = [[144,69,100]]
+output = [[224,80,64],[144,88,100]]
+
+[[cases]]
+name = "shared generalized scale with half accidentals"
+body = {tuning={source={kind="computed",notes_per_octave=19}},bend_range=2,scale={definition={note_names="ABC",begin="A",root="A",end="C",intervals=[6,6,7],notes="A^BC",accidentals="half"},mapping="up"}}
+input = [[144,70,100]]
+output = [[224,88,65],[144,74,100]]
+
+[[cases]]
+name = "large exact powers cancel before MIDI realization"
+body = {tuning={source={kind="frequencies",first_note=69,values=["440/((2^1024)/(2^1024))"]}},bend_range=2}
+input = [[144,69,100]]
+output = [[224,0,64],[144,69,100]]
+
+[[cases]]
+name = "signed integer powers"
+body = {tuning={source={kind="frequencies",first_note=69,values=["440/(((-3)^3)/(-27))"]}},bend_range=2}
+input = [[144,69,100]]
+output = [[224,0,64],[144,69,100]]

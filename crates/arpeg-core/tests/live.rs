@@ -28,6 +28,7 @@ fn live_notes_follow_input_and_release_when_bank_empties() {
         [OutputEvent {
             at: beat(0, 1),
             kind: OutputKind::NoteOn {
+                tuning_semitones: 0.0,
                 id: 0,
                 source_id: 0,
                 key: 60,
@@ -50,6 +51,7 @@ fn live_notes_follow_input_and_release_when_bank_empties() {
             OutputEvent {
                 at: beat(1, 4),
                 kind: OutputKind::NoteOn {
+                    tuning_semitones: 0.0,
                     id: 1,
                     source_id: 1,
                     key: 64,
@@ -125,6 +127,7 @@ fn simultaneous_note_ons_join_the_first_step() {
         [OutputEvent {
             at: beat(0, 1),
             kind: OutputKind::NoteOn {
+                tuning_semitones: 0.0,
                 id: 0,
                 source_id: 1,
                 key: 60,
@@ -294,6 +297,7 @@ fn live_classic_matches_shared_python_rust_traces() {
                                 source_id,
                                 key,
                                 velocity,
+                                ..
                             } => ("on", id, source_id, key, velocity),
                             OutputKind::NoteOff { id, source_id, key } => {
                                 ("off", id, source_id, key, 0)

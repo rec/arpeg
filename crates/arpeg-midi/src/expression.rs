@@ -83,3 +83,23 @@ pub fn entry_messages(
     }
     output
 }
+
+pub fn tuning_message(
+    data: Vec<u8>,
+    offset: f64,
+    bend_range: Option<f64>,
+) -> Result<Vec<u8>, &'static str> {
+    let Some(range) = bend_range else {
+        return Ok(data);
+    };
+    if data[0] != 0xe0 {
+        return Ok(data);
+    }
+    let wheel = i32::from(data[1]) + 128 * i32::from(data[2]) - 8192;
+    let value = f64::from(wheel) / if wheel < 0 { 8192.0 } else { 8191.0 } + offset / range;
+    if !(-1.0..=1.0).contains(&value) {
+        return Err(arpeg_core::tuning::TUNING_ERROR);
+    }
+    let level = (8192.0 + value * if value < 0.0 { 8192.0 } else { 8191.0 } + 0.5).floor() as u16;
+    Ok(vec![0xe0, (level & 127) as u8, (level >> 7) as u8])
+}

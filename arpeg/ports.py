@@ -2,10 +2,18 @@
 
 from bisect import bisect_right
 from fractions import Fraction
+from math import ceil, floor, isfinite
 
 from pydantic import BaseModel, Field
 from ufor import arpeggiator_ports
-from ufor.arpeggiator import PitchRegister, PitchScale, SelectionOffset, Transposition
+from ufor.arpeggiator import (
+    PitchRegister,
+    ScaleTransform,
+    SelectionOffset,
+    Transposition,
+)
+
+from .tuning import PreparedTuning, RealizedPitch
 
 
 class PerformancePorts(BaseModel):
@@ -14,7 +22,8 @@ class PerformancePorts(BaseModel):
     transposition: Transposition = Transposition()
     selection_offset: SelectionOffset = SelectionOffset()
     register_limits: PitchRegister | None = None
-    scale: PitchScale | None = None
+    scale: ScaleTransform | None = None
+    tuning: PreparedTuning | None = None
     pending: dict[arpeggiator_ports.ArpeggiatorInputPort, Fraction] = Field(
         default_factory=dict
     )
@@ -98,41 +107,66 @@ class PerformancePorts(BaseModel):
             return None
         return shifted % size
 
-    def realize_pitch(self, key: int) -> int | None:
+    def realize_pitch(self, key: int) -> RealizedPitch | None:
         if (scale := self.scale) is not None:
-            octave, chroma = divmod(key - scale.root, 12)
-            size = len(scale.intervals)
-            rank = bisect_right(scale.intervals, chroma) - 1
-            lower = scale.intervals[rank]
+            definition = scale.definition
+            intervals = definition.note_numbers
+            period = definition.octave_length
+            octave, chroma = divmod(key - definition.offset, period)
+            size = len(intervals)
+            rank = bisect_right(intervals, chroma) - 1
+            lower = intervals[rank] if rank >= 0 else intervals[-1] - period
             if lower != chroma:
                 if scale.mapping == "drop":
                     return None
-                upper = scale.intervals[rank + 1] if rank + 1 < size else 12
+                upper = (
+                    intervals[rank + 1] if rank + 1 < size else intervals[0] + period
+                )
                 if scale.mapping == "up" or (
                     scale.mapping == "nearest" and upper - chroma < chroma - lower
                 ):
                     rank += 1
             octave, rank = divmod(octave * size + rank + scale.degrees, size)
-            key = scale.root + octave * 12 + scale.intervals[rank]
-        pitch = key + self.transposition.semitones
+            key = definition.offset + octave * period + intervals[rank]
+        pitch = (
+            self.tuning.pitch(key) if self.tuning is not None else key
+        ) + self.transposition.semitones
+        if not isfinite(pitch):
+            raise RuntimeError("tuning produced a nonfinite pitch")
         limits = self.register_limits
         low, high = (limits.low, limits.high) if limits is not None else (0, 127)
         boundary = (
             limits.boundary if limits is not None else self.transposition.boundary
         )
         if low <= pitch <= high:
-            return pitch
+            base = min(127, floor(pitch + 0.5))
+            return RealizedPitch(key=base, tuning_semitones=pitch - base)
         match boundary:
             case "drop":
                 return None
             case "fold":
+                if self.tuning is not None:
+                    period = abs(self.tuning.period_semitones)
+                    if not period:
+                        return None
+                    folded = (
+                        pitch + ceil((low - pitch) / period) * period
+                        if pitch < low
+                        else pitch - ceil((pitch - high) / period) * period
+                    )
+                    if not low <= folded <= high:
+                        return None
+                    base = min(127, floor(folded + 0.5))
+                    return RealizedPitch(key=base, tuning_semitones=folded - base)
                 folded = (
                     low + (pitch - low) % 12
                     if pitch < low
                     else high - (high - pitch) % 12
                 )
-                return folded if low <= folded <= high else None
+                return RealizedPitch(key=folded) if low <= folded <= high else None
             case "error":
+                if self.tuning is not None:
+                    raise RuntimeError("tuned pitch is outside configured MIDI limits")
                 if limits is not None:
                     raise RuntimeError("pitch is outside configured register limits")
                 raise ValueError("transposed pitch is outside MIDI range 0–127")

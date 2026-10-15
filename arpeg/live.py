@@ -39,6 +39,7 @@ from .inversion import inversion_offsets
 from .octaves import expanded_indices
 from .ports import PerformancePorts
 from .rhythm import RhythmDecision, decide_step, starts_cycle
+from .tuning import PreparedTuning
 
 
 class LiveEvent(BaseModel, frozen=True):
@@ -47,6 +48,7 @@ class LiveEvent(BaseModel, frozen=True):
     id: int
     source_id: int
     key: int = Field(ge=0, le=127)
+    tuning_semitones: float = 0
     velocity: int = Field(ge=0, le=127)
 
 
@@ -118,6 +120,7 @@ class LiveArpeggiator(BaseModel):
                 selection_offset=body.selection_offset,
                 register_limits=body.register_limits,
                 scale=body.scale,
+                tuning=PreparedTuning.prepare(body),
             )
         return self
 
@@ -409,8 +412,11 @@ class LiveArpeggiator(BaseModel):
 
     def _schedule_step(self, at: Fraction, decision: RhythmDecision) -> bool:
         active = self.input if isinstance(self.bank_mode, HeldBank) else self.bank
+        assert self.ports is not None
+        period = self.ports.tuning.period if self.ports.tuning is not None else 12
+        period = period or 12
         offsets = inversion_offsets(
-            [n.key for n in active], self.profile.body.inversion
+            [n.key for n in active], self.profile.body.inversion, period
         )
         voiced = [0] * len(active)
         if (voicing := self.profile.body.voicing) is not None:
@@ -419,7 +425,7 @@ class LiveArpeggiator(BaseModel):
                 key=lambda i: (active[i].key + offsets[i], active[i].id),
             )
             for i, j in enumerate(ranked[: len(voicing)]):
-                voiced[j] = 12 * voicing[i]
+                voiced[j] = period * voicing[i]
         octaves = self.profile.body.octaves
         active = [
             active[i].model_copy(
@@ -630,7 +636,7 @@ class LiveArpeggiator(BaseModel):
                 note.key
                 + note.inversion_offset
                 + note.voicing_offset
-                + 12 * octaves.offsets[note.octave_index]
+                + period * octaves.offsets[note.octave_index]
             )
         ) is None:
             return False
@@ -639,7 +645,8 @@ class LiveArpeggiator(BaseModel):
             _Attack(
                 at=at + i * interval,
                 note=note,
-                key=key,
+                key=key.key,
+                tuning_semitones=key.tuning_semitones,
                 gate=decision.final_gate
                 if i == decision.repeats - 1
                 else decision.gate,
@@ -744,6 +751,7 @@ class LiveArpeggiator(BaseModel):
                 id=output_id,
                 source_id=note.source_id,
                 key=attack.key,
+                tuning_semitones=attack.tuning_semitones,
                 velocity=note.velocity,
             )
         )
@@ -822,6 +830,7 @@ class _SoundingNote(BaseModel, frozen=True):
 
 
 class _Attack(BaseModel, frozen=True):
+    tuning_semitones: float = 0
     at: Fraction
     note: _InputNote
     key: int

@@ -17,6 +17,7 @@ class MidiPlacement(BaseModel, frozen=True):
 
 
 class RealizedMidiEvent(BaseModel, frozen=True):
+    tuning_semitones: float = 0
     at: Fraction
     data: list[int]
     source_note: str | None

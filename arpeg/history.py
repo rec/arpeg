@@ -274,7 +274,14 @@ class LiveHistoryArpeggiator(BaseModel):
         assert note.key is not None
         if (
             key := self.ports.realize_pitch(
-                note.key + 12 * self.bank.octaves.offsets[selected.octave_index]
+                note.key
+                + (
+                    self.ports.tuning.period
+                    if self.ports.tuning is not None
+                    and self.ports.tuning.period is not None
+                    else 12
+                )
+                * self.bank.octaves.offsets[selected.octave_index]
             )
         ) is None:
             self.ports.outcome(False)
@@ -314,7 +321,8 @@ class LiveHistoryArpeggiator(BaseModel):
             e.model_copy(
                 update={
                     "source_note": f"{selected.capture_id}:{e.source_note}",
-                    "data": [e.data[0], key, *e.data[2:]]
+                    "tuning_semitones": key.tuning_semitones,
+                    "data": [e.data[0], key.key, *e.data[2:]]
                     if e.data[0] & 0xF0 in (0x80, 0x90)
                     else e.data,
                 }

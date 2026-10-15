@@ -49,6 +49,8 @@ def render_held(
         raise ValueError("selection offset currently requires live input")
     if body.octaves.offsets != [0]:
         raise ValueError("octave expansion currently requires live input")
+    if body.tuning is not None:
+        raise ValueError("tuning currently requires live input")
     if body.scale is not None:
         raise ValueError("scale mapping currently requires live input")
     if body.inversion:

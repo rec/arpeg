@@ -96,8 +96,8 @@ fn invalid_scales_are_rejected() {
         "root=0,intervals=[0,7,3]",
         "root=0,intervals=[0,12]",
         "root=0,intervals=[0,2.5]",
-        "root=0,intervals=[0],degrees=true",
-        "root=0,intervals=[0],mapping=\"preserve\"",
+        "definition={note_names=\"A\",begin=\"A\",end=\"A\",root=\"A\",notes=\"A\",intervals=[12],offset=0},degrees=true",
+        "definition={note_names=\"A\",begin=\"A\",end=\"A\",root=\"A\",notes=\"A\",intervals=[12],offset=0},mapping=\"preserve\"",
     ] {
         let profile = format!(
             "name=\"scale\"\ntitle=\"Scale\"\n[body]\nrhythm={{kind=\"grid\",step=\"1/4 beat\"}}\nscale={{{scale}}}"
@@ -111,7 +111,7 @@ fn invalid_scales_are_rejected() {
 fn scale_history_preserves_expression_and_release_velocity() {
     let profile = include_str!("../../../conformance/history-wind.toml").replace(
         "[body]",
-        "[body]\nscale={root=0,intervals=[0,2,4,5,7,9,11],degrees=1}",
+        "[body]\nscale={definition={notes=\"CDEFGAB\"},degrees=1}",
     );
     let mut player = MidiPlayer::new(
         parse_profile(&profile, None).unwrap(),

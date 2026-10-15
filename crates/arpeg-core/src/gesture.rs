@@ -13,8 +13,9 @@ pub struct Placement {
     pub gate: Option<Tick>,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct RealizedEvent {
+    pub tuning_semitones: f64,
     pub at: Tick,
     pub data: Vec<u8>,
     pub source_note: String,
@@ -222,6 +223,7 @@ impl Emitter<'_> {
             phase,
             serial: events.len(),
             event: RealizedEvent {
+                tuning_semitones: 0.0,
                 at,
                 data,
                 source_note: self.note.note_id.clone(),

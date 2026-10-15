@@ -14,6 +14,7 @@ pub mod marked_sample;
 pub mod octaves;
 pub mod ports;
 pub mod rhythm;
+pub mod tuning;
 
 pub type Beat = Ratio<i64>;
 

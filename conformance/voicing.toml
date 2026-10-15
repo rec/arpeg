@@ -100,7 +100,7 @@ sources = [0,0,2,2,1,1]
 [[cases]]
 name = "voicing before scale mapping"
 voicing = [0,1,0]
-scale = {root=0,intervals=[0,7]}
+scale = {definition={note_names="AB",begin="A",end="B",root="A",notes="AB",intervals=[7, 5],offset=0}}
 notes = [[60,100],[64,90],[67,80]]
 keys = [60,67,79]
 sources = [0,2,1]

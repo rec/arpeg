@@ -1,7 +1,7 @@
 """Octave displacement for repeated chord inversions, preserving source ranks."""
 
 
-def inversion_offsets(keys: list[int], count: int) -> list[int]:
+def inversion_offsets(keys: list[int], count: int, period: int = 12) -> list[int]:
     offsets = [0] * len(keys)
     if not keys or not count:
         return offsets
@@ -11,7 +11,7 @@ def inversion_offsets(keys: list[int], count: int) -> list[int]:
     end = edge
     first: list[int] = []
     for i in ordered:
-        end += (direction * keys[i] - end - 1) % 12 + 1
+        end += (direction * keys[i] - end - 1) % period + 1
         first.append(end)
     span = end - edge
     cycles, remainder = divmod(abs(count), len(keys))

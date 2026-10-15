@@ -178,35 +178,79 @@ limited file renderer rejects voicing. See [shared traces](conformance/voicing.t
 
 ### Scale mapping and degree shifts
 
-Live held, latched, history, and committed phrase playback can map pitches into
-an explicit scale and move by scale degrees:
+Scale mapping uses uFor's existing `Scale` definition, shared with tuney:
 
 ```toml
 [body.scale]
-root = 0
-intervals = [0, 2, 4, 5, 7, 9, 11]
+definition = { notes = "CDEFGAB" }
 degrees = 1
 mapping = "nearest"
 ```
 
-This defines C major and moves each mapped note one degree upward: C becomes D,
-E becomes F, and B becomes the next C. Omit the table to disable the transform.
-Root is a pitch class from 0 (C) through 11 (B); intervals must start at zero and
-increase strictly within 0–11. Degrees is a signed integer, defaulting to zero.
-A zero shift still maps off-scale notes when the table is enabled.
+This selects C major and moves each mapped grid note one degree upward: C becomes
+D, E becomes F, and B becomes the next C. Omit the table to disable mapping.
+`definition` supports the shared note names, root/begin/end, adjacent intervals,
+accidentals, selected notes, and grid offset. Its `note_numbers` determine the
+allowed positions within its `octave_length`; no twelve-division restriction is
+added by arpeg. Degrees defaults to zero, which still maps off-scale input.
 
-`nearest` is the default mapping, choosing the lower pitch on equal distances.
-`up` and `down` map to the next scale pitch in that direction; `drop` makes an
-off-scale selection a rest. An already in-scale pitch stays unchanged before the
-degree shift. Mapping extends through all octaves, including negative pitches.
+`nearest` chooses the closest grid position, with the lower position winning ties.
+`up` and `down` choose the next allowed position in that direction; `drop` makes
+an off-scale selection a rest. Mapping and degree shifts operate on logical grid
+indices before tuning, and do not change selector ranks or captured sources.
+The former root-number/semitone-offset scale syntax has been replaced.
 
-The order is selection, octave displacement, scale mapping and degree shift,
-semitone transposition, then register/MIDI limits. Semitone transposition can
-therefore move the result outside the configured scale. Source identities,
-velocities, expression, and selector ranks stay unchanged; repeats and ties keep
-the realized pitch. Scale settings are preset-only, and the limited MIDI file
-renderer rejects them. See [shared traces](conformance/scale.toml).
+### Microtonal tuning
 
+Arpeg uses uFor's `Tuning` definitions, including computed divisions, ratio tables,
+interval patterns, and finite absolute frequency tables. For nineteen equal
+divisions of a 2:1 period:
+
+```toml
+[body]
+bend_range = 2
+rhythm = { kind = "grid", step = "1/4 beat" }
+
+[body.tuning]
+source = { kind = "computed", notes_per_octave = 19, octave_ratio = "2" }
+root_note = 69
+root_frequency = "440"
+```
+
+Incoming MIDI numbers index the tuning grid. Here 69 is 440 Hz, 70 is the next
+of nineteen divisions, and 88 is one period above 69. The receiver must use the
+configured pitch-bend range in physical semitones; arpeg does not change the
+receiver's range automatically. MIDI output chooses the nearest note number
+(ties upward), sends the residual tuning bend before note-on, and adds current,
+recorded, or Envelfo bends to that offset. Unknown expression starts from a
+neutral tuning bend. Repeated recorded samples retain their order.
+
+A combined bend outside the configured range ends playback with owned-note
+cleanup. It is never clamped. Without `tuning`, existing MIDI pitches and bend
+messages retain their original behavior. Fractional pitch is retained internally
+until destination encoding, using floating-point logarithmic pitch coordinates;
+MIDI 1.0 pitch-wheel resolution limits the final result.
+
+Inversion, voicing, and octave expansion move by the tuning's repeating period:
+computed divisions, ratio-table length, or interval-pattern length. A `3` repeat
+ratio therefore gives 3:1 layers. Finite frequency/ratio/interval tables have no
+period and reject nonzero period-based transforms and folding; missing finite
+table entries report an error. Selectors retain logical grid order even for
+nonmonotonic tuning tables.
+
+The order is inversion, voicing, octave expansion, scale mapping/degree shift,
+tuning, physical semitone transposition, then register/MIDI limits. Register
+bounds refer to physical MIDI pitch coordinates; folding uses the tuning period
+and rests if no equivalent pitch fits. Repeats and ties retain their realized
+pitch and tuning offset. Source pitches, identities, velocities, and recorded
+expression remain intact. Tuning and scale definitions are preset-only and the
+limited MIDI file renderer rejects them. Scala import/export is provided by
+uFor's `scala` module through its shared ratio-table model.
+
+See [scale traces](conformance/scale.toml), [tuning traces](conformance/tuning.toml),
+and [the nineteen-division preset](conformance/nineteen.toml). Python, native Rust,
+and the WebAssembly MIDI API use the same authored profiles and wire traces.
+The browser's oscillator front end is unchanged by this slice.
 
 [Weighted walks](conformance/weighted-walk.toml) move through the bank in pitch
 order, breaking equal-pitch ties by source identity. `moves` contains signed

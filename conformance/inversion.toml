@@ -75,7 +75,7 @@ sources = [0,2,1,0,2,1]
 [[cases]]
 name = "inversion before scale mapping"
 inversion = 1
-scale = {root=0,intervals=[0,7]}
+scale = {definition={note_names="AB",begin="A",end="B",root="A",notes="AB",intervals=[7, 5],offset=0}}
 notes = [[60,100],[64,90],[67,80]]
 keys = [67,67,72]
 sources = [1,2,0]

@@ -1,6 +1,7 @@
 //! Step-published scalar inputs and bounded discrete Envelfo outputs.
 
 use crate::Beat;
+use crate::tuning::{PreparedTuning, RealizedPitch, TUNING_ERROR};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum InputPort {
@@ -31,60 +32,47 @@ pub enum ScaleMapping {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct PitchScale {
-    root: u8,
-    intervals: Vec<u8>,
-    degrees: i64,
-    mapping: ScaleMapping,
+pub struct ScaleTransform {
+    pub offset: i64,
+    pub period: i64,
+    pub intervals: Vec<i64>,
+    pub degrees: i64,
+    pub mapping: ScaleMapping,
 }
 
-impl PitchScale {
-    pub fn new(
-        root: u8,
-        intervals: Vec<u8>,
-        degrees: i64,
-        mapping: ScaleMapping,
-    ) -> Result<Self, &'static str> {
-        if root > 11
-            || intervals.first() != Some(&0)
-            || intervals.iter().any(|v| *v > 11)
-            || intervals.windows(2).any(|v| v[0] >= v[1])
-        {
-            return Err(
-                "scale root must be 0–11 and intervals must start at zero and increase strictly within 0–11",
-            );
-        }
-        Ok(Self {
-            root,
-            intervals,
-            degrees,
-            mapping,
-        })
-    }
-
+impl ScaleTransform {
     pub fn map_pitch(&self, key: i128) -> Option<i128> {
-        let relative = key - i128::from(self.root);
-        let octave = relative.div_euclid(12);
-        let chroma = relative.rem_euclid(12) as u8;
-        let size = self.intervals.len();
-        let mut rank = self.intervals.partition_point(|v| *v <= chroma) - 1;
-        let lower = self.intervals[rank];
+        let period = i128::from(self.period);
+        let relative = key - i128::from(self.offset);
+        let octave = relative.div_euclid(period);
+        let chroma = relative.rem_euclid(period);
+        let size = self.intervals.len() as i128;
+        let mut rank = self.intervals.partition_point(|v| i128::from(*v) <= chroma) as i128 - 1;
+        let lower = if rank < 0 {
+            i128::from(*self.intervals.last().unwrap()) - period
+        } else {
+            i128::from(self.intervals[rank as usize])
+        };
         if lower != chroma {
             if self.mapping == ScaleMapping::Drop {
                 return None;
             }
-            let upper = self.intervals.get(rank + 1).copied().unwrap_or(12);
+            let upper = if rank + 1 < size {
+                i128::from(self.intervals[(rank + 1) as usize])
+            } else {
+                i128::from(self.intervals[0]) + period
+            };
             if self.mapping == ScaleMapping::Up
                 || self.mapping == ScaleMapping::Nearest && upper - chroma < chroma - lower
             {
                 rank += 1;
             }
         }
-        let degree = octave * size as i128 + rank as i128 + i128::from(self.degrees);
+        let degree = octave * size + rank + i128::from(self.degrees);
         Some(
-            i128::from(self.root)
-                + degree.div_euclid(size as i128) * 12
-                + i128::from(self.intervals[degree.rem_euclid(size as i128) as usize]),
+            i128::from(self.offset)
+                + degree.div_euclid(size) * period
+                + i128::from(self.intervals[degree.rem_euclid(size) as usize]),
         )
     }
 }
@@ -97,6 +85,9 @@ pub struct PitchRegister {
 }
 
 impl PitchRegister {
+    pub fn folding(&self) -> bool {
+        self.boundary == PitchBoundary::Fold
+    }
     pub fn new(low: u8, high: u8, boundary: PitchBoundary) -> Result<Self, &'static str> {
         if low > high || high > 127 {
             return Err("register bounds must be ordered within MIDI range 0–127");
@@ -149,7 +140,8 @@ pub struct NoteEvent {
 }
 
 pub struct PerformancePorts {
-    pub scale: Option<PitchScale>,
+    pub tuning: Option<PreparedTuning>,
+    pub scale: Option<ScaleTransform>,
     pub register_limits: Option<PitchRegister>,
     pub gate: Beat,
     pub density: Beat,
@@ -169,6 +161,7 @@ impl PerformancePorts {
     pub fn new(gate: Beat, density: Beat) -> Self {
         Self {
             scale: None,
+            tuning: None,
             register_limits: None,
             gate,
             density,
@@ -295,7 +288,7 @@ impl PerformancePorts {
         Some(shifted.rem_euclid(size as i128) as usize)
     }
 
-    pub fn realize_pitch(&self, key: i128) -> Result<Option<u8>, &'static str> {
+    pub fn realize_pitch(&self, key: i128) -> Result<Option<RealizedPitch>, &'static str> {
         let key = match &self.scale {
             Some(scale) => match scale.map_pitch(key) {
                 Some(pitch) => pitch,
@@ -303,6 +296,42 @@ impl PerformancePorts {
             },
             None => key,
         };
+        if let Some(tuning) = &self.tuning {
+            let mut pitch = tuning.pitch(key)? + self.transposition as f64;
+            if !pitch.is_finite() {
+                return Err(TUNING_ERROR);
+            }
+            let (low, high, boundary) = self
+                .register_limits
+                .map_or((0.0, 127.0, self.pitch_boundary), |r| {
+                    (f64::from(r.low), f64::from(r.high), r.boundary)
+                });
+            if pitch < low || pitch > high {
+                match boundary {
+                    PitchBoundary::Drop => return Ok(None),
+                    PitchBoundary::Error => return Err(TUNING_ERROR),
+                    PitchBoundary::Fold => {
+                        let span = tuning.period_semitones.abs();
+                        if span == 0.0 {
+                            return Ok(None);
+                        }
+                        pitch = if pitch < low {
+                            pitch + ((low - pitch) / span).ceil() * span
+                        } else {
+                            pitch - ((pitch - high) / span).ceil() * span
+                        };
+                        if !(low..=high).contains(&pitch) {
+                            return Ok(None);
+                        }
+                    }
+                }
+            }
+            let base = (pitch + 0.5).floor().min(127.0) as u8;
+            return Ok(Some(RealizedPitch {
+                key: base,
+                tuning_semitones: pitch - f64::from(base),
+            }));
+        }
         let pitch = key + i128::from(self.transposition);
         let (low, high, boundary) = self
             .register_limits
@@ -310,7 +339,10 @@ impl PerformancePorts {
                 (i128::from(r.low), i128::from(r.high), r.boundary)
             });
         if (low..=high).contains(&pitch) {
-            return Ok(Some(pitch as u8));
+            return Ok(Some(RealizedPitch {
+                key: pitch as u8,
+                tuning_semitones: 0.0,
+            }));
         }
         match boundary {
             PitchBoundary::Drop => Ok(None),
@@ -321,7 +353,10 @@ impl PerformancePorts {
                     high - (high - pitch).rem_euclid(12)
                 };
                 Ok(if (low..=high).contains(&folded) {
-                    Some(folded as u8)
+                    Some(RealizedPitch {
+                        key: folded as u8,
+                        tuning_semitones: 0.0,
+                    })
                 } else {
                     None
                 })

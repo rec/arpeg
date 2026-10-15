@@ -46,3 +46,18 @@ _LANES = [
     (ExpressionLane.bend, 0xE0),
     (ExpressionLane.pressure, 0xD0),
 ]
+
+
+def tuning_message(
+    data: list[int], offset: float, bend_range: float | None
+) -> list[int]:
+    if bend_range is None or data[0] != 0xE0:
+        return data
+    wheel = data[1] + 128 * data[2] - 8192
+    value = wheel / (8192 if wheel < 0 else 8191) + offset / bend_range
+    if not -1 <= value <= 1:
+        raise RuntimeError(
+            "tuning plus expression exceeds the configured MIDI bend range"
+        )
+    level = floor(8192 + value * (8192 if value < 0 else 8191) + 0.5)
+    return [0xE0, level & 127, level >> 7]

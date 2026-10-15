@@ -391,8 +391,8 @@ all its repeats retain their realized pitch. Drop advances selection and emits
 rest, fold moves an out-of-range pitch by the fewest octaves into MIDI 0–127,
 and error reports the invalid pitch to the host, which must stop to release
 its last delivered note. Captured source pitches and controller values remain
-unchanged. Fractional offsets are rejected in this slice; microtonal realization
-remains unfinished. Scale-degree transforms are described below.
+unchanged. The semitone control remains integer-valued; shared microtonal tuning
+and scale-degree transforms are described below.
 
 Register limits are implemented in Python, Rust, and WebAssembly for live held,
 latched, history, and committed phrase playback. An optional
@@ -420,22 +420,39 @@ ties retain their realized pitch. Shared traces and snapshot/chord-edit tests
 cover traversal, rank offsets, and recorded expression. The limited file renderer
 rejects expansion; octave configuration is preset-only in this slice.
 
-### Scale mapping completion
+### Shared scales, tuning, and microtonal MIDI completion
 
-Scale mapping and scale-degree transposition are implemented in Python, Rust,
-and WebAssembly for live held, latched, history, and committed phrase playback.
-An optional `scale = { root = 0, intervals = [0,2,4,5,7,9,11], degrees = 1,
-mapping = "nearest" }` table defines pitch-class root and strictly increasing
-semitone offsets starting at zero. Omission disables mapping; degrees defaults
-to zero. Nearest mapping chooses the lower pitch on ties; up/down/drop are
-configurable. Drop emits rest without changing selector progression. Mapping
-and signed degree movement occur after octave displacement and before chromatic
-transposition and register limits. Exact integer arithmetic preserves octave
-crossings and extreme offsets. Source identity and recorded expression stay
-unchanged; repeats/ties retain realized pitches. Settings are preset-only, and
-the limited file renderer rejects scale mapping. Shared native/WebAssembly traces
-and Python snapshot/history tests cover the behavior. Microtonal realization
-remains unfinished; chord voicing is described below.
+Python, Rust, and WebAssembly use uFor's existing `Scale` and `Tuning` contracts.
+The restricted `PitchScale` model has been replaced by `ScaleTransform`, which
+contains `definition: Scale`, signed degrees, and nearest/up/down/drop mapping.
+For C major: `scale = { definition = { notes = "CDEFGAB" }, degrees = 1 }`.
+Scale membership and nearest-distance choices use logical grid indices, with
+lower ties; source identities and selector progression remain unchanged.
+
+Optional `tuning` accepts computed divisions/ratios, ratio tables, interval
+patterns, or finite frequency tables. It requires an explicit positive
+`bend_range` in MIDI destination semitones. Input MIDI numbers index the tuning
+grid. Inversion, voicing, and octave expansion use its repeating period; finite
+tables reject nonzero period transforms and folding. Missing finite entries
+report an error. Shared definitions retain tuney's note naming and tuning model;
+Scala conversion uses uFor's existing ratio-table contract.
+
+Pitch flows through inversion/voicing, expansion, scale mapping and degree shift,
+tuning, physical semitone transposition, and register limits. Register bounds
+use physical MIDI coordinates and folding uses the tuning period. Unrounded
+logarithmic pitch offsets travel with scheduled attacks and recorded gestures.
+At destination encoding, a nearest MIDI key and tuning bend are combined with
+the selected expressive bend lane. Out-of-range combined bends end the session
+with cleanup of actual delivered ownership, without clamping. Standard untuned
+profiles retain their MIDI behavior. Repeats, ties, and Python snapshots retain
+realized offsets; lifecycle keys remain the delivered MIDI note numbers.
+
+Shared wire traces cover all four tuning sources, denominator approximation,
+3:1 period transforms, generalized scales/half accidentals, expression composition,
+and pitch-expression powers. Recorded-history tests preserve bends and release
+velocity. Definitions are preset-only, and the limited file renderer rejects
+tuning. The WebAssembly MIDI API supports these profiles; browser oscillator
+audio tuning and physical receiver validation are separate work.
 
 ### Chord inversion completion
 
@@ -471,8 +488,8 @@ Shared traces cover transform order, rank offsets, walk/index selection, octave
 layouts, duplicates, range drops, and exact extreme-offset folding. Python tests
 also cover snapshots, latched edits, repeat retention, and ties. Configured voicing
 requires held or latched banks even when every offset is zero. The limited file
-renderer rejects configured voicing. Chord grouping for history/phrase banks and
-microtonal realization remain unfinished.
+renderer rejects configured voicing. Chord grouping for history/phrase banks
+remains unfinished.
 
 Algorithmic selectors include weighted choice, shuffle-once, reshuffle-per-cycle,
 no-immediate-repeat, bounded random walks, interval envelopes, transition tables,

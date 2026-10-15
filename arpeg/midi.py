@@ -17,7 +17,7 @@ from ufor.events import MidiEvent
 
 from .bank import CaptureBank
 from .clock import ClockMode, TransportClock
-from .expression import entry_messages, envelfo_message, expression_lane
+from .expression import entry_messages, envelfo_message, expression_lane, tuning_message
 from .gesture import RealizedMidiEvent
 from .history import LiveHistoryArpeggiator
 from .inbox import Inbox, InputFailure
@@ -25,6 +25,7 @@ from .live import LiveArpeggiator, LiveEvent
 from .output import MidiDelivery
 from .ports import PerformancePorts
 from .profile import parse_profile
+from .tuning import PreparedTuning
 
 
 class ListPorts(BaseModel, frozen=True):
@@ -250,6 +251,7 @@ class MidiPlayer(BaseModel):
     )
     output_id: int | None = None
     output_key: int | None = None
+    tuning_offset: float = 0
     next_occurrence: int = 0
     output_note: arpeggiator_ports.ArpeggiatorNoteEvent | None = None
     notes: list[arpeggiator_ports.ArpeggiatorNoteEvent] = Field(
@@ -304,6 +306,7 @@ class MidiPlayer(BaseModel):
                 selection_offset=body.selection_offset,
                 register_limits=body.register_limits,
                 scale=body.scale,
+                tuning=PreparedTuning.prepare(body),
             ),
             seed=body.seed,
             name=self.profile.name,
@@ -376,7 +379,13 @@ class MidiPlayer(BaseModel):
                     and self.clock.active
                     and self.output_key is not None
                 ):
-                    output.append(message)
+                    output.append(
+                        mido.Message.from_bytes(
+                            tuning_message(
+                                data, self.tuning_offset, self.profile.body.bend_range
+                            )
+                        )
+                    )
                 return output
             events = (
                 engine.note_on(at, data[1], data[2])
@@ -408,7 +417,13 @@ class MidiPlayer(BaseModel):
                 and self.clock.active
                 and self.output_key is not None
             ):
-                output.append(message)
+                output.append(
+                    mido.Message.from_bytes(
+                        tuning_message(
+                            data, self.tuning_offset, self.profile.body.bend_range
+                        )
+                    )
+                )
         return output
 
     def advance(self, at_ns: int) -> list[mido.Message]:
@@ -516,7 +531,13 @@ class MidiPlayer(BaseModel):
             self.envelfo_expression[lane] = control.value
             if self.clock.active and self.output_key is not None:
                 output.append(
-                    mido.Message.from_bytes(envelfo_message(lane, control.value))
+                    mido.Message.from_bytes(
+                        tuning_message(
+                            envelfo_message(lane, control.value),
+                            self.tuning_offset,
+                            self.profile.body.bend_range,
+                        )
+                    )
                 )
             return output
         if isinstance(self.engine, LiveArpeggiator):
@@ -600,13 +621,23 @@ class MidiPlayer(BaseModel):
                     event.at, f"input:{event.source_id}", event.key, event.velocity
                 ):
                     continue
+                self.tuning_offset = event.tuning_semitones
+                entry = entry_messages(
+                    self.profile.body.expression,
+                    self.expression,
+                    self.envelfo_expression,
+                )
+                if self.profile.body.tuning is not None and not any(
+                    d[0] == 0xE0 for d in entry
+                ):
+                    entry.insert(0, [0xE0, 0, 64])
                 output.extend(
-                    mido.Message.from_bytes(d)
-                    for d in entry_messages(
-                        self.profile.body.expression,
-                        self.expression,
-                        self.envelfo_expression,
+                    mido.Message.from_bytes(
+                        tuning_message(
+                            d, self.tuning_offset, self.profile.body.bend_range
+                        )
                     )
+                    for d in entry
                 )
                 output.append(
                     mido.Message.from_bytes([0x90, event.key, event.velocity])
@@ -646,13 +677,23 @@ class MidiPlayer(BaseModel):
                 initialized.add(group)
                 if self.suppressed_note:
                     continue
+                self.tuning_offset = attack.tuning_semitones
+                entry = entry_messages(
+                    self.profile.body.expression,
+                    self.expression,
+                    self.envelfo_expression,
+                )
+                if self.profile.body.tuning is not None and not any(
+                    d[0] == 0xE0 for d in entry
+                ):
+                    entry.insert(0, [0xE0, 0, 64])
                 output.extend(
-                    mido.Message.from_bytes(d)
-                    for d in entry_messages(
-                        self.profile.body.expression,
-                        self.expression,
-                        self.envelfo_expression,
+                    mido.Message.from_bytes(
+                        tuning_message(
+                            d, self.tuning_offset, self.profile.body.bend_range
+                        )
                     )
+                    for d in entry
                 )
             if self.suppressed_note:
                 continue
@@ -665,7 +706,13 @@ class MidiPlayer(BaseModel):
             elif kind == 0x80 or kind == 0x90 and event.data[2] == 0:
                 self._end_note(event.at, event.data[2])
                 self.output_key = None
-            output.append(mido.Message.from_bytes(event.data))
+            output.append(
+                mido.Message.from_bytes(
+                    tuning_message(
+                        event.data, self.tuning_offset, self.profile.body.bend_range
+                    )
+                )
+            )
         return output
 
     def _elapsed(self, at_ns: int) -> int:

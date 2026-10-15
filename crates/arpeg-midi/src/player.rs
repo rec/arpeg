@@ -27,6 +27,8 @@ enum Engine {
 }
 
 pub struct MidiPlayer {
+    bend_range: Option<f64>,
+    tuning_offset: f64,
     pub clock: TransportClock,
     engine: Engine,
     origin_us: Option<i64>,
@@ -51,6 +53,10 @@ impl MidiPlayer {
         bpm: u32,
         timeout_us: i64,
     ) -> Result<Self, &'static str> {
+        let bend_range = match &profile {
+            Profile::Classic(p) => p.bend_range,
+            Profile::Captured(p) => p.bend_range,
+        };
         let expression_sources = match &profile {
             Profile::Classic(p) => p.expression_sources.clone(),
             Profile::Captured(p) => p.expression_sources.clone(),
@@ -69,6 +75,7 @@ impl MidiPlayer {
                 engine.ports.pitch_boundary = p.pitch_boundary;
                 engine.ports.register_limits = p.register_limits;
                 engine.ports.scale = p.scale;
+                engine.ports.tuning = p.tuning;
                 engine.ports.selection_offset = p.selection_offset;
                 engine.ports.offset_rest_outside = p.offset_rest_outside;
                 engine.octaves = p.octaves;
@@ -91,6 +98,7 @@ impl MidiPlayer {
                 engine.ports.pitch_boundary = p.pitch_boundary;
                 engine.ports.register_limits = p.register_limits;
                 engine.ports.scale = p.scale;
+                engine.ports.tuning = p.tuning;
                 engine.ports.selection_offset = p.selection_offset;
                 engine.ports.offset_rest_outside = p.offset_rest_outside;
                 engine.bank.octaves = p.octaves;
@@ -98,6 +106,8 @@ impl MidiPlayer {
             }
         };
         Ok(Self {
+            bend_range,
+            tuning_offset: 0.0,
             clock: TransportClock::new(mode, bpm, timeout_us)?,
             engine,
             origin_us: None,
@@ -135,18 +145,18 @@ impl MidiPlayer {
                 return Ok(match &mut self.engine {
                     Engine::Held(e) => {
                         let events = e.relocate(at);
-                        self.note_messages(events)
+                        self.note_messages(events)?
                     }
                     Engine::History(e) => {
                         let events = e.relocate(at, tick);
-                        self.history_messages(events)
+                        self.history_messages(events)?
                     }
                 });
             }
             return Ok(if self.clock.active() {
                 Vec::new()
             } else {
-                self.pause(tick)
+                self.pause(tick)?
             });
         }
         if matches!(source, InputSource::Clock) {
@@ -163,7 +173,7 @@ impl MidiPlayer {
         let was_active = self.clock.active();
         let at = self.clock.advance(tick);
         let mut output = if was_active && !self.clock.active() {
-            self.pause(tick)
+            self.pause(tick)?
         } else {
             Vec::new()
         };
@@ -171,14 +181,18 @@ impl MidiPlayer {
             Engine::Held(e) => {
                 if expressive {
                     let events = e.before(at)?;
-                    output.extend(self.note_messages(events));
+                    output.extend(self.note_messages(events)?);
                     self.expression.insert(data[0], data.to_vec());
                     let lane = expression::lane(data).expect("expressive MIDI message");
                     if self.expression_sources[&lane] == Source::Current
                         && self.clock.active()
                         && self.sounding.is_some()
                     {
-                        output.push(data.to_vec());
+                        output.push(expression::tuning_message(
+                            data.to_vec(),
+                            self.tuning_offset,
+                            self.bend_range,
+                        )?);
                     }
                     return Ok(output);
                 }
@@ -187,7 +201,7 @@ impl MidiPlayer {
                 } else {
                     e.note_off(at, data[1])?
                 };
-                output.extend(self.note_messages(events));
+                output.extend(self.note_messages(events)?);
             }
             Engine::History(e) => {
                 let tick = tick
@@ -211,7 +225,7 @@ impl MidiPlayer {
                     .ordinal
                     .checked_add(1)
                     .ok_or("too many simultaneous MIDI messages")?;
-                output.extend(self.history_messages(events));
+                output.extend(self.history_messages(events)?);
                 if expressive {
                     self.expression.insert(data[0], data.to_vec());
                     let lane = expression::lane(data).expect("expressive MIDI message");
@@ -219,7 +233,11 @@ impl MidiPlayer {
                         && self.clock.active()
                         && self.sounding.is_some()
                     {
-                        output.push(data.to_vec());
+                        output.push(expression::tuning_message(
+                            data.to_vec(),
+                            self.tuning_offset,
+                            self.bend_range,
+                        )?);
                     }
                 }
             }
@@ -235,7 +253,7 @@ impl MidiPlayer {
         let was_active = self.clock.active();
         let at = self.clock.advance(tick);
         if was_active && !self.clock.active() {
-            return Ok(self.pause(tick));
+            return self.pause(tick);
         }
         if !self.clock.active() {
             return Ok(Vec::new());
@@ -243,11 +261,11 @@ impl MidiPlayer {
         Ok(match &mut self.engine {
             Engine::Held(e) => {
                 let events = e.advance(at)?;
-                self.note_messages(events)
+                self.note_messages(events)?
             }
             Engine::History(e) => {
                 let events = e.advance(at, tick.max(self.input_tick))?;
-                self.history_messages(events)
+                self.history_messages(events)?
             }
         })
     }
@@ -259,11 +277,11 @@ impl MidiPlayer {
         output.extend(match &mut self.engine {
             Engine::Held(e) => {
                 let events = e.clear(at)?;
-                self.note_messages(events)
+                self.note_messages(events)?
             }
             Engine::History(e) => {
                 let events = e.clear(at, tick)?;
-                self.history_messages(events)
+                self.history_messages(events)?
             }
         });
         Ok(output)
@@ -282,7 +300,7 @@ impl MidiPlayer {
         let was_active = self.clock.active();
         let at = self.clock.advance(self.wall_us);
         let mut output = if was_active && !self.clock.active() {
-            self.pause(tick)
+            self.pause(tick)?
         } else {
             Vec::new()
         };
@@ -304,7 +322,7 @@ impl MidiPlayer {
                 }
             }
         }
-        output.extend(self.history_messages(events));
+        output.extend(self.history_messages(events)?);
         Ok(output)
     }
 
@@ -341,7 +359,7 @@ impl MidiPlayer {
         let was_active = self.clock.active();
         let at = self.clock.advance(tick);
         let mut output = if was_active && !self.clock.active() {
-            self.pause(tick)
+            self.pause(tick)?
         } else {
             Vec::new()
         };
@@ -350,29 +368,33 @@ impl MidiPlayer {
                 match &mut self.engine {
                     Engine::Held(e) => {
                         let events = e.before(at)?;
-                        output.extend(self.note_messages(events));
+                        output.extend(self.note_messages(events)?);
                     }
                     Engine::History(e) if at > e.processed_to => {
                         let events = e.before(at, tick.max(self.input_tick))?;
-                        output.extend(self.history_messages(events));
+                        output.extend(self.history_messages(events)?);
                     }
                     _ => {}
                 }
             }
             self.envelfo_expression.insert(lane, value);
             if self.clock.active() && self.sounding.is_some() {
-                output.push(data);
+                output.push(expression::tuning_message(
+                    data,
+                    self.tuning_offset,
+                    self.bend_range,
+                )?);
             }
             return Ok(output);
         }
         match &mut self.engine {
             Engine::Held(e) => {
                 let events = e.control(at, port, value)?;
-                output.extend(self.note_messages(events));
+                output.extend(self.note_messages(events)?);
             }
             Engine::History(e) => {
                 let events = e.control(at, tick.max(self.input_tick), port, value)?;
-                output.extend(self.history_messages(events));
+                output.extend(self.history_messages(events)?);
             }
         }
         Ok(output)
@@ -391,7 +413,7 @@ impl MidiPlayer {
     pub fn stop(&mut self, at_us: i64) -> Result<Vec<Vec<u8>>, &'static str> {
         let tick = self.elapsed(at_us);
         self.clock.halt(tick);
-        Ok(self.pause(tick))
+        self.pause(tick)
     }
 
     pub fn set_tempo(&mut self, at_us: i64, bpm: u32) -> Result<Vec<Vec<u8>>, &'static str> {
@@ -404,25 +426,25 @@ impl MidiPlayer {
         Ok(output)
     }
 
-    fn pause(&mut self, tick: i64) -> Vec<Vec<u8>> {
+    fn pause(&mut self, tick: i64) -> Result<Vec<Vec<u8>>, &'static str> {
         let mut output = match &mut self.engine {
             Engine::Held(e) => {
                 let events = e.pause(self.clock.beat);
-                self.note_messages(events)
+                self.note_messages(events)?
             }
             Engine::History(e) => {
                 let events = e.pause(self.clock.beat, tick);
-                self.history_messages(events)
+                self.history_messages(events)?
             }
         };
         if let Some((_, key)) = self.sounding.take() {
             output.push(vec![0x80, key, 0]);
             self.end_note(self.clock.beat, 0);
         }
-        output
+        Ok(output)
     }
 
-    fn note_messages(&mut self, events: Vec<OutputEvent>) -> Vec<Vec<u8>> {
+    fn note_messages(&mut self, events: Vec<OutputEvent>) -> Result<Vec<Vec<u8>>, &'static str> {
         let mut output = Vec::new();
         for event in events {
             match event.kind {
@@ -431,6 +453,7 @@ impl MidiPlayer {
                     source_id,
                     key,
                     velocity,
+                    tuning_semitones,
                 } => {
                     if let Some((_, key)) = self.sounding.take() {
                         output.push(vec![0x80, key, 0]);
@@ -439,11 +462,22 @@ impl MidiPlayer {
                     if !self.start_note(event.at, format!("input:{source_id}"), key, velocity) {
                         continue;
                     }
-                    output.extend(expression::entry_messages(
+                    self.tuning_offset = tuning_semitones;
+                    let mut entry = expression::entry_messages(
                         &self.expression_sources,
                         &self.expression,
                         &self.envelfo_expression,
-                    ));
+                    );
+                    if self.bend_range.is_some() && !entry.iter().any(|d| d[0] == 0xe0) {
+                        entry.insert(0, vec![0xe0, 0, 64]);
+                    }
+                    for data in entry {
+                        output.push(expression::tuning_message(
+                            data,
+                            self.tuning_offset,
+                            self.bend_range,
+                        )?);
+                    }
                     output.push(vec![0x90, key, velocity]);
                     self.sounding = Some((id, key));
                 }
@@ -455,15 +489,23 @@ impl MidiPlayer {
                 _ => {}
             }
         }
-        output
+        Ok(output)
     }
 
-    fn history_messages(&mut self, events: Vec<RealizedEvent>) -> Vec<Vec<u8>> {
+    fn history_messages(
+        &mut self,
+        events: Vec<RealizedEvent>,
+    ) -> Result<Vec<Vec<u8>>, &'static str> {
         let mut output = Vec::new();
         let attacks = events
             .iter()
             .filter(|e| e.data[0] == 0x90 && e.data[2] > 0)
-            .map(|e| ((e.at, e.source_note.clone()), (e.data[1], e.data[2])))
+            .map(|e| {
+                (
+                    (e.at, e.source_note.clone()),
+                    (e.data[1], e.data[2], e.tuning_semitones),
+                )
+            })
             .collect::<std::collections::BTreeMap<_, _>>();
         let mut initialized = std::collections::BTreeSet::new();
         for event in events {
@@ -473,17 +515,28 @@ impl MidiPlayer {
                 && !initialized.contains(&group)
                 && !(kind == 0x80 || kind == 0x90 && event.data[2] == 0)
             {
-                let (key, velocity) = attacks[&group];
+                let (key, velocity, tuning_semitones) = attacks[&group];
                 self.start_note(event.at, event.source_note.clone(), key, velocity);
                 initialized.insert(group);
                 if self.suppressed_note {
                     continue;
                 }
-                output.extend(expression::entry_messages(
+                self.tuning_offset = tuning_semitones;
+                let mut entry = expression::entry_messages(
                     &self.expression_sources,
                     &self.expression,
                     &self.envelfo_expression,
-                ));
+                );
+                if self.bend_range.is_some() && !entry.iter().any(|d| d[0] == 0xe0) {
+                    entry.insert(0, vec![0xe0, 0, 64]);
+                }
+                for data in entry {
+                    output.push(expression::tuning_message(
+                        data,
+                        self.tuning_offset,
+                        self.bend_range,
+                    )?);
+                }
             }
             if self.suppressed_note {
                 continue;
@@ -499,9 +552,13 @@ impl MidiPlayer {
                 self.end_note(event.at, event.data[2]);
                 self.sounding = None;
             }
-            output.push(event.data);
+            output.push(expression::tuning_message(
+                event.data,
+                self.tuning_offset,
+                self.bend_range,
+            )?);
         }
-        output
+        Ok(output)
     }
 
     fn start_note(&mut self, at: arpeg_core::Beat, source: String, key: u8, velocity: u8) -> bool {

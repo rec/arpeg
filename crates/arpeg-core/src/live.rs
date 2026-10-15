@@ -17,9 +17,10 @@ pub enum Retrigger {
     BankEdit,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum OutputKind {
     NoteOn {
+        tuning_semitones: f64,
         id: u64,
         source_id: u64,
         key: u8,
@@ -32,7 +33,7 @@ pub enum OutputKind {
     },
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct OutputEvent {
     pub at: Beat,
     pub kind: OutputKind,
@@ -66,6 +67,7 @@ struct SoundingNote {
 
 #[derive(Clone, Copy, Debug)]
 struct Attack {
+    tuning_semitones: f64,
     at: Beat,
     note: InputNote,
     key: u8,
@@ -502,9 +504,16 @@ impl LiveArpeggiator {
         } else {
             &self.bank
         };
+        let period = self
+            .ports
+            .tuning
+            .as_ref()
+            .and_then(|t| t.period)
+            .unwrap_or(12) as i128;
         let offsets = inversion_offsets(
             &active.iter().map(|n| n.key).collect::<Vec<_>>(),
             self.inversion,
+            period,
         );
         let mut voiced = vec![0; active.len()];
         if !self.voicing.is_empty() {
@@ -513,7 +522,7 @@ impl LiveArpeggiator {
                 (i128::from(active[*i].key) + offsets[*i], active[*i].id)
             });
             for (i, shift) in ranked.into_iter().zip(&self.voicing) {
-                voiced[i] = 12 * i128::from(*shift);
+                voiced[i] = period * i128::from(*shift);
             }
         }
         let active: Vec<_> = self
@@ -795,9 +804,12 @@ impl LiveArpeggiator {
         };
         let Some(key) = self.ports.realize_pitch(
             i128::from(selected.key)
-                + selected.inversion_offset
-                + selected.voicing_offset
-                + 12 * i128::from(self.octaves.offsets[selected.octave_index]),
+                .checked_add(selected.inversion_offset)
+                .and_then(|v| v.checked_add(selected.voicing_offset))
+                .and_then(|v| {
+                    v.checked_add(period * i128::from(self.octaves.offsets[selected.octave_index]))
+                })
+                .ok_or(crate::tuning::TUNING_ERROR)?,
         )?
         else {
             return Ok(false);
@@ -806,7 +818,8 @@ impl LiveArpeggiator {
         self.pending.extend((0..decision.repeats).map(|i| Attack {
             at: at + interval * i as i64,
             note: selected,
-            key,
+            key: key.key,
+            tuning_semitones: key.tuning_semitones,
             gate: if i == decision.repeats - 1 {
                 decision.final_gate
             } else {
@@ -841,6 +854,7 @@ impl LiveArpeggiator {
         output.push(OutputEvent {
             at,
             kind: OutputKind::NoteOn {
+                tuning_semitones: attack.tuning_semitones,
                 id,
                 source_id: selected.source_id,
                 key: attack.key,

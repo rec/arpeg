@@ -1,6 +1,6 @@
 //! Source-aligned octave displacements for repeated chord rotations.
 
-pub fn inversion_offsets(keys: &[u8], count: i64) -> Vec<i128> {
+pub fn inversion_offsets(keys: &[u8], count: i64, period: i128) -> Vec<i128> {
     let mut offsets = vec![0; keys.len()];
     if keys.is_empty() || count == 0 {
         return offsets;
@@ -12,7 +12,7 @@ pub fn inversion_offsets(keys: &[u8], count: i64) -> Vec<i128> {
     let mut end = edge;
     let mut first = Vec::with_capacity(keys.len());
     for i in &ordered {
-        end += (direction * i128::from(keys[*i]) - end - 1).rem_euclid(12) + 1;
+        end += (direction * i128::from(keys[*i]) - end - 1).rem_euclid(period) + 1;
         first.push(end);
     }
     let span = end - edge;

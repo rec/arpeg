@@ -116,6 +116,7 @@ impl HistoryArpeggiator {
         self.queue.clear();
         if let Some((source_note, key)) = self.sounding.take() {
             events.push(RealizedEvent {
+                tuning_semitones: 0.0,
                 at,
                 data: vec![0x80, key, 0],
                 source_note,
@@ -184,6 +185,7 @@ impl HistoryArpeggiator {
             .take()
             .map_or(Vec::new(), |(source_note, key)| {
                 vec![RealizedEvent {
+                    tuning_semitones: 0.0,
                     at,
                     data: vec![0x80, key, 0],
                     source_note,
@@ -321,7 +323,14 @@ impl HistoryArpeggiator {
             .find(|n| n.note_id == note.note_id)
             .ok_or("missing captured note")?;
         let Some(key) = self.ports.realize_pitch(
-            i128::from(source.key) + 12 * i128::from(self.bank.octaves.offsets[note.octave_index]),
+            i128::from(source.key)
+                + i128::from(
+                    self.ports
+                        .tuning
+                        .as_ref()
+                        .and_then(|t| t.period)
+                        .unwrap_or(12),
+                ) * i128::from(self.bank.octaves.offsets[note.octave_index]),
         )?
         else {
             self.ports.outcome(false);
@@ -331,6 +340,7 @@ impl HistoryArpeggiator {
         self.queue.clear();
         if let Some((source_note, key)) = self.sounding.take() {
             output.push(RealizedEvent {
+                tuning_semitones: 0.0,
                 at,
                 data: vec![0x80, key, 0],
                 source_note,
@@ -354,8 +364,9 @@ impl HistoryArpeggiator {
                 .into_iter()
                 .map(|mut e| {
                     if matches!(e.data[0] & 0xf0, 0x80 | 0x90) {
-                        e.data[1] = key;
+                        e.data[1] = key.key;
                     }
+                    e.tuning_semitones = key.tuning_semitones;
                     e.source_note = format!("{}:{}", note.capture_id, e.source_note);
                     e
                 })

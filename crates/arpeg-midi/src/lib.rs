@@ -7,7 +7,7 @@ use arpeg_core::bank::CaptureMode;
 use arpeg_core::chance::Chance;
 use arpeg_core::live::Retrigger;
 use arpeg_core::octaves::{Octaves, Traversal};
-use arpeg_core::ports::{PitchBoundary, PitchRegister, PitchScale, ScaleMapping};
+use arpeg_core::ports::{PitchBoundary, PitchRegister, ScaleTransform};
 use arpeg_core::rhythm::{PatternStep, Rhythm};
 use arpeg_core::{Bank, Beat, HeldNote, Selection, Walk, render_held};
 use midly::{
@@ -18,6 +18,8 @@ use midly::{
 use expression::{Lane, Source};
 
 pub mod expression;
+pub mod tuning;
+use arpeg_core::tuning::PreparedTuning;
 
 #[cfg(feature = "device-host")]
 pub mod input;
@@ -31,7 +33,9 @@ pub struct HeldProfile {
     pub inversion: i64,
     pub voicing: Vec<i64>,
     pub register_limits: Option<PitchRegister>,
-    pub scale: Option<PitchScale>,
+    pub scale: Option<ScaleTransform>,
+    pub tuning: Option<PreparedTuning>,
+    pub bend_range: Option<f64>,
     pub octaves: Octaves,
     pub expression_sources: BTreeMap<Lane, Source>,
     pub selection_offset: i64,
@@ -48,7 +52,9 @@ pub struct HeldProfile {
 
 pub struct CapturedProfile {
     pub register_limits: Option<PitchRegister>,
-    pub scale: Option<PitchScale>,
+    pub scale: Option<ScaleTransform>,
+    pub tuning: Option<PreparedTuning>,
+    pub bend_range: Option<f64>,
     pub octaves: Octaves,
     pub expression_sources: BTreeMap<Lane, Source>,
     pub selection_offset: i64,
@@ -146,6 +152,8 @@ pub fn parse_profile(text: &str, path: Option<&Path>) -> Result<Profile, String>
             "inversion",
             "voicing",
             "scale",
+            "tuning",
+            "bend_range",
         ]
         .contains(&key.as_str())
     }) {
@@ -675,52 +683,16 @@ pub fn parse_profile(text: &str, path: Option<&Path>) -> Result<Profile, String>
         None => 0,
         Some(v) => v.as_integer().ok_or("inversion must be a signed integer")?,
     };
-    let scale = match body.get("scale") {
-        None => None,
-        Some(value) => {
-            let table = value.as_table().ok_or("scale must be a table")?;
-            if table
-                .keys()
-                .any(|k| !["root", "intervals", "degrees", "mapping"].contains(&k.as_str()))
-            {
-                return Err("unsupported scale field".into());
-            }
-            let root = table
-                .get("root")
-                .and_then(toml::Value::as_integer)
-                .filter(|v| (0..=11).contains(v))
-                .ok_or("scale root must be an integer 0–11")? as u8;
-            let intervals = table
-                .get("intervals")
-                .and_then(toml::Value::as_array)
-                .ok_or("scale intervals must be an integer list")?
-                .iter()
-                .map(|v| {
-                    v.as_integer()
-                        .filter(|v| (0..=11).contains(v))
-                        .map(|v| v as u8)
-                        .ok_or("scale intervals must be integers 0–11")
-                })
-                .collect::<Result<Vec<_>, _>>()?;
-            let degrees = match table.get("degrees") {
-                None => 0,
-                Some(v) => v
-                    .as_integer()
-                    .ok_or("scale degrees must be a signed integer")?,
-            };
-            let mapping = match table.get("mapping") {
-                None => ScaleMapping::Nearest,
-                Some(v) => match v.as_str() {
-                    Some("nearest") => ScaleMapping::Nearest,
-                    Some("up") => ScaleMapping::Up,
-                    Some("down") => ScaleMapping::Down,
-                    Some("drop") => ScaleMapping::Drop,
-                    _ => return Err("scale mapping must be nearest, up, down, or drop".into()),
-                },
-            };
-            Some(PitchScale::new(root, intervals, degrees, mapping).map_err(str::to_owned)?)
-        }
+    let scale = body.get("scale").map(tuning::scale).transpose()?;
+    let tuning = body.get("tuning").map(tuning::prepare).transpose()?;
+    let bend_range = if body.contains_key("bend_range") {
+        Some(tuning::number(body, "bend_range", 0.0)?)
+    } else {
+        None
     };
+    if tuning.is_some() != bend_range.is_some() || bend_range.is_some_and(|v| v <= 0.0) {
+        return Err("tuning requires a positive explicit bend_range".into());
+    }
     let register_limits = match body.get("register_limits") {
         None => None,
         Some(value) => {
@@ -756,12 +728,22 @@ pub fn parse_profile(text: &str, path: Option<&Path>) -> Result<Profile, String>
             )
         }
     };
+    if tuning.as_ref().is_some_and(|t| t.period.is_none())
+        && (inversion != 0
+            || voicing.iter().any(|v| *v != 0)
+            || octaves.offsets.iter().any(|v| *v != 0)
+            || register_limits.map_or(pitch_boundary == PitchBoundary::Fold, |r| r.folding()))
+    {
+        return Err("finite tunings cannot use period-based transforms or folding".into());
+    }
     Ok(match bank {
         ParsedBank::Classic(bank) => Profile::Classic(HeldProfile {
             inversion,
             voicing,
             register_limits,
             scale,
+            tuning,
+            bend_range,
             octaves,
             expression_sources,
             selection_offset,
@@ -813,6 +795,8 @@ pub fn parse_profile(text: &str, path: Option<&Path>) -> Result<Profile, String>
             Profile::Captured(CapturedProfile {
                 register_limits,
                 scale,
+                tuning,
+                bend_range,
                 octaves,
                 expression_sources,
                 selection_offset,
@@ -949,6 +933,9 @@ pub fn render_file(profile: &str, input: &[u8], path: Option<&Path>) -> Result<V
     }
     if profile.octaves.offsets != [0] {
         return Err("octave expansion currently requires live input".into());
+    }
+    if profile.tuning.is_some() {
+        return Err("tuning currently requires live input".into());
     }
     if profile.inversion != 0 {
         return Err("inversion currently requires live input".into());

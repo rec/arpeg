@@ -4,7 +4,8 @@ from tomllib import loads
 
 import mido
 import pytest
-from ufor.arpeggiator import Octaves, PitchRegister, PitchScale, Transposition
+from ufor.arpeggiator import Octaves, PitchRegister, ScaleTransform, Transposition
+from ufor.scale import Scale
 
 from arpeg.live import LiveArpeggiator
 from arpeg.midi import MidiPlayer
@@ -24,7 +25,7 @@ def test_scale_traces_keep_source_identity_and_selector_progress(
         update={
             "body": profile.body.model_copy(
                 update={
-                    "scale": PitchScale.model_validate(case["scale"]),
+                    "scale": ScaleTransform.model_validate(case["scale"]),
                     "register_limits": PitchRegister.model_validate(case["limits"])
                     if "limits" in case
                     else None,
@@ -63,8 +64,8 @@ def test_scale_history_preserves_recorded_expression_and_release_velocity() -> N
         update={
             "body": profile.body.model_copy(
                 update={
-                    "scale": PitchScale(
-                        root=0, intervals=[0, 2, 4, 5, 7, 9, 11], degrees=1
+                    "scale": ScaleTransform(
+                        definition=Scale(notes="CDEFGAB"), degrees=1
                     )
                 }
             )
@@ -92,7 +93,7 @@ def test_repeats_keep_the_mapped_pitch_after_a_bank_edit() -> None:
 title="Scale"
 [body]
 retrigger="bank_edit"
-scale={root=0,intervals=[0,2,4,5,7,9,11],degrees=1}
+scale={definition={notes="CDEFGAB"},degrees=1}
 rhythm={kind="pattern",steps=[{kind="hit",duration="1 beat",repeats=3}]}
 """)
     arp = LiveArpeggiator(profile=profile)
@@ -106,7 +107,7 @@ def test_ties_sustain_the_mapped_pitch_until_their_end() -> None:
     profile = parse_profile("""name="scale"
 title="Scale"
 [body]
-scale={root=0,intervals=[0,2,4,5,7,9,11],degrees=1}
+scale={definition={notes="CDEFGAB"},degrees=1}
 [body.rhythm]
 kind="pattern"
 steps=[{kind="hit",duration="1 beat"},{kind="tie",duration="1 beat"}]
