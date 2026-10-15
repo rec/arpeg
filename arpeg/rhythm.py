@@ -3,7 +3,7 @@
 from fractions import Fraction
 
 from pydantic import BaseModel
-from ufor.arpeggiator import Euclidean, Grid, HitStep, Pattern, TieStep
+from ufor.arpeggiator import Euclidean, Grid, HitStep, Pattern, StepPatterns, TieStep
 
 
 class RhythmDecision(BaseModel, frozen=True):
@@ -11,12 +11,18 @@ class RhythmDecision(BaseModel, frozen=True):
     repeats: int
     gate: Fraction
     final_gate: Fraction
+    accent: Fraction
 
 
 def decide_step(
-    rhythm: Grid | Euclidean | Pattern, index: int, gate: Fraction
+    rhythm: Grid | Euclidean | Pattern,
+    index: int,
+    gate: Fraction,
+    patterns: StepPatterns,
 ) -> RhythmDecision:
     """Resolve one opportunity, including the final attack's tied gate."""
+    base_gate = gate
+    gate *= patterns.gates[index % len(patterns.gates)]
     if isinstance(rhythm, Pattern):
         step = rhythm.steps[index % len(rhythm.steps)]
         duration = Fraction(step.duration.removesuffix(" beat"))
@@ -30,7 +36,13 @@ def decide_step(
                 if not isinstance(tied, TieStep):
                     break
                 tied_duration = Fraction(tied.duration.removesuffix(" beat"))
-                final_gate = max(attack_gate, held + tied_duration * gate)
+                final_gate = max(
+                    final_gate,
+                    held
+                    + tied_duration
+                    * base_gate
+                    * patterns.gates[(index + offset) % len(patterns.gates)],
+                )
                 held += tied_duration
     else:
         duration = grid_duration(
@@ -39,7 +51,11 @@ def decide_step(
         repeats = int(allows_step(rhythm, index))
         attack_gate = final_gate = duration * gate
     return RhythmDecision(
-        duration=duration, repeats=repeats, gate=attack_gate, final_gate=final_gate
+        duration=duration,
+        repeats=repeats,
+        gate=attack_gate,
+        final_gate=final_gate,
+        accent=patterns.accents[index % len(patterns.accents)],
     )
 
 

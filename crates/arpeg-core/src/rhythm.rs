@@ -27,12 +27,40 @@ pub enum PatternStep {
     Tie { duration: Beat },
 }
 
+#[derive(Clone, Debug)]
+pub struct StepPatterns {
+    pub accents: Vec<Beat>,
+    pub gates: Vec<Beat>,
+}
+
+impl Default for StepPatterns {
+    fn default() -> Self {
+        Self {
+            accents: vec![Beat::from_integer(1)],
+            gates: vec![Beat::from_integer(1)],
+        }
+    }
+}
+
+impl StepPatterns {
+    pub fn validate(&self) -> Result<(), &'static str> {
+        if [&self.accents, &self.gates]
+            .iter()
+            .any(|p| p.is_empty() || p.iter().any(|v| *v < Beat::from_integer(0)))
+        {
+            return Err("step patterns require nonempty nonnegative exact multipliers");
+        }
+        Ok(())
+    }
+}
+
 #[derive(Clone, Copy, Debug)]
 pub struct RhythmDecision {
     pub duration: Beat,
     pub repeats: usize,
     pub gate: Beat,
     pub final_gate: Beat,
+    pub accent: Beat,
 }
 
 impl PatternStep {
@@ -111,11 +139,15 @@ impl Rhythm {
         }
     }
 
-    pub fn decide_step(&self, index: i64, gate: Beat) -> RhythmDecision {
+    pub fn decide_step(&self, index: i64, gate: Beat, patterns: &StepPatterns) -> RhythmDecision {
+        let base_gate = gate;
+        let gate = gate * patterns.gates[index as usize % patterns.gates.len()];
+        let accent = patterns.accents[index as usize % patterns.accents.len()];
         match self {
             Self::Grid { step, swing } | Self::Euclidean { step, swing, .. } => {
                 let duration = grid_duration(*step, *swing, index);
                 RhythmDecision {
+                    accent,
                     duration,
                     repeats: usize::from(self.allows_step(index)),
                     gate: duration * gate,
@@ -142,11 +174,16 @@ impl Rhythm {
                         else {
                             break;
                         };
-                        final_gate = attack_gate.max(held + duration * gate);
+                        final_gate = final_gate.max(
+                            held + duration
+                                * base_gate
+                                * patterns.gates[(index as usize + offset) % patterns.gates.len()],
+                        );
                         held += duration;
                     }
                 }
                 RhythmDecision {
+                    accent,
                     duration,
                     repeats,
                     gate: attack_gate,

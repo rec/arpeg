@@ -56,6 +56,14 @@ are handled within this page, with no global keyboard capture or typing into
 other applications. IME composition is not captured by this key-down/key-up demo.
 Browser timers can delay displayed text during stalls or tab suspension.
 
+The `TokenPlayer` constructor takes exact-string accent and gate arrays after
+its swing argument. For example, pass `['1', '0', '1/2']` and `['1', '1/2']`
+to mute every second opportunity in a three-step accent loop and alternate gate
+multipliers. Muted opportunities do not consume the next text selection; other
+accent values do not change character case or content. The text page supplies
+neutral `['1']` arrays. Musical presets use the same core patterns and realize
+nonzero accents as velocity multipliers.
+
 ## Controls
 
 - **Note order** offers up, down, up/down, inside out, outside in, as played, and

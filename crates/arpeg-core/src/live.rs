@@ -1,6 +1,6 @@
 //! Musical transforms and MIDI realization around the shared item engine.
 pub use crate::engine::Retrigger;
-use crate::engine::{Arpeggiator, Item, Processor, SelectionPosition};
+use crate::engine::{Arpeggiator, Item, Occurrence, Processor, SelectionPosition};
 use crate::inversion::inversion_offsets;
 use crate::octaves::Traversal;
 use crate::ports::{InputPort, PerformancePorts};
@@ -124,7 +124,11 @@ impl Processor for PerformancePorts {
             .collect();
         Ok(active)
     }
-    fn realize(&self, selected: &Item<MusicalValue>) -> Result<Option<MusicalValue>, &'static str> {
+    fn realize(
+        &self,
+        selected: &Item<MusicalValue>,
+        accent: Beat,
+    ) -> Result<Option<MusicalValue>, &'static str> {
         let period = self.tuning.as_ref().and_then(|t| t.period).unwrap_or(12) as i128;
         let pitch = selected
             .rank
@@ -132,21 +136,22 @@ impl Processor for PerformancePorts {
             .ok_or(crate::tuning::TUNING_ERROR)?;
         Ok(self.realize_pitch(pitch)?.map(|key| MusicalValue {
             key: key.key,
-            velocity: selected.value.velocity,
+            velocity: accent_velocity(selected.value.velocity, accent),
             tuning_semitones: key.tuning_semitones,
         }))
     }
     fn conflicts(&self, left: MusicalValue, right: MusicalValue) -> bool {
         left.key == right.key
     }
-    fn event(
-        &self,
-        at: Beat,
-        start: bool,
-        id: u64,
-        source_id: u64,
-        value: MusicalValue,
-    ) -> OutputEvent {
+    fn event(&self, occurrence: Occurrence<MusicalValue>) -> OutputEvent {
+        let Occurrence {
+            at,
+            start,
+            id,
+            source_id,
+            value,
+            ..
+        } = occurrence;
         OutputEvent {
             at,
             kind: if start {
@@ -195,4 +200,11 @@ impl Processor for PerformancePorts {
     fn begin_step(&mut self, at: Beat, index: i64, revision: u64, cycle: bool) -> bool {
         Self::begin_step(self, at, index, revision, false, cycle)
     }
+}
+
+/// Round a positive multiplier exactly, preserving a nonzero attack encoding.
+pub fn accent_velocity(velocity: u8, accent: Beat) -> u8 {
+    let numerator = i128::from(velocity) * i128::from(*accent.numer());
+    let denominator = i128::from(*accent.denom());
+    ((2 * numerator + denominator) / (2 * denominator)).clamp(1, 127) as u8
 }

@@ -559,6 +559,32 @@ and live swing modulation remain deferred. Shared exact traces cover grid
 starts/gates, rotated odd-length Euclidean loops, zero gates, irregular polling,
 and Python snapshots, with recorded-gesture and transport-position checks.
 
+### Accent and gate pattern completion
+
+Optional preset `body.patterns = {accents = [...], gates = [...]}` is implemented
+in Python, Rust, and WebAssembly. Nonempty lists of nonnegative exact multipliers
+loop independently on the absolute rhythm step, including rests, chance rejection,
+empty banks, and ties. Omitted lists use `[1]`; omitting the table preserves
+existing playback and authored defaults.
+
+A zero accent makes a rest before chance and selection. Positive accents multiply
+source attack velocity, round halves upward, and clamp to 1–127 at MIDI realization.
+Generic core occurrences retain the exact multiplier with their opaque payloads.
+Gate multipliers scale the current global gate after rhythmic onset placement.
+Repeats share their parent's settings, and tie lookahead reads gate multipliers
+at the tied cells while preserving the original accent. Scheduled repeats/ties
+retain their values across bank and control edits. Chord edits retain pattern
+phase; seeking follows the target rhythm position and Python snapshots retain
+pending values.
+
+Held/latched and history/phrase playback are covered, with recorded controllers
+and release velocity preserved. The WebAssembly token constructor accepts exact
+string arrays; the text UI continues to use neutral lists. File rendering rejects
+configured patterns rather than discarding them. Shared MIDI traces cover
+independent lengths, muted steps, swing and odd Euclidean loops, repeats/ties,
+rounding/clipping, and zero gates. Generic token tests verify that payloads stay
+opaque and muted opportunities do not consume selection.
+
 ### Deterministic operation order
 
 At each rhythm opportunity:

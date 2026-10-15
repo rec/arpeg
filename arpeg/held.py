@@ -41,6 +41,8 @@ def render_held(
         raise ValueError("held rendering does not support repeated selections")
     if not isinstance(body.rhythm, (Grid, Euclidean)):
         raise ValueError("held rendering requires grid or Euclidean rhythm")
+    if body.patterns is not None:
+        raise ValueError("accent and gate patterns currently require live input")
     if body.probability != 1:
         raise ValueError("probability currently requires live input")
     if body.transposition.semitones != 0:

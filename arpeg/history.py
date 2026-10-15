@@ -6,12 +6,14 @@ from typing import Literal, Self
 
 from pydantic import BaseModel, Field, model_validator
 from ufor import arpeggiator_ports
+from ufor.arpeggiator import StepPatterns
 from ufor.events import MidiEvent
 from ufor.time import Timebase
 
 from .bank import CaptureBank
 from .capture import MidiCaptureProfile
 from .chance import draw_below
+from .expression import accent_velocity
 from .gesture import MidiGestureRenderer, MidiPlacement, RealizedMidiEvent
 from .ports import PerformancePorts
 from .rhythm import grid_duration, grid_position
@@ -23,6 +25,7 @@ class LiveHistoryArpeggiator(BaseModel):
     step: Fraction
     swing: Fraction = Field(default=Fraction(1, 2), ge=0.5, lt=1)
     gate: Fraction = Fraction(4, 5)
+    patterns: StepPatterns = StepPatterns()
     ports: PerformancePorts | None = None
     seed: int | None = None
     name: str = ""
@@ -240,6 +243,10 @@ class LiveHistoryArpeggiator(BaseModel):
             self.bank.last_selected = None
             self.ports.outcome(False)
             return []
+        accent = self.patterns.accents[self.step_index % len(self.patterns.accents)]
+        if not accent:
+            self.ports.outcome(False)
+            return []
         index = self.decision_count
         self.decision_count += 1
         density = self.ports.density
@@ -315,7 +322,10 @@ class LiveHistoryArpeggiator(BaseModel):
                         note_id=selected.note_id,
                         onset=at,
                         gate=grid_duration(self.step, self.swing, self.step_index)
-                        * self.ports.gate,
+                        * self.ports.gate
+                        * self.patterns.gates[
+                            self.step_index % len(self.patterns.gates)
+                        ],
                     )
                 ]
             )
@@ -325,7 +335,13 @@ class LiveHistoryArpeggiator(BaseModel):
                 update={
                     "source_note": f"{selected.capture_id}:{e.source_note}",
                     "tuning_semitones": key.tuning_semitones,
-                    "data": [e.data[0], key.key, *e.data[2:]]
+                    "data": [
+                        e.data[0],
+                        key.key,
+                        accent_velocity(e.data[2], accent)
+                        if e.data[0] & 0xF0 == 0x90 and e.data[2] > 0
+                        else e.data[2],
+                    ]
                     if e.data[0] & 0xF0 in (0x80, 0x90)
                     else e.data,
                 }

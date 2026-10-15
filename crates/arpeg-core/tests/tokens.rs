@@ -110,3 +110,48 @@ fn descending_supports_the_full_signed_rank_range() {
         [1, 0]
     );
 }
+
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+fn generic_occurrences_retain_accents_without_reinterpreting_payloads() {
+    use arpeg_core::rhythm::StepPatterns;
+    let mut engine = Arpeggiator::new(
+        Bank::Held,
+        Selection::Ascending,
+        Rhythm::Grid {
+            step: Beat::new(1, 4),
+            swing: Beat::new(1, 2),
+        },
+        TokenPorts {
+            timing: TimingPorts::new(Beat::new(4, 5), Beat::from_integer(1)),
+        },
+        Retrigger::OnEmpty,
+        Chance::default(),
+    )
+    .unwrap();
+    engine.patterns = StepPatterns {
+        accents: vec![
+            Beat::new(1, 2),
+            Beat::from_integer(0),
+            Beat::from_integer(2),
+        ],
+        ..StepPatterns::default()
+    };
+    engine
+        .press(Beat::from_integer(0), 1000, 5000, 777)
+        .unwrap();
+    let actual: Vec<_> = engine
+        .advance(Beat::new(1, 2))
+        .unwrap()
+        .into_iter()
+        .map(|e| (e.start, e.value, e.accent))
+        .collect();
+    assert_eq!(
+        actual,
+        [
+            (true, 777, Beat::new(1, 2)),
+            (false, 777, Beat::new(1, 2)),
+            (true, 777, Beat::from_integer(2))
+        ]
+    );
+}

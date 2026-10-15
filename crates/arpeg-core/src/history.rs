@@ -15,6 +15,7 @@ pub struct HistoryArpeggiator {
     next_capture_id: u64,
     step: Tick,
     pub swing: Tick,
+    pub patterns: crate::rhythm::StepPatterns,
     pub ports: PerformancePorts,
     pub chance: Chance,
     step_index: i64,
@@ -48,6 +49,7 @@ impl HistoryArpeggiator {
             next_capture_id: 0,
             step,
             swing: Tick::new(1, 2),
+            patterns: crate::rhythm::StepPatterns::default(),
             ports: PerformancePorts::new(gate, Tick::from_integer(1)),
             chance: Chance::default(),
             step_index: 0,
@@ -295,6 +297,11 @@ impl HistoryArpeggiator {
             self.ports.outcome(false);
             return Ok(());
         }
+        let accent = self.patterns.accents[self.step_index as usize % self.patterns.accents.len()];
+        if accent == Tick::from_integer(0) {
+            self.ports.outcome(false);
+            return Ok(());
+        }
         let index = self.decision_count;
         self.decision_count += 1;
         if !self
@@ -357,7 +364,8 @@ impl HistoryArpeggiator {
                 onset: at,
                 gate: Some(
                     crate::rhythm::grid_duration(self.step, self.swing, self.step_index)
-                        * self.ports.gate,
+                        * self.ports.gate
+                        * self.patterns.gates[self.step_index as usize % self.patterns.gates.len()],
                 ),
             }],
             &[0],
@@ -370,6 +378,9 @@ impl HistoryArpeggiator {
                 .map(|mut e| {
                     if matches!(e.data[0] & 0xf0, 0x80 | 0x90) {
                         e.data[1] = key.key;
+                    }
+                    if e.data[0] & 0xf0 == 0x90 && e.data[2] > 0 {
+                        e.data[2] = crate::live::accent_velocity(e.data[2], accent);
                     }
                     e.tuning_semitones = key.tuning_semitones;
                     e.source_note = format!("{}:{}", note.capture_id, e.source_note);

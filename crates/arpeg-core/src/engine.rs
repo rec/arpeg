@@ -5,7 +5,7 @@ use crate::chance::{Chance, draw_below};
 use crate::timing_ports::{InputPort, TimingPorts};
 use crate::{
     Bank, Beat, Selection,
-    rhythm::{PatternStep, Rhythm, RhythmDecision},
+    rhythm::{PatternStep, Rhythm, RhythmDecision, StepPatterns},
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -32,6 +32,16 @@ pub enum SelectionPosition {
     ReverseRank(Reverse<i128>),
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct Occurrence<V: Copy> {
+    pub at: Beat,
+    pub start: bool,
+    pub id: u64,
+    pub source_id: u64,
+    pub value: V,
+    pub accent: Beat,
+}
+
 pub trait Processor {
     type Value: Copy;
     type Event;
@@ -40,20 +50,17 @@ pub trait Processor {
     fn expand(&self, active: &[Item<Self::Value>]) -> Result<Vec<Item<Self::Value>>, &'static str> {
         Ok(active.to_vec())
     }
-    fn realize(&self, item: &Item<Self::Value>) -> Result<Option<Self::Value>, &'static str> {
+    fn realize(
+        &self,
+        item: &Item<Self::Value>,
+        _accent: Beat,
+    ) -> Result<Option<Self::Value>, &'static str> {
         Ok(Some(item.value))
     }
     fn conflicts(&self, _left: Self::Value, _right: Self::Value) -> bool {
         false
     }
-    fn event(
-        &self,
-        at: Beat,
-        start: bool,
-        id: u64,
-        source_id: u64,
-        value: Self::Value,
-    ) -> Self::Event;
+    fn event(&self, occurrence: Occurrence<Self::Value>) -> Self::Event;
     fn entry_key(
         &self,
         item: &Item<Self::Value>,
@@ -87,6 +94,7 @@ struct Active<V: Copy> {
     id: u64,
     source_id: u64,
     value: V,
+    accent: Beat,
     end: Beat,
 }
 #[derive(Clone, Copy, Debug)]
@@ -94,12 +102,14 @@ struct Attack<V: Copy> {
     at: Beat,
     note: Item<V>,
     value: V,
+    accent: Beat,
     gate: Beat,
 }
 
 pub struct Arpeggiator<P: Processor> {
     bank_mode: Bank,
     pub chance: Chance,
+    pub patterns: StepPatterns,
     bank_revision: u64,
     decision_count: u64,
     walk_count: u64,
@@ -170,6 +180,7 @@ impl<P: Processor> Arpeggiator<P> {
             bank_mode: bank,
             ports,
             chance,
+            patterns: StepPatterns::default(),
             bank_revision: 0,
             decision_count: 0,
             walk_count: 0,
@@ -335,7 +346,7 @@ impl<P: Processor> Arpeggiator<P> {
         while self.next_step < at {
             self.next_step += self
                 .rhythm
-                .decide_step(self.step_index, self.ports.timing().gate)
+                .decide_step(self.step_index, self.ports.timing().gate, &self.patterns)
                 .duration;
             self.step_index += 1;
         }
@@ -353,7 +364,7 @@ impl<P: Processor> Arpeggiator<P> {
                 let cycle: Beat = (0..steps.len())
                     .map(|i| {
                         self.rhythm
-                            .decide_step(i as i64, self.ports.timing().gate)
+                            .decide_step(i as i64, self.ports.timing().gate, &self.patterns)
                             .duration
                     })
                     .sum();
@@ -363,7 +374,7 @@ impl<P: Processor> Arpeggiator<P> {
                 while self.next_step < at {
                     self.next_step += self
                         .rhythm
-                        .decide_step(self.step_index, self.ports.timing().gate)
+                        .decide_step(self.step_index, self.ports.timing().gate, &self.patterns)
                         .duration;
                     self.step_index += 1;
                 }
@@ -461,9 +472,11 @@ impl<P: Processor> Arpeggiator<P> {
                     self.bank_revision,
                     self.rhythm.starts_cycle(self.step_index),
                 );
-                let decision = self
-                    .rhythm
-                    .decide_step(self.step_index, self.ports.timing().gate);
+                let decision = self.rhythm.decide_step(
+                    self.step_index,
+                    self.ports.timing().gate,
+                    &self.patterns,
+                );
                 if admitted {
                     let hit = self.schedule_step(next, decision)?;
                     if !matches!(&self.rhythm, Rhythm::Pattern { steps } if matches!(steps[self.step_index as usize % steps.len()], PatternStep::Tie { .. }))
@@ -486,10 +499,14 @@ impl<P: Processor> Arpeggiator<P> {
     fn release_due(&mut self, at: Beat, output: &mut Vec<P::Event>) {
         self.sounding.retain(|note| {
             if note.end <= at {
-                output.push(
-                    self.ports
-                        .event(note.end, false, note.id, note.source_id, note.value),
-                );
+                output.push(self.ports.event(Occurrence {
+                    at: note.end,
+                    start: false,
+                    id: note.id,
+                    source_id: note.source_id,
+                    value: note.value,
+                    accent: note.accent,
+                }));
                 false
             } else {
                 true
@@ -502,8 +519,14 @@ impl<P: Processor> Arpeggiator<P> {
         self.sounding
             .drain(..)
             .map(|note| {
-                self.ports
-                    .event(at, false, note.id, note.source_id, note.value)
+                self.ports.event(Occurrence {
+                    at,
+                    start: false,
+                    id: note.id,
+                    source_id: note.source_id,
+                    value: note.value,
+                    accent: note.accent,
+                })
             })
             .collect()
     }
@@ -522,7 +545,7 @@ impl<P: Processor> Arpeggiator<P> {
             self.shuffle_position = 0;
             return Ok(false);
         }
-        if decision.repeats == 0 {
+        if decision.repeats == 0 || decision.accent == Beat::from_integer(0) {
             return Ok(false);
         }
         let chance_index = self.decision_count;
@@ -777,7 +800,7 @@ impl<P: Processor> Arpeggiator<P> {
         } else {
             selected
         };
-        let Some(value) = self.ports.realize(&selected)? else {
+        let Some(value) = self.ports.realize(&selected, decision.accent)? else {
             return Ok(false);
         };
         let interval = decision.duration / decision.repeats as i64;
@@ -785,6 +808,7 @@ impl<P: Processor> Arpeggiator<P> {
             at: at + interval * i as i64,
             note: selected,
             value,
+            accent: decision.accent,
             gate: if i == decision.repeats - 1 {
                 decision.final_gate
             } else {
@@ -803,29 +827,42 @@ impl<P: Processor> Arpeggiator<P> {
             .iter_mut()
             .filter(|n| self.ports.conflicts(n.value, attack.value))
         {
-            output.push(
-                self.ports
-                    .event(at, false, note.id, note.source_id, note.value),
-            );
+            output.push(self.ports.event(Occurrence {
+                at,
+                start: false,
+                id: note.id,
+                source_id: note.source_id,
+                value: note.value,
+                accent: note.accent,
+            }));
             note.end = at;
         }
         self.sounding.retain(|note| note.end > at);
         let id = self.next_output;
         self.next_output += 1;
-        output.push(
-            self.ports
-                .event(at, true, id, selected.source_id, attack.value),
-        );
+        output.push(self.ports.event(Occurrence {
+            at,
+            start: true,
+            id,
+            source_id: selected.source_id,
+            value: attack.value,
+            accent: attack.accent,
+        }));
         if end == at {
-            output.push(
-                self.ports
-                    .event(at, false, id, selected.source_id, attack.value),
-            );
+            output.push(self.ports.event(Occurrence {
+                at,
+                start: false,
+                id,
+                source_id: selected.source_id,
+                value: attack.value,
+                accent: attack.accent,
+            }));
         } else {
             self.sounding.push(Active {
                 id,
                 source_id: selected.source_id,
                 value: attack.value,
+                accent: attack.accent,
                 end,
             });
         }

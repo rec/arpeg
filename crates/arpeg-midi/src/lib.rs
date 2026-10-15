@@ -8,7 +8,7 @@ use arpeg_core::chance::Chance;
 use arpeg_core::live::Retrigger;
 use arpeg_core::octaves::{Octaves, Traversal};
 use arpeg_core::ports::{PitchBoundary, PitchRegister, ScaleTransform};
-use arpeg_core::rhythm::{PatternStep, Rhythm};
+use arpeg_core::rhythm::{PatternStep, Rhythm, StepPatterns};
 use arpeg_core::{Bank, Beat, HeldNote, Selection, Walk, render_held};
 use midly::{
     Format, Header, MetaMessage, MidiMessage, Smf, Timing, TrackEvent, TrackEventKind,
@@ -47,6 +47,7 @@ pub struct HeldProfile {
     pub selection: Selection,
     pub rhythm: Rhythm,
     pub gate: Beat,
+    pub patterns: Option<StepPatterns>,
     pub retrigger: Retrigger,
 }
 
@@ -67,6 +68,7 @@ pub struct CapturedProfile {
     pub step: Beat,
     pub swing: Beat,
     pub gate: Beat,
+    pub patterns: Option<StepPatterns>,
     pub retrigger: Retrigger,
 }
 
@@ -142,6 +144,7 @@ pub fn parse_profile(text: &str, path: Option<&Path>) -> Result<Profile, String>
             "selection",
             "rhythm",
             "gate",
+            "patterns",
             "retrigger",
             "expression",
             "seed",
@@ -546,6 +549,7 @@ pub fn parse_profile(text: &str, path: Option<&Path>) -> Result<Profile, String>
             expression_sources.insert(lane, source);
         }
     }
+    let patterns = parse_patterns(body.get("patterns"))?;
     let rhythm = parse_rhythm(body)?;
     let gate = parse_gate(body)?;
     let probability = match body.get("probability") {
@@ -756,6 +760,7 @@ pub fn parse_profile(text: &str, path: Option<&Path>) -> Result<Profile, String>
             selection,
             rhythm,
             gate,
+            patterns,
             retrigger,
         }),
         ParsedBank::Captured(mode) => {
@@ -810,6 +815,7 @@ pub fn parse_profile(text: &str, path: Option<&Path>) -> Result<Profile, String>
                 step,
                 swing,
                 gate,
+                patterns,
                 retrigger,
             })
         }
@@ -899,6 +905,39 @@ fn parse_rhythm(body: &toml::map::Map<String, toml::Value>) -> Result<Rhythm, St
     Ok(parsed)
 }
 
+fn parse_patterns(value: Option<&toml::Value>) -> Result<Option<StepPatterns>, String> {
+    let Some(value) = value else {
+        return Ok(None);
+    };
+    let table = value.as_table().ok_or("patterns must be a table")?;
+    if table
+        .keys()
+        .any(|k| !["accents", "gates"].contains(&k.as_str()))
+    {
+        return Err("unsupported step pattern field".into());
+    }
+    let mut parsed = StepPatterns::default();
+    for (name, target) in [
+        ("accents", &mut parsed.accents),
+        ("gates", &mut parsed.gates),
+    ] {
+        if let Some(values) = table.get(name) {
+            *target = values
+                .as_array()
+                .ok_or("step patterns must be arrays")?
+                .iter()
+                .map(|v| match v {
+                    toml::Value::String(v) => parse_ratio(v),
+                    toml::Value::Integer(v) => Ok(Beat::from_integer(*v)),
+                    _ => Err("step pattern multipliers must be exact rationals".into()),
+                })
+                .collect::<Result<_, _>>()?;
+        }
+    }
+    parsed.validate()?;
+    Ok(Some(parsed))
+}
+
 fn parse_swing(rhythm: &toml::map::Map<String, toml::Value>) -> Result<Beat, String> {
     match rhythm.get("swing") {
         Some(toml::Value::String(value)) => parse_ratio(value),
@@ -941,6 +980,9 @@ pub fn render_file(profile: &str, input: &[u8], path: Option<&Path>) -> Result<V
             .into());
         }
     };
+    if profile.patterns.is_some() {
+        return Err("accent and gate patterns currently require live input".into());
+    }
     if profile.chance.probability != Beat::from_integer(1) {
         return Err("probability currently requires live input".into());
     }

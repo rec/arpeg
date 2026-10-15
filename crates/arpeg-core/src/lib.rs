@@ -142,8 +142,9 @@ pub fn render_held<'a>(
     let mut revision = 0;
     let mut at = Beat::from_integer(0);
     let mut index = 0;
+    let patterns = rhythm::StepPatterns::default();
     while at < through {
-        let decision = rhythm.decide_step(index, gate);
+        let decision = rhythm.decide_step(index, gate, &patterns);
         let step = decision.duration;
         index += 1;
         let mut active = bank_at(notes, bank_mode, at);

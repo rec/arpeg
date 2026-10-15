@@ -282,7 +282,10 @@ fn custom_pattern_profile_is_live_only_and_validates_steps() {
     let Profile::Classic(parsed) = parse_profile(profile, None).unwrap() else {
         panic!("expected classic profile");
     };
-    let decision = parsed.rhythm.decide_step(0, parsed.gate);
+    let decision =
+        parsed
+            .rhythm
+            .decide_step(0, parsed.gate, &arpeg_core::rhythm::StepPatterns::default());
     assert_eq!(decision.duration, arpeg_core::Beat::new(1, 4));
     assert_eq!(decision.final_gate, arpeg_core::Beat::new(9, 20));
     assert_eq!(

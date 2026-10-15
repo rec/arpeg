@@ -31,7 +31,7 @@ elements.start.addEventListener('pointerdown', event => { if (keyboard) event.pr
 elements.start.addEventListener('click', () => perform(() => {
     if (keyboard) { stop(); return; }
     origin = performance.now();
-    keyboard = new TextKeyboard(new TokenPlayer(elements.order.value, elements.latch.checked, '1/4', '4/5', elements.swing.value));
+    keyboard = new TextKeyboard(new TokenPlayer(elements.order.value, elements.latch.checked, '1/4', '4/5', elements.swing.value, ['1'], ['1']));
     elements.start.textContent = 'Stop';
     elements.order.disabled = true;
     elements.swing.disabled = true;

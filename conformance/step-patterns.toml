@@ -1,0 +1,31 @@
+[[cases]]
+name = "independent lists and muted steps preserve selection"
+rhythm = {kind="grid",step="1/4 beat"}
+patterns = {accents=["1","1/2","0","2"],gates=["1","1/2","0"]}
+notes = [[60,100],[64,81],[67,20]]
+through = "3/2"
+events = [["0","on",60,100],["1/5","off",60,0],["1/4","on",64,41],["7/20","off",64,0],["3/4","on",67,40],["19/20","off",67,0],["1","on",60,100],["11/10","off",60,0],["5/4","on",64,41],["5/4","off",64,0]]
+
+[[cases]]
+name = "boost clips and positive soft attacks remain notes"
+rhythm = {kind="grid",step="1/4 beat"}
+patterns = {accents=["2","1/1000"]}
+notes = [[60,100],[64,1]]
+through = "1/2"
+events = [["0","on",60,127],["1/5","off",60,0],["1/4","on",64,1],["9/20","off",64,0],["1/2","on",60,127]]
+
+[[cases]]
+name = "swung odd Euclidean loops retain absolute pattern phase"
+rhythm = {kind="euclidean",steps=3,pulses=2,step="1/4 beat",swing="2/3"}
+patterns = {accents=["1","0","1/2","2"],gates=["1","1/2"]}
+notes = [[60,100],[64,80]]
+through = "3/2"
+events = [["0","on",60,100],["4/15","off",60,0],["1/2","on",64,40],["23/30","off",64,0],["5/6","on",60,127],["9/10","off",60,0],["3/2","on",64,40]]
+
+[[cases]]
+name = "repeats share accents and tie gate lookahead follows its cell"
+rhythm = {kind="pattern",steps=[{kind="hit",duration="1/2 beat",repeats=2},{kind="tie",duration="1/4 beat"},{kind="rest",duration="1/4 beat"}]}
+patterns = {accents=["1/2","0","2"],gates=["1/2","1"]}
+notes = [[60,100]]
+through = "8/5"
+events = [["0","on",60,50],["1/10","off",60,0],["1/4","on",60,50],["7/10","off",60,0],["1","on",60,50],["6/5","off",60,0],["5/4","on",60,50],["8/5","off",60,0]]

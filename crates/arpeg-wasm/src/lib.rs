@@ -207,12 +207,14 @@ impl TokenPlayer {
         step: &str,
         gate: &str,
         swing: &str,
+        accents: Vec<String>,
+        gates: Vec<String>,
     ) -> Result<TokenPlayer, JsValue> {
         use arpeg_core::{
             Bank, Beat, Selection,
             chance::Chance,
             engine::{Arpeggiator, Retrigger},
-            rhythm::Rhythm,
+            rhythm::{Rhythm, StepPatterns},
             timing_ports::TimingPorts,
             token::TokenPorts,
         };
@@ -240,7 +242,22 @@ impl TokenPlayer {
         let ports = TokenPorts {
             timing: TimingPorts::new(gate, Beat::from_integer(1)),
         };
-        let engine = Arpeggiator::new(
+        let parse_values = |values: Vec<String>| {
+            values
+                .into_iter()
+                .map(|v| {
+                    v.parse::<Beat>().map_err(|_| {
+                        JsValue::from_str("step pattern multipliers must be exact rationals")
+                    })
+                })
+                .collect::<Result<Vec<_>, _>>()
+        };
+        let patterns = StepPatterns {
+            accents: parse_values(accents)?,
+            gates: parse_values(gates)?,
+        };
+        patterns.validate().map_err(JsValue::from_str)?;
+        let mut engine = Arpeggiator::new(
             bank,
             selection,
             Rhythm::Grid {
@@ -254,6 +271,7 @@ impl TokenPlayer {
             Chance::default(),
         )
         .map_err(JsValue::from_str)?;
+        engine.patterns = patterns;
         Ok(Self { engine })
     }
 
@@ -298,7 +316,10 @@ impl TokenPlayer {
 }
 
 impl TokenPlayer {
-    fn tokens(&mut self, events: Vec<arpeg_core::token::TokenEvent>) -> Result<Array, JsValue> {
+    fn tokens(
+        &mut self,
+        events: Vec<arpeg_core::engine::Occurrence<u64>>,
+    ) -> Result<Array, JsValue> {
         // This example consumes decision notifications at every call.
         let batch = self.engine.ports.timing.take_events();
         if batch.exhausted {

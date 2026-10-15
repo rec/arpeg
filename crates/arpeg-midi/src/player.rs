@@ -79,6 +79,7 @@ impl MidiPlayer {
                     p.retrigger,
                     p.chance,
                 )?;
+                engine.patterns = p.patterns.unwrap_or_default();
                 engine.ports.transposition = p.transposition;
                 engine.ports.pitch_boundary = p.pitch_boundary;
                 engine.ports.register_limits = p.register_limits;
@@ -103,6 +104,7 @@ impl MidiPlayer {
                 )?;
                 engine.swing = p.swing;
                 engine.chance = p.chance;
+                engine.patterns = p.patterns.unwrap_or_default();
                 engine.ports.transposition = p.transposition;
                 engine.ports.pitch_boundary = p.pitch_boundary;
                 engine.ports.register_limits = p.register_limits;

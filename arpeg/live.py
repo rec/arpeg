@@ -27,10 +27,12 @@ from ufor.arpeggiator import (
     Pattern,
     Played,
     Shuffle,
+    StepPatterns,
     Walk,
 )
 
 from .engine import Arpeggiator, EngineSettings, Item
+from .expression import accent_velocity
 from .inversion import inversion_offsets
 from .octaves import expanded_indices
 from .ports import PerformancePorts
@@ -95,6 +97,7 @@ class LiveArpeggiator(Arpeggiator[MusicalValue, LiveEvent]):
             selection=body.selection,
             rhythm=body.rhythm,
             gate=body.gate,
+            patterns=body.patterns or StepPatterns(),
             probability=body.probability,
             seed=body.seed,
             retrigger=body.retrigger,
@@ -147,7 +150,9 @@ class LiveArpeggiator(Arpeggiator[MusicalValue, LiveEvent]):
         ]
         return active
 
-    def _realize(self, note: Item[MusicalValue]) -> MusicalValue | None:
+    def _realize(
+        self, note: Item[MusicalValue], accent: Fraction
+    ) -> MusicalValue | None:
         assert self.ports is not None
         period = self.ports.tuning.period if self.ports.tuning is not None else 12
         pitch = (
@@ -157,7 +162,7 @@ class LiveArpeggiator(Arpeggiator[MusicalValue, LiveEvent]):
             return None
         return MusicalValue(
             key=realized.key,
-            velocity=note.value.velocity,
+            velocity=accent_velocity(note.value.velocity, accent),
             tuning_semitones=realized.tuning_semitones,
         )
 
@@ -171,6 +176,7 @@ class LiveArpeggiator(Arpeggiator[MusicalValue, LiveEvent]):
         id: int,
         source_id: int,
         value: MusicalValue,
+        accent: Fraction,
     ) -> LiveEvent:
         return LiveEvent(
             at=at,

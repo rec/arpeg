@@ -6,6 +6,11 @@ from math import floor
 from ufor.arpeggiator import Expression, ExpressionLane
 
 
+def accent_velocity(velocity: int, accent: Fraction) -> int:
+    """Realize a positive attack multiplier without encoding a MIDI release."""
+    return max(1, min(127, floor(velocity * accent + Fraction(1, 2))))
+
+
 def expression_lane(data: list[int]) -> ExpressionLane | None:
     match data:
         case [0xB0, 2, _]:

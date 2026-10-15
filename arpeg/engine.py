@@ -24,6 +24,7 @@ from ufor.arpeggiator import (
     Pattern,
     Played,
     Shuffle,
+    StepPatterns,
     TieStep,
     Walk,
 )
@@ -53,6 +54,7 @@ class EngineSettings(BaseModel, frozen=True):
     ) = Ascending()
     rhythm: Grid | Euclidean | Pattern = Grid(step="1/4 beat")
     gate: Fraction = Fraction(4, 5)
+    patterns: StepPatterns = StepPatterns()
     probability: Fraction = Fraction(1)
     seed: int | None = None
     retrigger: Literal["on_empty", "bank_edit"] = "on_empty"
@@ -91,6 +93,7 @@ class Occurrence(BaseModel, Generic[Payload], frozen=True):
     id: int
     source_id: int
     value: Payload
+    accent: Fraction = Fraction(1)
 
 
 class Arpeggiator(BaseModel, Generic[Payload, Event]):
@@ -338,7 +341,7 @@ class Arpeggiator(BaseModel, Generic[Payload, Event]):
         assert isinstance(rhythm, (Grid, Euclidean, Pattern))
         while self.next_step < at:
             self.next_step += decide_step(
-                rhythm, self.step_index, self.settings.gate
+                rhythm, self.step_index, self.settings.gate, self.settings.patterns
             ).duration
             self.step_index += 1
         return events
@@ -359,7 +362,7 @@ class Arpeggiator(BaseModel, Generic[Payload, Event]):
             self.step_index = cycles * len(rhythm.steps)
             while self.next_step < at:
                 self.next_step += decide_step(
-                    rhythm, self.step_index, self.settings.gate
+                    rhythm, self.step_index, self.settings.gate, self.settings.patterns
                 ).duration
                 self.step_index += 1
         else:
@@ -392,7 +395,9 @@ class Arpeggiator(BaseModel, Generic[Payload, Event]):
                     self.bank_revision,
                     cycle=starts_cycle(rhythm, self.step_index),
                 )
-                decision = decide_step(rhythm, self.step_index, self.ports.gate)
+                decision = decide_step(
+                    rhythm, self.step_index, self.ports.gate, self.settings.patterns
+                )
                 if admitted:
                     hit = self._schedule_step(at, decision)
                     if not (
@@ -417,6 +422,7 @@ class Arpeggiator(BaseModel, Generic[Payload, Event]):
                 id=n.id,
                 source_id=n.source_id,
                 value=n.value,
+                accent=n.accent,
             )
             for n in self.sounding
             if n.end <= at
@@ -434,7 +440,7 @@ class Arpeggiator(BaseModel, Generic[Payload, Event]):
             self.shuffle_order.clear()
             self.shuffle_position = 0
             return False
-        if not decision.repeats:
+        if not decision.repeats or not decision.accent:
             return False
         body = self.settings
         assert self.ports is not None
@@ -618,7 +624,7 @@ class Arpeggiator(BaseModel, Generic[Payload, Event]):
             ) is None:
                 return False
             note = ranked[rank]
-        if (value := self._realize(note)) is None:
+        if (value := self._realize(note, decision.accent)) is None:
             return False
         interval = decision.duration / decision.repeats
         self.pending.extend(
@@ -626,6 +632,7 @@ class Arpeggiator(BaseModel, Generic[Payload, Event]):
                 at=at + i * interval,
                 note=note,
                 value=value,
+                accent=decision.accent,
                 gate=decision.final_gate
                 if i == decision.repeats - 1
                 else decision.gate,
@@ -715,6 +722,7 @@ class Arpeggiator(BaseModel, Generic[Payload, Event]):
                         id=sounding.id,
                         source_id=sounding.source_id,
                         value=sounding.value,
+                        accent=sounding.accent,
                     )
                 )
             else:
@@ -729,6 +737,7 @@ class Arpeggiator(BaseModel, Generic[Payload, Event]):
                 id=output_id,
                 source_id=note.source_id,
                 value=attack.value,
+                accent=attack.accent,
             )
         )
         if (end := at + attack.gate) == at:
@@ -739,12 +748,17 @@ class Arpeggiator(BaseModel, Generic[Payload, Event]):
                     id=output_id,
                     source_id=note.source_id,
                     value=attack.value,
+                    accent=attack.accent,
                 )
             )
         else:
             self.sounding.append(
                 _Active[Payload](
-                    id=output_id, source_id=note.source_id, value=attack.value, end=end
+                    id=output_id,
+                    source_id=note.source_id,
+                    value=attack.value,
+                    accent=attack.accent,
+                    end=end,
                 )
             )
         return events
@@ -752,7 +766,12 @@ class Arpeggiator(BaseModel, Generic[Payload, Event]):
     def _release_all(self, at: Fraction) -> list[Event]:
         events = [
             self._event(
-                at=at, kind="off", id=n.id, source_id=n.source_id, value=n.value
+                at=at,
+                kind="off",
+                id=n.id,
+                source_id=n.source_id,
+                value=n.value,
+                accent=n.accent,
             )
             for n in self.sounding
         ]
@@ -763,7 +782,7 @@ class Arpeggiator(BaseModel, Generic[Payload, Event]):
     def _expand(self, active: list[Item[Payload]]) -> list[Item[Payload]]:
         return active
 
-    def _realize(self, note: Item[Payload]) -> Payload | None:
+    def _realize(self, note: Item[Payload], accent: Fraction) -> Payload | None:
         return note.value
 
     def _conflicts(self, left: Payload, right: Payload) -> bool:
@@ -777,6 +796,7 @@ class Arpeggiator(BaseModel, Generic[Payload, Event]):
         id: int,
         source_id: int,
         value: Payload,
+        accent: Fraction,
     ) -> Event:
         raise NotImplementedError
 
@@ -809,9 +829,10 @@ class TokenArpeggiator(Arpeggiator[str, Occurrence[str]]):
         id: int,
         source_id: int,
         value: str,
+        accent: Fraction,
     ) -> Occurrence[str]:
         return Occurrence[str](
-            at=at, kind=kind, id=id, source_id=source_id, value=value
+            at=at, kind=kind, id=id, source_id=source_id, value=value, accent=accent
         )
 
 
@@ -819,6 +840,7 @@ class _Active(BaseModel, Generic[Payload], frozen=True):
     id: int
     source_id: int
     value: Payload
+    accent: Fraction
     end: Fraction
 
 
@@ -826,4 +848,5 @@ class _Attack(BaseModel, Generic[Payload], frozen=True):
     at: Fraction
     note: SerializeAsAny[Item[Payload]]
     value: Payload
+    accent: Fraction
     gate: Fraction

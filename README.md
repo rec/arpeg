@@ -76,6 +76,32 @@ accept swing yet, and there is no live swing control. See the playable
 [exact traces](conformance/swing.toml). The text example offers swing before
 starting; its setting stays fixed during playback.
 
+Live playback also accepts independent preset accent and gate patterns:
+
+```toml
+[body]
+rhythm = {kind = "grid", step = "1/4 beat"}
+patterns = {accents = ["1", "1/2", "0", "2"], gates = ["1", "1/2"]}
+```
+
+Each list loops on the absolute rhythm step, including rests, rejected chance,
+empty banks, and ties. Accents multiply source attack velocity; positive values
+round halves upward and stay within 1–127. A zero accent makes a rest before
+chance or selection and leaves existing notes alone. Gates multiply the current
+global gate after onset spacing, including swing, is established. An untied
+zero-gate hit still emits its immediate start/end. Repeats reuse their step's
+values; ties retain the originating accent and use their own cell's gate factor
+in the existing lookahead calculation. Chord edits retain phase, seeking uses
+the target rhythm position, and pending repeats/ties keep their realized values.
+
+Both lists default to `[1]`; omit `patterns` for ordinary playback. Values must
+be nonnegative exact rationals and lists must be nonempty. This works with held,
+latched, history, and phrase playback in Python and Rust/WebAssembly, with
+recorded release velocity and expression values retained. Generic token events
+carry the exact accent without changing text payloads. File rendering rejects
+configured patterns. See [the playable preset](conformance/up-patterns.toml)
+and [shared traces](conformance/step-patterns.toml).
+
 Held and latched banks also accept [Euclidean rhythm](conformance/euclidean.toml)
 in Python and Rust, for live playing or file rendering. Three pulses in eight
 steps gives `10010010`; positive rotation moves hits later. Rests leave note
