@@ -941,6 +941,25 @@ roadmap changes are authorized by writing this plan. During implementation,
 coordinate required uFor/enge changes as separately reviewable commits; do not
 silently fold unrelated unfinished Envelfo features into an arp change.
 
+### Payload-independent core and second example
+
+Implemented in Python first, with Rust/WebAssembly parity. One shared item state
+machine owns held/latched banks, selectors, exact rhythm, repeats, ties, chance,
+transport operations, and occurrence lifetime. Each item separates input
+identity, source identity, ordering rank, and opaque payload. Musical adapters
+supply pitch transforms, tuning/MIDI realization, and same-pitch collision
+policy; generic occurrences do not impose pitch, velocity, channel, or MIDI
+range semantics. Existing MIDI capture/history remain specialized musical code.
+
+arpeg and enveLFO remain separate repositories with an optional bridge. Python
+mido and RtMidi are optional MIDI dependencies. The focused browser text example
+uses real key-down/key-up events, ignores keyboard repeat, orders tokens by entry
+into the bank, and appends strings at occurrence starts. Leaving its input area
+stops the session. Shared Python/Rust traces cover non-MIDI ranks, Unicode,
+duplicate payloads with independent overlapping lifetimes, latch replacement,
+irregular polling, and Python snapshots. The example calls the shared Rust
+engine through WebAssembly, with no JavaScript selection or MIDI encoding.
+
 ## 15. Acceptance evidence
 
 | Area | Required evidence |

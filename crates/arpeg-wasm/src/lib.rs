@@ -191,3 +191,114 @@ fn messages(output: Vec<Vec<u8>>) -> Array {
         .map(|data| Uint8Array::from(data.as_slice()))
         .collect()
 }
+
+/// Keyboard-to-text adapter. Payload handles refer to strings owned by the host.
+#[wasm_bindgen]
+pub struct TokenPlayer {
+    engine: arpeg_core::engine::Arpeggiator<arpeg_core::token::TokenPorts>,
+}
+
+#[wasm_bindgen]
+impl TokenPlayer {
+    #[wasm_bindgen(constructor)]
+    pub fn new(order: &str, latch: bool, step: &str, gate: &str) -> Result<TokenPlayer, JsValue> {
+        use arpeg_core::{
+            Bank, Beat, Selection,
+            chance::Chance,
+            engine::{Arpeggiator, Retrigger},
+            rhythm::Rhythm,
+            timing_ports::TimingPorts,
+            token::TokenPorts,
+        };
+        let selection = match order {
+            "ascending" => Selection::Ascending,
+            "descending" => Selection::Descending,
+            "alternating" => Selection::Alternating {
+                repeat_endpoints: false,
+            },
+            "inside_out" => Selection::InsideOut,
+            "outside_in" => Selection::OutsideIn,
+            _ => return Err(JsValue::from_str("unsupported token order")),
+        };
+        let step: Beat = step
+            .parse()
+            .map_err(|_| JsValue::from_str("step must be an exact rational"))?;
+        let gate: Beat = gate
+            .parse()
+            .map_err(|_| JsValue::from_str("gate must be an exact rational"))?;
+        let bank = if latch {
+            Bank::LatchedReplace
+        } else {
+            Bank::Held
+        };
+        let ports = TokenPorts {
+            timing: TimingPorts::new(gate, Beat::from_integer(1)),
+        };
+        let engine = Arpeggiator::new(
+            bank,
+            selection,
+            Rhythm::Grid { step },
+            ports,
+            Retrigger::OnEmpty,
+            Chance::default(),
+        )
+        .map_err(JsValue::from_str)?;
+        Ok(Self { engine })
+    }
+
+    pub fn press(
+        &mut self,
+        at_us: i64,
+        identity: u32,
+        rank: u32,
+        token: u32,
+    ) -> Result<Array, JsValue> {
+        self.engine
+            .press(
+                arpeg_core::Beat::new(at_us, 500_000),
+                u64::from(identity),
+                i128::from(rank),
+                u64::from(token),
+            )
+            .map_err(JsValue::from_str)
+            .and_then(|events| self.tokens(events))
+    }
+
+    pub fn release(&mut self, at_us: i64, identity: u32) -> Result<Array, JsValue> {
+        self.engine
+            .release(arpeg_core::Beat::new(at_us, 500_000), u64::from(identity))
+            .map_err(JsValue::from_str)
+            .and_then(|events| self.tokens(events))
+    }
+
+    pub fn advance(&mut self, at_us: i64) -> Result<Array, JsValue> {
+        self.engine
+            .advance(arpeg_core::Beat::new(at_us, 500_000))
+            .map_err(JsValue::from_str)
+            .and_then(|events| self.tokens(events))
+    }
+
+    pub fn stop(&mut self, at_us: i64) -> Result<Array, JsValue> {
+        self.engine
+            .stop(arpeg_core::Beat::new(at_us, 500_000))
+            .map_err(JsValue::from_str)
+            .and_then(|events| self.tokens(events))
+    }
+}
+
+impl TokenPlayer {
+    fn tokens(&mut self, events: Vec<arpeg_core::token::TokenEvent>) -> Result<Array, JsValue> {
+        // This example consumes decision notifications at every call.
+        let batch = self.engine.ports.timing.take_events();
+        if batch.exhausted {
+            return Err(JsValue::from_str(
+                "token decision notification capacity exceeded",
+            ));
+        }
+        Ok(events
+            .into_iter()
+            .filter(|event| event.start)
+            .map(|event| JsValue::from_f64(event.value as f64))
+            .collect())
+    }
+}

@@ -63,7 +63,7 @@ impl MidiPlayer {
         };
         let engine = match profile {
             Profile::Classic(p) => {
-                let mut engine = LiveArpeggiator::new(
+                let mut engine = LiveArpeggiator::musical(
                     p.bank,
                     p.selection,
                     p.rhythm,
@@ -78,9 +78,9 @@ impl MidiPlayer {
                 engine.ports.tuning = p.tuning;
                 engine.ports.selection_offset = p.selection_offset;
                 engine.ports.offset_rest_outside = p.offset_rest_outside;
-                engine.octaves = p.octaves;
-                engine.inversion = p.inversion;
-                engine.voicing = p.voicing;
+                engine.ports.octaves = p.octaves;
+                engine.ports.inversion = p.inversion;
+                engine.ports.voicing = p.voicing;
                 Engine::Held(Box::new(engine))
             }
             Profile::Captured(p) => {

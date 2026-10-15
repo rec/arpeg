@@ -105,7 +105,7 @@ def test_transposition_keeps_pending_repeats_and_source_identity() -> None:
         (60, 0),
         (72, 0),
     ]
-    assert engine.input[0].key == 60
+    assert engine.input[0].value.key == 60
 
 
 @pytest.mark.parametrize("profile_name", ["up", "phrase-wind"])

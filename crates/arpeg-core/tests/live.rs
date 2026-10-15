@@ -13,7 +13,7 @@ fn beat(n: i64, d: i64) -> Beat {
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 fn live_notes_follow_input_and_release_when_bank_empties() {
-    let mut arp = LiveArpeggiator::new(
+    let mut arp = LiveArpeggiator::musical(
         Bank::Held,
         Selection::Ascending,
         Rhythm::Grid { step: beat(1, 4) },
@@ -78,7 +78,7 @@ fn live_notes_follow_input_and_release_when_bank_empties() {
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 fn live_step_order_is_independent_of_poll_intervals() {
-    let mut a = LiveArpeggiator::new(
+    let mut a = LiveArpeggiator::musical(
         Bank::Held,
         Selection::Ascending,
         Rhythm::Grid { step: beat(1, 4) },
@@ -87,7 +87,7 @@ fn live_step_order_is_independent_of_poll_intervals() {
         Chance::default(),
     )
     .unwrap();
-    let mut b = LiveArpeggiator::new(
+    let mut b = LiveArpeggiator::musical(
         Bank::Held,
         Selection::Ascending,
         Rhythm::Grid { step: beat(1, 4) },
@@ -111,7 +111,7 @@ fn live_step_order_is_independent_of_poll_intervals() {
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 fn simultaneous_note_ons_join_the_first_step() {
-    let mut arp = LiveArpeggiator::new(
+    let mut arp = LiveArpeggiator::musical(
         Bank::Held,
         Selection::Ascending,
         Rhythm::Grid { step: beat(1, 4) },
@@ -253,7 +253,7 @@ fn live_classic_matches_shared_python_rust_traces() {
                     .to_owned(),
             };
             for polling in [false, true] {
-                let mut arp = LiveArpeggiator::new(
+                let mut arp = LiveArpeggiator::musical(
                     bank,
                     selection.clone(),
                     rhythm.clone(),

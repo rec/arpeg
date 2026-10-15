@@ -4,33 +4,22 @@ from bisect import bisect_right
 from fractions import Fraction
 from math import ceil, floor, isfinite
 
-from pydantic import BaseModel, Field
 from ufor import arpeggiator_ports
 from ufor.arpeggiator import (
     PitchRegister,
     ScaleTransform,
-    SelectionOffset,
     Transposition,
 )
 
+from .timing_ports import TimingPorts
 from .tuning import PreparedTuning, RealizedPitch
 
 
-class PerformancePorts(BaseModel):
-    gate: Fraction
-    density: Fraction
+class PerformancePorts(TimingPorts):
     transposition: Transposition = Transposition()
-    selection_offset: SelectionOffset = SelectionOffset()
     register_limits: PitchRegister | None = None
     scale: ScaleTransform | None = None
     tuning: PreparedTuning | None = None
-    pending: dict[arpeggiator_ports.ArpeggiatorInputPort, Fraction] = Field(
-        default_factory=dict
-    )
-    events: list[arpeggiator_ports.ArpeggiatorOutput] = Field(
-        default_factory=list, max_length=4096
-    )
-    exhausted: bool = False
 
     def check_control(
         self, control: arpeggiator_ports.ArpeggiatorControl, seed: int | None
@@ -56,56 +45,15 @@ class PerformancePorts(BaseModel):
         capture_ready: bool = False,
         cycle: bool = False,
     ) -> bool:
-        for port, value in self.pending.items():
-            if port == arpeggiator_ports.ArpeggiatorInputPort.gate:
-                self.gate = value
-            elif port == arpeggiator_ports.ArpeggiatorInputPort.density:
-                self.density = value
-            elif port == arpeggiator_ports.ArpeggiatorInputPort.transposition:
-                self.transposition = self.transposition.model_copy(
-                    update={"semitones": int(value)}
-                )
-            else:
-                self.selection_offset = self.selection_offset.model_copy(
-                    update={"ranks": int(value)}
-                )
-        self.pending.clear()
-        if len(self.events) > 4094 - int(capture_ready) - int(cycle):
-            self.exhausted = True
-            return False
-        if capture_ready:
-            self.events.append(
-                arpeggiator_ports.ArpeggiatorOutput(
-                    at=at,
-                    port=arpeggiator_ports.ArpeggiatorOutputPort.capture_ready,
-                    index=index,
-                    revision=revision,
-                )
+        if (
+            value := self.pending.pop(
+                arpeggiator_ports.ArpeggiatorInputPort.transposition, None
             )
-        if cycle:
-            self.events.append(
-                arpeggiator_ports.ArpeggiatorOutput(
-                    at=at,
-                    port=arpeggiator_ports.ArpeggiatorOutputPort.cycle,
-                    index=index,
-                    revision=revision,
-                )
+        ) is not None:
+            self.transposition = self.transposition.model_copy(
+                update={"semitones": int(value)}
             )
-        self.events.append(
-            arpeggiator_ports.ArpeggiatorOutput(
-                at=at,
-                port=arpeggiator_ports.ArpeggiatorOutputPort.step,
-                index=index,
-                revision=revision,
-            )
-        )
-        return True
-
-    def offset_rank(self, rank: int, size: int) -> int | None:
-        shifted = rank + self.selection_offset.ranks
-        if self.selection_offset.boundary == "rest" and not 0 <= shifted < size:
-            return None
-        return shifted % size
+        return super().begin_step(at, index, revision, capture_ready, cycle)
 
     def realize_pitch(self, key: int) -> RealizedPitch | None:
         if (scale := self.scale) is not None:
@@ -170,24 +118,3 @@ class PerformancePorts(BaseModel):
                 if limits is not None:
                     raise RuntimeError("pitch is outside configured register limits")
                 raise ValueError("transposed pitch is outside MIDI range 0–127")
-
-    def outcome(self, hit: bool) -> None:
-        step = self.events[-1]
-        self.events.append(
-            arpeggiator_ports.ArpeggiatorOutput(
-                at=step.at,
-                port=arpeggiator_ports.ArpeggiatorOutputPort.hit
-                if hit
-                else arpeggiator_ports.ArpeggiatorOutputPort.rest,
-                index=step.index,
-                revision=step.revision,
-            )
-        )
-
-    def take_events(self) -> arpeggiator_ports.ArpeggiatorPortBatch:
-        batch = arpeggiator_ports.ArpeggiatorPortBatch(
-            events=self.events, exhausted=self.exhausted
-        )
-        self.events = []
-        self.exhausted = False
-        return batch

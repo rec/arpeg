@@ -25,6 +25,31 @@ The Python package uses uFor's portable profile and capture contracts. The Rust
 crate in `crates/arpeg-core` contains event decisions only; it has no dependency
 on Python, MIDI device libraries, or audio processing.
 
+The payload-independent state machine lives in [arpeg/engine.py](arpeg/engine.py)
+and [Rust engine.rs](crates/arpeg-core/src/engine.rs). It owns held/latched banks,
+selection, exact rhythm, and occurrence lifetimes. Input identity, ordering rank,
+and payload are separate; neither ranks nor identities have MIDI limits. Musical
+preparation supplies inversion, voicing, octave expansion, tuning, pitch bounds,
+and same-pitch collision handling around that state machine. Existing MIDI
+capture/history and gesture processing remain musical modules.
+
+arpeg and enveLFO remain separate projects. Their optional bridge connects them
+without making either runtime depend on the other.
+
+The second example is [keyboard-to-text](web/README.md#keyboard-to-text), using
+the same engine through WebAssembly. Open `text.html` in the built static site,
+click **Start**, and hold typing keys in the focused input area. Tokens follow
+entry order into the bank. Every occurrence start appends a character, including
+spaces; occurrence ends never erase text. Keyboard auto-repeat is ignored.
+Leaving the input area stops playback and clears held/latched state.
+
+For Python, `TokenArpeggiator` in `arpeg.engine` accepts `press(at, identity,
+rank, value)`, `release(at, identity)`, and `advance(through)` with exact beat
+times and string values. Output occurrences carry source and occurrence IDs,
+start/end kind, beat, and the original string. Adapters for other payloads
+specialize `Arpeggiator`; the scheduler never interprets their contents. Drain
+`engine.ports.take_events()` regularly to consume bounded decision notifications.
+
 The readable Python live engine is [arpeg/live.py](arpeg/live.py).
 `LiveArpeggiator` accepts a uFor profile and provides `note_on`, `note_off`,
 `advance`, `clear`, and `stop` methods with exact beat times. Its behavior is
@@ -416,7 +441,8 @@ timing/load probes, dense-capture cleanup regressions, and remaining device-host
 limits. These checks do not establish physical MIDI or synth latency.
 
 Python MIDI port access requires the `midi` extra. The default package installs
-the reference engines, mido, and the CLI without the native RtMidi backend:
+the reference engines without mido or the native RtMidi backend. The `midi`
+extra supplies both; development installs retain mido for MIDI unit tests:
 
 ```sh
 uv sync --extra midi

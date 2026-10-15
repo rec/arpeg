@@ -15,7 +15,7 @@ for (const [command, args] of [
 }
 const output = join(root, 'dist/web');
 mkdirSync(output, { recursive: true });
-for (const file of ['index.html', 'style.css', 'app.mjs', 'music.mjs', 'performance.mjs', 'synth.mjs']) {
+for (const file of ['index.html', 'style.css', 'app.mjs', 'music.mjs', 'performance.mjs', 'synth.mjs', 'text.html', 'text.mjs', 'text_keyboard.mjs']) {
     cpSync(join(root, 'web', file), join(output, file));
 }
 cpSync(join(root, 'dist/wasm'), join(output, 'wasm'), { recursive: true });

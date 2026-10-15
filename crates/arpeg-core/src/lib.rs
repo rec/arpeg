@@ -6,6 +6,7 @@ pub mod bank;
 pub mod capture;
 pub mod chance;
 pub mod clock;
+pub mod engine;
 pub mod gesture;
 pub mod history;
 pub mod inversion;
@@ -14,6 +15,8 @@ pub mod marked_sample;
 pub mod octaves;
 pub mod ports;
 pub mod rhythm;
+pub mod timing_ports;
+pub mod token;
 pub mod tuning;
 
 pub type Beat = Ratio<i64>;

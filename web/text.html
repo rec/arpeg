@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>arpeg text</title>
+    <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+<main>
+    <header><h1>arpeg text</h1><p>Hold typing keys to arpeggiate their characters. No MIDI or audio is involved.</p></header>
+    <section>
+        <label>Order <select id="order">
+            <option value="ascending">Entry order</option>
+            <option value="descending">Reverse entry order</option>
+            <option value="alternating">Back and forth</option>
+            <option value="inside_out">Inside out</option>
+            <option value="outside_in">Outside in</option>
+        </select></label>
+        <label><input id="latch" type="checkbox"> Latch</label>
+        <button id="start" disabled>Start</button>
+        <button id="clear">Clear text</button>
+        <p>120 BPM, four starts per beat. Each start appends its character; a release never erases text.</p>
+        <p id="capture" tabindex="0" role="group" aria-label="Keyboard input area">Start, then hold keys here. Order follows when keys enter the bank. Leaving this area stops playback.</p>
+        <p id="status" role="status">Loading…</p>
+    </section>
+    <section><h2>Generated text</h2><pre id="output" style="white-space:pre-wrap;overflow-wrap:anywhere;min-height:8em"></pre></section>
+    <p><a href="./index.html">Musical example</a></p>
+</main>
+<script type="module" src="./text.mjs"></script>
+</body>
+</html>

@@ -120,7 +120,7 @@ jobs:
       - name: Build browser instrument and module
         run: node web/build.mjs
       - name: Test generated web bindings and instrument timing
-        run: node --test crates/arpeg-wasm/tests/browser.mjs web/test/music.mjs web/test/synth.mjs
+        run: node --test crates/arpeg-wasm/tests/browser.mjs web/test/*.mjs
       - name: Upload browser module and bindings
         uses: actions/upload-artifact@v7
         with:

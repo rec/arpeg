@@ -34,6 +34,26 @@ different IPv4 and IPv6 listeners when both exist on the same port.
 Opening the HTML directly as a local file is not supported. Published releases
 include it as the `arpeg-web-instrument` artifact.
 
+## Keyboard-to-text
+
+Open `text.html` from the same built static site. Click **Start**, then hold
+printable typing keys in the focused input area. The Rust item engine selects
+opaque string handles without constructing MIDI notes, messages, or an audio
+context. The browser maps emitted handles back to the original strings.
+
+Ascending follows entry order into the bank; reverse, back-and-forth, inside-out,
+and outside-in use those same ranks. Latch replaces the bank when a new group
+begins after all keys have been released. Identical characters from different
+physical keys retain separate input identities. Browser key auto-repeat is
+ignored. Each occurrence start appends text; ends do not remove it.
+
+This small example uses 120 BPM, a quarter-beat step, and an 80% gate. Leaving
+the input area stops playback, releases input state, and clears the latched bank;
+returning requires Start. Clear text erases only the displayed result. Characters
+are handled within this page, with no global keyboard capture or typing into
+other applications. IME composition is not captured by this key-down/key-up demo.
+Browser timers can delay displayed text during stalls or tab suspension.
+
 ## Controls
 
 - **Note order** offers up, down, up/down, inside out, outside in, as played, and
@@ -82,7 +102,7 @@ the synth's audible release tail.
 After building:
 
 ```sh
-node --test crates/arpeg-wasm/tests/browser.mjs web/test/music.mjs web/test/synth.mjs
+node --test crates/arpeg-wasm/tests/browser.mjs web/test/*.mjs
 ```
 
 Tests use the actual generated WASM player to check offered orders, latch,

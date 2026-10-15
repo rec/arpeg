@@ -1,18 +1,11 @@
 //! Step-published scalar inputs and bounded discrete Envelfo outputs.
 
 use crate::Beat;
-use crate::tuning::{PreparedTuning, RealizedPitch, TUNING_ERROR};
+use crate::octaves::Octaves;
+use crate::timing_ports::TimingPorts;
+pub use crate::timing_ports::{InputPort, OutputPort, PortEvent};
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum InputPort {
-    Gate,
-    Density,
-    Transposition,
-    SelectionOffset,
-    Breath,
-    Bend,
-    Pressure,
-}
+use crate::tuning::{PreparedTuning, RealizedPitch, TUNING_ERROR};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum PitchBoundary {
@@ -100,23 +93,6 @@ impl PitchRegister {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum OutputPort {
-    CaptureReady,
-    Cycle,
-    Step,
-    Hit,
-    Rest,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct PortEvent {
-    pub at: Beat,
-    pub port: OutputPort,
-    pub index: i64,
-    pub revision: u64,
-}
-
 pub struct PortBatch {
     pub events: Vec<PortEvent>,
     pub notes: Vec<NoteEvent>,
@@ -140,97 +116,71 @@ pub struct NoteEvent {
 }
 
 pub struct PerformancePorts {
+    pub timing: TimingPorts,
+    pub inversion: i64,
+    pub voicing: Vec<i64>,
+    pub octaves: Octaves,
     pub tuning: Option<PreparedTuning>,
     pub scale: Option<ScaleTransform>,
     pub register_limits: Option<PitchRegister>,
-    pub gate: Beat,
-    pub density: Beat,
     pub transposition: i64,
     pub pitch_boundary: PitchBoundary,
-    pub selection_offset: i64,
-    pub offset_rest_outside: bool,
-    pending_gate: Option<Beat>,
-    pending_density: Option<Beat>,
     pending_transposition: Option<i64>,
-    pending_selection_offset: Option<i64>,
-    events: Vec<PortEvent>,
-    exhausted: bool,
+}
+
+impl std::ops::Deref for PerformancePorts {
+    type Target = TimingPorts;
+    fn deref(&self) -> &TimingPorts {
+        &self.timing
+    }
+}
+impl std::ops::DerefMut for PerformancePorts {
+    fn deref_mut(&mut self) -> &mut TimingPorts {
+        &mut self.timing
+    }
 }
 
 impl PerformancePorts {
     pub fn new(gate: Beat, density: Beat) -> Self {
         Self {
-            scale: None,
+            timing: TimingPorts::new(gate, density),
+            inversion: 0,
+            voicing: Vec::new(),
+            octaves: Octaves::default(),
             tuning: None,
+            scale: None,
             register_limits: None,
-            gate,
-            density,
             transposition: 0,
             pitch_boundary: PitchBoundary::Drop,
-            selection_offset: 0,
-            offset_rest_outside: false,
-            pending_gate: None,
-            pending_density: None,
             pending_transposition: None,
-            pending_selection_offset: None,
-            events: Vec::new(),
-            exhausted: false,
         }
     }
-
     pub fn check_control(
         port: InputPort,
         value: Beat,
         seed: Option<i64>,
     ) -> Result<(), &'static str> {
-        if matches!(
-            port,
-            InputPort::Breath | InputPort::Bend | InputPort::Pressure
-        ) {
-            return Err("expression controls require the MIDI player");
-        }
-        if matches!(port, InputPort::Transposition | InputPort::SelectionOffset) {
+        if port == InputPort::Transposition {
             return if value.is_integer() {
                 Ok(())
             } else {
                 Err("transposition and selection offset require whole numbers")
             };
         }
-        if value < Beat::from_integer(0)
-            || port == InputPort::Density && value > Beat::from_integer(1)
-        {
-            return Err("gate must be nonnegative and density must be between zero and one");
-        }
-        if port == InputPort::Density
-            && value > Beat::from_integer(0)
-            && value < Beat::from_integer(1)
-            && seed.is_none()
-        {
-            return Err("density between zero and one requires an explicit seed");
-        }
-        Ok(())
+        TimingPorts::check_control(port, value, seed)
     }
-
     pub fn queue(&mut self, port: InputPort, value: Beat) -> Result<(), &'static str> {
-        match port {
-            InputPort::Gate => self.pending_gate = Some(value),
-            InputPort::Density => self.pending_density = Some(value),
-            InputPort::Transposition => self.pending_transposition = Some(value.to_integer()),
-            InputPort::SelectionOffset => self.pending_selection_offset = Some(value.to_integer()),
-            InputPort::Breath | InputPort::Bend | InputPort::Pressure => {
-                return Err("expression controls require the MIDI player");
-            }
+        if port == InputPort::Transposition {
+            self.pending_transposition = Some(value.to_integer());
+            Ok(())
+        } else {
+            self.timing.queue(port, value)
         }
-        Ok(())
     }
-
     pub fn cancel_pending(&mut self) {
-        self.pending_gate = None;
-        self.pending_density = None;
         self.pending_transposition = None;
-        self.pending_selection_offset = None;
+        self.timing.cancel_pending();
     }
-
     pub fn begin_step(
         &mut self,
         at: Beat,
@@ -239,55 +189,20 @@ impl PerformancePorts {
         capture_ready: bool,
         cycle: bool,
     ) -> bool {
-        if let Some(value) = self.pending_gate.take() {
-            self.gate = value;
-        }
-        if let Some(value) = self.pending_density.take() {
-            self.density = value;
-        }
         if let Some(value) = self.pending_transposition.take() {
             self.transposition = value;
         }
-        if let Some(value) = self.pending_selection_offset.take() {
-            self.selection_offset = value;
-        }
-        if self.events.len() > 4094 - usize::from(capture_ready) - usize::from(cycle) {
-            self.exhausted = true;
-            return false;
-        }
-        if capture_ready {
-            self.events.push(PortEvent {
-                at,
-                port: OutputPort::CaptureReady,
-                index,
-                revision,
-            });
-        }
-        if cycle {
-            self.events.push(PortEvent {
-                at,
-                port: OutputPort::Cycle,
-                index,
-                revision,
-            });
-        }
-        self.events.push(PortEvent {
-            at,
-            port: OutputPort::Step,
-            index,
-            revision,
-        });
-        true
+        self.timing
+            .begin_step(at, index, revision, capture_ready, cycle)
     }
-
-    pub fn offset_rank(&self, rank: usize, size: usize) -> Option<usize> {
-        let shifted = rank as i128 + i128::from(self.selection_offset);
-        if self.offset_rest_outside && !(0..size as i128).contains(&shifted) {
-            return None;
+    pub fn take_events(&mut self) -> PortBatch {
+        let batch = self.timing.take_events();
+        PortBatch {
+            events: batch.events,
+            notes: Vec::new(),
+            exhausted: batch.exhausted,
         }
-        Some(shifted.rem_euclid(size as i128) as usize)
     }
-
     pub fn realize_pitch(&self, key: i128) -> Result<Option<RealizedPitch>, &'static str> {
         let key = match &self.scale {
             Some(scale) => match scale.map_pitch(key) {
@@ -363,26 +278,6 @@ impl PerformancePorts {
             }
             PitchBoundary::Error if self.register_limits.is_some() => Err(REGISTER_RANGE_ERROR),
             PitchBoundary::Error => Err("transposed pitch is outside MIDI range 0–127"),
-        }
-    }
-
-    pub fn outcome(&mut self, hit: bool) {
-        let step = *self.events.last().expect("step precedes its outcome");
-        self.events.push(PortEvent {
-            port: if hit {
-                OutputPort::Hit
-            } else {
-                OutputPort::Rest
-            },
-            ..step
-        });
-    }
-
-    pub fn take_events(&mut self) -> PortBatch {
-        PortBatch {
-            events: std::mem::take(&mut self.events),
-            notes: Vec::new(),
-            exhausted: std::mem::take(&mut self.exhausted),
         }
     }
 }

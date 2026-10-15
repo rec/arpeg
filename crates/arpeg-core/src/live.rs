@@ -1,21 +1,11 @@
-//! Incremental decisions for a running, held-note arpeggiator.
-
-use crate::chance::{Chance, draw_below};
+//! Musical transforms and MIDI realization around the shared item engine.
+pub use crate::engine::Retrigger;
+use crate::engine::{Arpeggiator, Item, Processor, SelectionPosition};
 use crate::inversion::inversion_offsets;
-use crate::octaves::{Octaves, Traversal};
-
-use crate::{
-    Bank, Beat, Selection,
-    ports::{InputPort, PerformancePorts},
-    rhythm::PatternStep,
-    rhythm::{Rhythm, RhythmDecision},
-};
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum Retrigger {
-    OnEmpty,
-    BankEdit,
-}
+use crate::octaves::Traversal;
+use crate::ports::{InputPort, PerformancePorts};
+use crate::timing_ports::TimingPorts;
+use crate::{Bank, Beat, Selection, chance::Chance, rhythm::Rhythm};
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum OutputKind {
@@ -40,78 +30,16 @@ pub struct OutputEvent {
 }
 
 #[derive(Clone, Copy, Debug)]
-struct InputNote {
-    id: u64,
-    source_id: u64,
-    octave_index: usize,
-    inversion_offset: i128,
-    voicing_offset: i128,
-    key: u8,
-    velocity: u8,
-    onset: Beat,
+pub struct MusicalValue {
+    pub key: u8,
+    pub velocity: u8,
+    pub tuning_semitones: f64,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-enum SelectionPosition {
-    Onset(Beat),
-    Pitch(i128),
-}
+pub type LiveArpeggiator = Arpeggiator<PerformancePorts>;
 
-#[derive(Clone, Copy, Debug)]
-struct SoundingNote {
-    id: u64,
-    source_id: u64,
-    key: u8,
-    end: Beat,
-}
-
-#[derive(Clone, Copy, Debug)]
-struct Attack {
-    tuning_semitones: f64,
-    at: Beat,
-    note: InputNote,
-    key: u8,
-    gate: Beat,
-}
-
-pub struct LiveArpeggiator {
-    pub inversion: i64,
-    pub voicing: Vec<i64>,
-    pub octaves: Octaves,
-    bank_mode: Bank,
-    pub chance: Chance,
-    bank_revision: u64,
-    decision_count: u64,
-    walk_count: u64,
-    walk_rank: usize,
-    pattern_position: usize,
-    shuffle_order: Vec<u64>,
-    shuffle_position: usize,
-    shuffle_revision: Option<u64>,
-    shuffle_count: u64,
-    choice_count: u64,
-    rising: bool,
-    retrigger: Retrigger,
-    selection: Selection,
-    rhythm: Rhythm,
-    pub ports: PerformancePorts,
-    next_step: Beat,
-    step_index: i64,
-    pending: Vec<Attack>,
-    now: Beat,
-    next_id: u64,
-    next_output: u64,
-    previous_key: Option<(i64, SelectionPosition, u64, i64, u64)>,
-    input: Vec<InputNote>,
-    bank: Vec<InputNote>,
-    toggle_at: Option<Beat>,
-    toggled_keys: Vec<u8>,
-    toggle_added_keys: Vec<u8>,
-    sounding: Vec<SoundingNote>,
-}
-
-impl LiveArpeggiator {
-    pub fn new(
+impl Arpeggiator<PerformancePorts> {
+    pub fn musical(
         bank: Bank,
         selection: Selection,
         rhythm: Rhythm,
@@ -119,399 +47,53 @@ impl LiveArpeggiator {
         retrigger: Retrigger,
         chance: Chance,
     ) -> Result<Self, &'static str> {
-        rhythm.validate()?;
-        chance.validate()?;
-        if let Selection::Choice { weights, .. } = &selection {
-            if weights.is_empty() || weights.contains(&0) {
-                return Err("choice requires positive weights");
-            }
-            if chance.seed.is_none() {
-                return Err("choice requires an explicit seed");
-            }
-        }
-        if matches!(selection, Selection::Shuffle { .. }) && chance.seed.is_none() {
-            return Err("shuffle requires an explicit seed");
-        }
-        if let Selection::IndexPattern { indices, .. } = &selection {
-            if indices.is_empty() {
-                return Err("index pattern requires at least one index");
-            }
-        }
-        if let Selection::Walk(walk) = &selection {
-            walk.validate()?;
-            if walk.moves.len() > 1 && chance.seed.is_none() {
-                return Err("weighted walk requires an explicit seed");
-            }
-        }
-        if gate < Beat::from_integer(0) {
-            return Err("gate must be nonnegative");
-        }
-        Ok(Self {
-            bank_mode: bank,
-            ports: PerformancePorts::new(gate, chance.probability),
-            chance,
-            bank_revision: 0,
-            decision_count: 0,
-            walk_count: 0,
-            walk_rank: 0,
-            pattern_position: 0,
-            shuffle_order: Vec::new(),
-            shuffle_position: 0,
-            shuffle_revision: None,
-            shuffle_count: 0,
-            choice_count: 0,
-            rising: true,
-            retrigger,
-            selection,
-            rhythm,
-            next_step: Beat::from_integer(0),
-            step_index: 0,
-            pending: Vec::new(),
-            now: Beat::from_integer(0),
-            next_id: 0,
-            next_output: 0,
-            previous_key: None,
-            octaves: Octaves::default(),
-            inversion: 0,
-            voicing: Vec::new(),
-            input: Vec::new(),
-            bank: Vec::new(),
-            toggle_at: None,
-            toggled_keys: Vec::new(),
-            toggle_added_keys: Vec::new(),
-            sounding: Vec::new(),
-        })
+        let ports = PerformancePorts::new(gate, chance.probability);
+        Self::new(bank, selection, rhythm, ports, retrigger, chance)
     }
-
     pub fn note_on(
         &mut self,
         at: Beat,
         key: u8,
         velocity: u8,
     ) -> Result<Vec<OutputEvent>, &'static str> {
-        self.check_time(at)?;
-        let mut output = self.process_until(at, false)?;
-        let new_chord = self.input.is_empty();
-        let note = InputNote {
-            id: self.next_id,
-            source_id: self.next_id,
-            octave_index: 0,
-            inversion_offset: 0,
-            voicing_offset: 0,
-            key,
-            velocity,
-            onset: at,
-        };
-        self.input.push(note);
-        let edited = match self.bank_mode {
-            Bank::Held => true,
-            Bank::LatchedReplace => {
-                if new_chord {
-                    self.bank.clear();
-                }
-                self.bank.push(note);
-                true
-            }
-            Bank::LatchedAdd => {
-                self.bank.push(note);
-                true
-            }
-            Bank::LatchedToggle => {
-                if self.toggle_at != Some(at) {
-                    self.toggle_at = Some(at);
-                    self.toggled_keys.clear();
-                    self.toggle_added_keys.clear();
-                }
-                if !self.toggled_keys.contains(&key) {
-                    self.toggled_keys.push(key);
-                    if self.bank.iter().any(|entry| entry.key == key) {
-                        self.bank.retain(|entry| entry.key != key);
-                    } else {
-                        self.bank.push(note);
-                        self.toggle_added_keys.push(key);
-                    }
-                    true
-                } else if self.toggle_added_keys.contains(&key) {
-                    self.bank.push(note);
-                    true
-                } else {
-                    false
-                }
-            }
-        };
-        if self.bank_mode != Bank::Held && self.bank.is_empty() {
-            self.previous_key = None;
-            self.pattern_position = 0;
-            self.shuffle_order.clear();
-            self.shuffle_position = 0;
-            output.extend(self.release_all(at));
+        if key > 127 || velocity == 0 || velocity > 127 {
+            return Err("note key and velocity must be MIDI values");
         }
-        if edited {
-            self.bank_revision += 1;
-        }
-        if edited && self.retrigger == Retrigger::BankEdit {
-            self.previous_key = None;
-            self.pattern_position = 0;
-            self.shuffle_order.clear();
-            self.shuffle_position = 0;
-        }
-        self.next_id += 1;
-        Ok(output)
+        self.press(
+            at,
+            u64::from(key),
+            i128::from(key),
+            MusicalValue {
+                key,
+                velocity,
+                tuning_semitones: 0.0,
+            },
+        )
     }
-
     pub fn note_off(&mut self, at: Beat, key: u8) -> Result<Vec<OutputEvent>, &'static str> {
-        self.check_time(at)?;
-        let index = self
-            .input
-            .iter()
-            .position(|note| note.key == key)
-            .ok_or("release has no matching onset")?;
-        let mut output = self.process_until(at, false)?;
-        self.input.remove(index);
-        if self.bank_mode == Bank::Held {
-            self.bank_revision += 1;
-        }
-        if self.bank_mode == Bank::Held && self.retrigger == Retrigger::BankEdit {
-            self.previous_key = None;
-            self.pattern_position = 0;
-            self.shuffle_order.clear();
-            self.shuffle_position = 0;
-        }
-        if self.bank_mode == Bank::Held && self.input.is_empty() {
-            self.previous_key = None;
-            self.pattern_position = 0;
-            self.shuffle_order.clear();
-            self.shuffle_position = 0;
-            output.extend(self.release_all(at));
-        }
-        Ok(output)
+        self.release(at, u64::from(key))
     }
+}
 
-    pub fn advance(&mut self, through: Beat) -> Result<Vec<OutputEvent>, &'static str> {
-        self.check_time(through)?;
-        self.process_until(through, true)
+impl Processor for PerformancePorts {
+    type Value = MusicalValue;
+    type Event = OutputEvent;
+    fn timing(&self) -> &TimingPorts {
+        &self.timing
     }
-
-    pub fn before(&mut self, through: Beat) -> Result<Vec<OutputEvent>, &'static str> {
-        self.check_time(through)?;
-        let mut output = self.process_until(through, false)?;
-        self.release_due(through, &mut output);
-        Ok(output)
+    fn timing_mut(&mut self) -> &mut TimingPorts {
+        &mut self.timing
     }
-
-    pub fn control(
-        &mut self,
-        at: Beat,
-        port: InputPort,
-        value: Beat,
-    ) -> Result<Vec<OutputEvent>, &'static str> {
-        self.check_time(at)?;
-        PerformancePorts::check_control(port, value, self.chance.seed)?;
-        let output = self.before(at)?;
-        self.ports.queue(port, value)?;
-        Ok(output)
-    }
-
-    pub fn pause(&mut self, at: Beat) -> Vec<OutputEvent> {
-        let output = self.release_all(at);
-        self.now = at;
-        while self.next_step < at {
-            self.next_step += self
-                .rhythm
-                .decide_step(self.step_index, self.ports.gate)
-                .duration;
-            self.step_index += 1;
-        }
-        output
-    }
-
-    pub fn relocate(&mut self, at: Beat) -> Vec<OutputEvent> {
-        let output = self.release_all(at);
-        self.ports.cancel_pending();
-        match &self.rhythm {
-            Rhythm::Grid { step } | Rhythm::Euclidean { step, .. } => {
-                self.step_index = (at / step).ceil().to_integer();
-                self.next_step = *step * self.step_index;
-            }
-            Rhythm::Pattern { steps } => {
-                let cycle: Beat = (0..steps.len())
-                    .map(|i| self.rhythm.decide_step(i as i64, self.ports.gate).duration)
-                    .sum();
-                let cycles = (at / cycle).floor().to_integer();
-                self.next_step = cycle * cycles;
-                self.step_index = cycles * steps.len() as i64;
-                while self.next_step < at {
-                    self.next_step += self
-                        .rhythm
-                        .decide_step(self.step_index, self.ports.gate)
-                        .duration;
-                    self.step_index += 1;
-                }
-            }
-        }
-        self.now = at;
-        self.previous_key = None;
-        self.rising = true;
-        self.pattern_position = 0;
-        self.shuffle_order.clear();
-        self.shuffle_position = 0;
-        output
-    }
-
-    pub fn stop(&mut self, at: Beat) -> Result<Vec<OutputEvent>, &'static str> {
-        self.check_time(at)?;
-        let mut output = self.process_until(at, false)?;
-        output.extend(self.release_all(at));
-        if !(if self.bank_mode == Bank::Held {
-            &self.input
-        } else {
-            &self.bank
-        })
-        .is_empty()
-        {
-            self.bank_revision += 1;
-        }
-        self.input.clear();
-        self.bank.clear();
-        self.toggle_at = None;
-        self.toggled_keys.clear();
-        self.toggle_added_keys.clear();
-        self.previous_key = None;
-        self.pattern_position = 0;
-        self.shuffle_order.clear();
-        self.shuffle_position = 0;
-        self.now = at;
-        Ok(output)
-    }
-
-    pub fn clear(&mut self, at: Beat) -> Result<Vec<OutputEvent>, &'static str> {
-        self.check_time(at)?;
-        if self.bank_mode == Bank::Held {
-            return Err("clear requires a latched bank");
-        }
-        let mut output = self.process_until(at, false)?;
-        if !self.bank.is_empty() {
-            self.bank_revision += 1;
-        }
-        self.bank.clear();
-        self.toggle_at = None;
-        self.toggled_keys.clear();
-        self.toggle_added_keys.clear();
-        self.previous_key = None;
-        self.pattern_position = 0;
-        self.shuffle_order.clear();
-        self.shuffle_position = 0;
-        output.extend(self.release_all(at));
-        Ok(output)
-    }
-
-    pub fn next_deadline(&self) -> Beat {
-        self.sounding
-            .iter()
-            .map(|note| note.end)
-            .chain(self.pending.iter().map(|attack| attack.at))
-            .min()
-            .map_or(self.next_step, |end| end.min(self.next_step))
-    }
-
-    fn check_time(&self, at: Beat) -> Result<(), &'static str> {
-        if at < self.now {
-            Err("live time must not go backwards")
-        } else {
-            Ok(())
-        }
-    }
-
-    fn process_until(
-        &mut self,
-        through: Beat,
-        inclusive: bool,
-    ) -> Result<Vec<OutputEvent>, &'static str> {
-        let mut output = Vec::new();
-        loop {
-            let next = self.next_deadline();
-            if next > through || (!inclusive && next == through) {
-                break;
-            }
-            self.release_due(next, &mut output);
-            if self.next_step == next {
-                let admitted = self.ports.begin_step(
-                    next,
-                    self.step_index,
-                    self.bank_revision,
-                    false,
-                    self.rhythm.starts_cycle(self.step_index),
-                );
-                let decision = self.rhythm.decide_step(self.step_index, self.ports.gate);
-                if admitted {
-                    let hit = self.schedule_step(next, decision)?;
-                    if !matches!(&self.rhythm, Rhythm::Pattern { steps } if matches!(steps[self.step_index as usize % steps.len()], PatternStep::Tie { .. }))
-                    {
-                        self.ports.outcome(hit);
-                    }
-                }
-                self.next_step += decision.duration;
-                self.step_index += 1;
-            }
-            while self.pending.first().is_some_and(|attack| attack.at == next) {
-                let attack = self.pending.remove(0);
-                self.attack(attack, &mut output);
-            }
-        }
-        self.now = through;
-        Ok(output)
-    }
-
-    fn release_due(&mut self, at: Beat, output: &mut Vec<OutputEvent>) {
-        self.sounding.retain(|note| {
-            if note.end <= at {
-                output.push(OutputEvent {
-                    at: note.end,
-                    kind: OutputKind::NoteOff {
-                        id: note.id,
-                        source_id: note.source_id,
-                        key: note.key,
-                    },
-                });
-                false
-            } else {
-                true
-            }
-        });
-    }
-
-    fn release_all(&mut self, at: Beat) -> Vec<OutputEvent> {
-        self.pending.clear();
-        self.sounding
-            .drain(..)
-            .map(|note| OutputEvent {
-                at,
-                kind: OutputKind::NoteOff {
-                    id: note.id,
-                    source_id: note.source_id,
-                    key: note.key,
-                },
-            })
-            .collect()
-    }
-
-    fn schedule_step(&mut self, at: Beat, decision: RhythmDecision) -> Result<bool, &'static str> {
+    fn expand(
+        &self,
+        active: &[Item<MusicalValue>],
+    ) -> Result<Vec<Item<MusicalValue>>, &'static str> {
         if self.octaves.offsets.is_empty() {
             return Err("octave offsets must not be empty");
         }
-        let active = if self.bank_mode == Bank::Held {
-            &self.input
-        } else {
-            &self.bank
-        };
-        let period = self
-            .ports
-            .tuning
-            .as_ref()
-            .and_then(|t| t.period)
-            .unwrap_or(12) as i128;
+        let period = self.tuning.as_ref().and_then(|t| t.period).unwrap_or(12) as i128;
         let offsets = inversion_offsets(
-            &active.iter().map(|n| n.key).collect::<Vec<_>>(),
+            &active.iter().map(|n| n.value.key).collect::<Vec<_>>(),
             self.inversion,
             period,
         );
@@ -519,7 +101,10 @@ impl LiveArpeggiator {
         if !self.voicing.is_empty() {
             let mut ranked: Vec<_> = (0..active.len()).collect();
             ranked.sort_unstable_by_key(|i| {
-                (i128::from(active[*i].key) + offsets[*i], active[*i].id)
+                (
+                    i128::from(active[*i].value.key) + offsets[*i],
+                    active[*i].id,
+                )
             });
             for (i, shift) in ranked.into_iter().zip(&self.voicing) {
                 voiced[i] = period * i128::from(*shift);
@@ -529,384 +114,85 @@ impl LiveArpeggiator {
             .octaves
             .indices(active.len(), false)
             .into_iter()
-            .map(|(i, j)| InputNote {
+            .map(|(i, j)| Item {
                 id: active[i].id * self.octaves.offsets.len() as u64 + j as u64,
                 source_id: active[i].id,
-                octave_index: j,
-                inversion_offset: offsets[i],
-                voicing_offset: voiced[i],
+                layer: j,
+                rank: i128::from(active[i].value.key) + offsets[i] + voiced[i],
                 ..active[i]
             })
             .collect();
-        if active.is_empty() {
-            self.previous_key = None;
-            self.pattern_position = 0;
-            self.shuffle_order.clear();
-            self.shuffle_position = 0;
-            return Ok(false);
-        }
-        if decision.repeats == 0 {
-            return Ok(false);
-        }
-        let chance_index = self.decision_count;
-        self.decision_count += 1;
-        if !self
-            .chance
-            .allows(self.bank_revision, chance_index, self.ports.density)
-        {
-            return Ok(false);
-        }
-        let selection = &self.selection;
-        let mut ordered = active.clone();
-        ordered.sort_unstable_by_key(|note| selection_key(note, selection, self.octaves.traversal));
-        let selected = if let Selection::IndexPattern {
-            indices,
-            rest_outside,
-        } = selection
-        {
-            let index = indices[self.pattern_position];
-            self.pattern_position = (self.pattern_position + 1) % indices.len();
-            if *rest_outside && index >= ordered.len() as u64 {
-                return Ok(false);
-            }
-            ordered[(index % ordered.len() as u64) as usize]
-        } else if let Selection::Choice {
-            weights,
-            repeat_weights,
-            no_repeat,
-        } = selection
-        {
-            let candidates: Vec<_> = ordered
-                .iter()
-                .enumerate()
-                .filter_map(|(i, n)| {
-                    if *no_repeat
-                        && ordered.len() > 1
-                        && self.previous_key.is_some_and(|(_, _, _, _, id)| id == n.id)
-                    {
-                        return None;
-                    }
-                    let weight = if *repeat_weights {
-                        weights[i % weights.len()]
-                    } else {
-                        weights.get(i).copied().unwrap_or(1)
-                    };
-                    Some((*n, u64::from(weight)))
-                })
-                .collect();
-            let mut chosen = draw_below(
-                self.chance.seed.expect("validated choice seed"),
-                &self.chance.name,
-                "choice",
-                self.bank_revision,
-                self.choice_count,
-                candidates.iter().map(|(_, w)| w).sum(),
-            );
-            self.choice_count += 1;
-            candidates
-                .into_iter()
-                .find_map(|(note, weight)| {
-                    if chosen < weight {
-                        Some(note)
-                    } else {
-                        chosen -= weight;
-                        None
-                    }
-                })
-                .expect("positive choice weights")
-        } else if let Selection::Shuffle {
-            once,
-            no_repeat,
-            preserve,
-        } = selection
-        {
-            let seed = self.chance.seed.expect("validated shuffle seed");
-            let identities: Vec<_> = ordered.iter().map(|n| n.id).collect();
-            let edited = self.shuffle_revision != Some(self.bank_revision);
-            if edited && !self.shuffle_order.is_empty() && *preserve {
-                let played = self.shuffle_order[..self.shuffle_position].to_vec();
-                self.shuffle_order.retain(|i| identities.contains(i));
-                self.shuffle_position = played.iter().filter(|i| identities.contains(i)).count();
-                for identity in &identities {
-                    if !self.shuffle_order.contains(identity) {
-                        let offset = draw_below(
-                            seed,
-                            &self.chance.name,
-                            "shuffle",
-                            self.bank_revision,
-                            self.shuffle_count,
-                            (self.shuffle_order.len() - self.shuffle_position + 1) as u64,
-                        ) as usize;
-                        self.shuffle_count += 1;
-                        self.shuffle_order
-                            .insert(self.shuffle_position + offset, *identity);
-                    }
-                }
-            }
-            let restart = self.shuffle_order.is_empty() || (edited && !preserve);
-            let finished = self.shuffle_position == self.shuffle_order.len();
-            if restart || (finished && !once) {
-                self.shuffle_order = identities;
-                self.shuffle_position = 0;
-                for index in (1..self.shuffle_order.len()).rev() {
-                    let chosen = draw_below(
-                        seed,
-                        &self.chance.name,
-                        "shuffle",
-                        self.bank_revision,
-                        self.shuffle_count,
-                        (index + 1) as u64,
-                    ) as usize;
-                    self.shuffle_count += 1;
-                    self.shuffle_order.swap(index, chosen);
-                }
-                if *no_repeat
-                    && self.shuffle_order.len() > 1
-                    && self
-                        .previous_key
-                        .is_some_and(|(_, _, _, _, id)| self.shuffle_order[0] == id)
-                {
-                    let chosen = 1 + draw_below(
-                        seed,
-                        &self.chance.name,
-                        "shuffle",
-                        self.bank_revision,
-                        self.shuffle_count,
-                        (self.shuffle_order.len() - 1) as u64,
-                    ) as usize;
-                    self.shuffle_count += 1;
-                    self.shuffle_order.swap(0, chosen);
-                }
-            } else if finished {
-                self.shuffle_position = 0;
-            }
-            self.shuffle_revision = Some(self.bank_revision);
-            let identity = self.shuffle_order[self.shuffle_position];
-            self.shuffle_position += 1;
-            *ordered
-                .iter()
-                .find(|n| n.id == identity)
-                .expect("current shuffle identity")
-        } else if matches!(selection, Selection::InsideOut | Selection::OutsideIn) {
-            let size = ordered.len();
-            let mut indices: Vec<_> = (0..size).collect();
-            indices.sort_by_key(|i| {
-                let distance = if matches!(selection, Selection::InsideOut) {
-                    (2 * i).abs_diff(size - 1)
-                } else {
-                    (*i).min(size - 1 - i)
-                };
-                (distance, *i)
-            });
-            ordered = indices.into_iter().map(|i| ordered[i]).collect();
-            let previous = self
-                .previous_key
-                .and_then(|(_, _, _, _, id)| ordered.iter().position(|note| note.id == id));
-            ordered[previous.map_or(0, |i| (i + 1) % size)]
-        } else if let Selection::Alternating { repeat_endpoints } = selection {
-            if let Some(previous) = self.previous_key {
-                if ordered.len() == 1 {
-                    ordered[0]
-                } else {
-                    if !self.rising {
-                        ordered.reverse();
-                    }
-                    let next = ordered.iter().find(|note| {
-                        let key = selection_key(note, selection, self.octaves.traversal);
-                        if self.rising {
-                            key > previous
-                        } else {
-                            key < previous
-                        }
-                    });
-                    if let Some(note) = next {
-                        *note
-                    } else {
-                        self.rising = !self.rising;
-                        ordered.reverse();
-                        *ordered
-                            .iter()
-                            .find(|note| {
-                                let key = selection_key(note, selection, self.octaves.traversal);
-                                (if self.rising {
-                                    key >= previous
-                                } else {
-                                    key <= previous
-                                }) && (*repeat_endpoints || note.id != previous.4)
-                            })
-                            .unwrap_or(&ordered[0])
-                    }
-                }
-            } else {
-                self.rising = true;
-                ordered[0]
-            }
-        } else if let Selection::Walk(walk) = selection {
-            let previous = self
-                .previous_key
-                .and_then(|(_, _, _, _, id)| ordered.iter().position(|note| note.id == id));
-            let should_move = previous.is_some()
-                || if self.previous_key.is_none() {
-                    walk.start_move
-                } else {
-                    walk.keep_rank
-                };
-            let mut rank = previous.unwrap_or(if self.previous_key.is_some() && walk.keep_rank {
-                self.walk_rank % ordered.len()
-            } else {
-                0
-            });
-            if should_move {
-                let mut chosen = draw_below(
-                    self.chance.seed.unwrap_or(0),
-                    &self.chance.name,
-                    "walk",
-                    self.bank_revision,
-                    self.walk_count,
-                    walk.weights.iter().sum(),
-                );
-                for (offset, weight) in walk.moves.iter().zip(&walk.weights) {
-                    if chosen < *weight {
-                        rank = (rank as i128 + i128::from(*offset))
-                            .rem_euclid(ordered.len() as i128)
-                            as usize;
-                        break;
-                    }
-                    chosen -= weight;
-                }
-            }
-            self.walk_rank = rank;
-            self.walk_count += 1;
-            ordered[rank]
-        } else {
-            *ordered
-                .iter()
-                .find(|note| {
-                    self.previous_key.is_none_or(|previous| {
-                        selection_key(note, selection, self.octaves.traversal) > previous
-                    })
-                })
-                .unwrap_or(&ordered[0])
-        };
-        self.previous_key = Some(selection_key(&selected, selection, self.octaves.traversal));
-        let selected = if self.ports.selection_offset != 0 {
-            let mut ranked = ordered.clone();
-            ranked.sort_unstable_by_key(|n| {
-                selection_key(n, &Selection::Ascending, self.octaves.traversal)
-            });
-            let rank = ranked.iter().position(|n| n.id == selected.id).unwrap();
-            let Some(rank) = self.ports.offset_rank(rank, ranked.len()) else {
-                return Ok(false);
-            };
-            ranked[rank]
-        } else {
-            selected
-        };
-        let Some(key) = self.ports.realize_pitch(
-            i128::from(selected.key)
-                .checked_add(selected.inversion_offset)
-                .and_then(|v| v.checked_add(selected.voicing_offset))
-                .and_then(|v| {
-                    v.checked_add(period * i128::from(self.octaves.offsets[selected.octave_index]))
-                })
-                .ok_or(crate::tuning::TUNING_ERROR)?,
-        )?
-        else {
-            return Ok(false);
-        };
-        let interval = decision.duration / decision.repeats as i64;
-        self.pending.extend((0..decision.repeats).map(|i| Attack {
-            at: at + interval * i as i64,
-            note: selected,
+        Ok(active)
+    }
+    fn realize(&self, selected: &Item<MusicalValue>) -> Result<Option<MusicalValue>, &'static str> {
+        let period = self.tuning.as_ref().and_then(|t| t.period).unwrap_or(12) as i128;
+        let pitch = selected
+            .rank
+            .checked_add(period * i128::from(self.octaves.offsets[selected.layer]))
+            .ok_or(crate::tuning::TUNING_ERROR)?;
+        Ok(self.realize_pitch(pitch)?.map(|key| MusicalValue {
             key: key.key,
+            velocity: selected.value.velocity,
             tuning_semitones: key.tuning_semitones,
-            gate: if i == decision.repeats - 1 {
-                decision.final_gate
-            } else {
-                decision.gate
-            },
-        }));
-        Ok(true)
+        }))
     }
-
-    fn attack(&mut self, attack: Attack, output: &mut Vec<OutputEvent>) {
-        let at = attack.at;
-        let selected = attack.note;
-        let end = at + attack.gate;
-        for note in self
-            .sounding
-            .iter_mut()
-            .filter(|note| note.key == attack.key)
-        {
-            output.push(OutputEvent {
-                at,
-                kind: OutputKind::NoteOff {
-                    id: note.id,
-                    source_id: note.source_id,
-                    key: note.key,
-                },
-            });
-            note.end = at;
-        }
-        self.sounding.retain(|note| note.end > at);
-        let id = self.next_output;
-        self.next_output += 1;
-        output.push(OutputEvent {
+    fn conflicts(&self, left: MusicalValue, right: MusicalValue) -> bool {
+        left.key == right.key
+    }
+    fn event(
+        &self,
+        at: Beat,
+        start: bool,
+        id: u64,
+        source_id: u64,
+        value: MusicalValue,
+    ) -> OutputEvent {
+        OutputEvent {
             at,
-            kind: OutputKind::NoteOn {
-                tuning_semitones: attack.tuning_semitones,
-                id,
-                source_id: selected.source_id,
-                key: attack.key,
-                velocity: selected.velocity,
-            },
-        });
-        if end == at {
-            output.push(OutputEvent {
-                at,
-                kind: OutputKind::NoteOff {
+            kind: if start {
+                OutputKind::NoteOn {
+                    tuning_semitones: value.tuning_semitones,
                     id,
-                    source_id: selected.source_id,
-                    key: attack.key,
-                },
-            });
-        } else {
-            self.sounding.push(SoundingNote {
-                id,
-                source_id: selected.source_id,
-                key: attack.key,
-                end,
-            });
+                    source_id,
+                    key: value.key,
+                    velocity: value.velocity,
+                }
+            } else {
+                OutputKind::NoteOff {
+                    id,
+                    source_id,
+                    key: value.key,
+                }
+            },
         }
     }
-}
-
-fn selection_key(
-    note: &InputNote,
-    selection: &Selection,
-    traversal: Traversal,
-) -> (i64, SelectionPosition, u64, i64, u64) {
-    let position = match selection {
-        Selection::Ascending
-        | Selection::Walk(_)
-        | Selection::Alternating { .. }
-        | Selection::Choice { .. }
-        | Selection::Shuffle { .. }
-        | Selection::IndexPattern { .. }
-        | Selection::InsideOut
-        | Selection::OutsideIn => SelectionPosition::Pitch(
-            i128::from(note.key) + note.inversion_offset + note.voicing_offset,
-        ),
-        Selection::Descending => SelectionPosition::Pitch(
-            -(i128::from(note.key) + note.inversion_offset + note.voicing_offset),
-        ),
-        Selection::Played => SelectionPosition::Onset(note.onset),
-        Selection::ReversePlayed => SelectionPosition::Onset(-note.onset),
-    };
-    let reverse = matches!(selection, Selection::Descending | Selection::ReversePlayed);
-    let layer = note.octave_index as i64 * if reverse { -1 } else { 1 };
-    match traversal {
-        Traversal::NotesFirst => (layer, position, note.source_id, 0, note.id),
-        Traversal::OctavesFirst => (0, position, note.source_id, layer, note.id),
+    fn entry_key(
+        &self,
+        item: &Item<MusicalValue>,
+        position: SelectionPosition,
+        reverse: bool,
+    ) -> (i64, SelectionPosition, u64, i64, u64) {
+        let layer = item.layer as i64 * if reverse { -1 } else { 1 };
+        match self.octaves.traversal {
+            Traversal::NotesFirst => (layer, position, item.source_id, 0, item.id),
+            Traversal::OctavesFirst => (0, position, item.source_id, layer, item.id),
+        }
+    }
+    fn check_control(
+        &self,
+        port: InputPort,
+        value: Beat,
+        seed: Option<i64>,
+    ) -> Result<(), &'static str> {
+        Self::check_control(port, value, seed)
+    }
+    fn queue(&mut self, port: InputPort, value: Beat) -> Result<(), &'static str> {
+        Self::queue(self, port, value)
+    }
+    fn cancel_pending(&mut self) {
+        Self::cancel_pending(self);
+    }
+    fn begin_step(&mut self, at: Beat, index: i64, revision: u64, cycle: bool) -> bool {
+        Self::begin_step(self, at, index, revision, false, cycle)
     }
 }
