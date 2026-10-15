@@ -21,6 +21,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+envelfo = [
+    "envelfo",
+]
 midi = [
     "python-rtmidi>=1.5.8",
 ]
@@ -43,4 +46,4 @@ dev = [
 
 [tool.uv.sources]
 ufor = { git = "ssh://git@github.com/rec/ufor.git", branch = "main" }
-envelfo = { git = "ssh://git@github.com/rec/envelfo.git", rev = "9e03aac4b8868dc7632b826c64650c1b3100b5f3" }
+envelfo = { git = "ssh://git@github.com/rec/envelfo.git", rev = "950d3a1484ee4b89caa9d6b4318f174c1bb07ef5" }

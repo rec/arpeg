@@ -1,0 +1,14 @@
+[package]
+name = "arpeg-envelfo"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+description = "Host-clock connections between arpeg and enveLFO"
+
+[dependencies]
+arpeg-core = { path = "../arpeg-core" }
+envelfo-core = { git = "ssh://git@github.com/rec/envelfo.git", rev = "950d3a1484ee4b89caa9d6b4318f174c1bb07ef5" }
+
+[dev-dependencies]
+arpeg-midi = { path = "../arpeg-midi", default-features = false }
+toml = "1.1"

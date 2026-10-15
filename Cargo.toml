@@ -1,3 +1,3 @@
 [workspace]
-members = ["crates/arpeg-core", "crates/arpeg-midi", "crates/arpeg-wasm"]
+members = ["crates/arpeg-core", "crates/arpeg-midi", "crates/arpeg-wasm", "crates/arpeg-envelfo"]
 resolver = "3"
