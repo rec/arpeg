@@ -1,0 +1,28 @@
+[[cases]]
+name = "two rotated odd Euclidean passes retain swung spacing"
+rhythm = {kind="euclidean",steps=3,pulses=2,rotation=1,step="1/4 beat",swing="2/3",cycles=2}
+notes = [[60,100],[64,80]]
+through = "2"
+events = [["0","on",60,100],["4/15","off",60,0],["1/3","on",64,80],["7/15","off",64,0],["5/6","on",60,100],["29/30","off",60,0],["1","on",64,80],["19/15","off",64,0]]
+
+[[cases]]
+name = "conditional repeats finish without ties in an unplayed pass"
+rhythm = {kind="pattern",cycles=2,steps=[{kind="tie",duration="1/4 beat"},{kind="hit",duration="1/2 beat",repeats=2,condition={passes=[2],out_of=2}}]}
+notes = [[60,100],[64,80]]
+through = "2"
+events = [["1","on",60,100],["6/5","off",60,0],["5/4","on",60,100],["29/20","off",60,0]]
+
+[[cases]]
+name = "the final gate can extend beyond the finite boundary"
+rhythm = {kind="pattern",cycles=1,steps=[{kind="tie",duration="1/4 beat"},{kind="hit",duration="1/4 beat"}]}
+patterns = {gates=["1","2"]}
+notes = [[60,100]]
+through = "1"
+events = [["1/4","on",60,100],["13/20","off",60,0]]
+
+[[cases]]
+name = "rests consume complete passes without selecting notes"
+rhythm = {kind="pattern",cycles=2,steps=[{kind="rest",duration="1/4 beat"},{kind="hit",duration="1/4 beat"}]}
+notes = [[60,100],[64,80],[67,60]]
+through = "2"
+events = [["1/4","on",60,100],["9/20","off",60,0],["3/4","on",64,80],["19/20","off",64,0]]

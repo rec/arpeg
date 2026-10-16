@@ -30,6 +30,7 @@ fn euclidean_renderer_matches_shared_exact_trace() {
         Bank::Held,
         Selection::Ascending,
         Rhythm::Euclidean {
+            cycles: None,
             swing: arpeg_core::Beat::new(1, 2),
             step: Beat::new(1, 4),
             steps: 8,
@@ -203,4 +204,36 @@ fn latch_replace_and_add_keep_their_distinct_banks() {
             .collect();
         assert_eq!(tail, expected);
     }
+}
+
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+fn finite_euclidean_rendering_preserves_the_final_gate() {
+    let notes = [HeldNote {
+        id: "a",
+        key: 60,
+        onset: Beat::from_integer(0),
+        release: Beat::from_integer(2),
+    }];
+    let occurrences = render_held(
+        &notes,
+        Bank::Held,
+        Selection::Ascending,
+        Rhythm::Euclidean {
+            cycles: Some(1),
+            steps: 2,
+            pulses: 2,
+            rotation: 0,
+            step: Beat::new(1, 4),
+            swing: Beat::new(1, 2),
+        },
+        Beat::from_integer(2),
+        Beat::from_integer(2),
+    )
+    .unwrap();
+    assert_eq!(
+        occurrences.iter().map(|o| o.onset).collect::<Vec<_>>(),
+        [Beat::from_integer(0), Beat::new(1, 4)]
+    );
+    assert_eq!(occurrences.last().unwrap().gate_end, Beat::new(3, 4));
 }

@@ -179,6 +179,7 @@ fn live_classic_matches_shared_python_rust_traces() {
             };
             let rhythm = match case.get("rhythm") {
                 Some(rhythm) if rhythm["kind"] == "pattern" => Rhythm::Pattern {
+                    cycles: None,
                     steps: rhythm["steps"]
                         .as_array()
                         .unwrap()
@@ -207,6 +208,7 @@ fn live_classic_matches_shared_python_rust_traces() {
                         .collect(),
                 },
                 Some(rhythm) => Rhythm::Euclidean {
+                    cycles: None,
                     swing: arpeg_core::Beat::new(1, 2),
                     step: ratio(
                         rhythm["step"]

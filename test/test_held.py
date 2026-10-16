@@ -182,3 +182,24 @@ def test_file_renderer_rejects_live_retrigger_policy() -> None:
             Fraction(case["through"]),
             "synth",
         )
+
+
+def test_finite_euclidean_rendering_preserves_the_final_gate() -> None:
+    case = json.loads(Path("conformance/held-chord.json").read_text())
+    case["profile"]["body"]["rhythm"] = {
+        "kind": "euclidean",
+        "steps": 2,
+        "pulses": 2,
+        "step": "1/4 beat",
+        "cycles": 1,
+    }
+    case["profile"]["body"]["gate"] = "2"
+    occurrences = render_held(
+        ArpeggiatorScore.model_validate(case["profile"]),
+        CapturedPhrase.model_validate(case["phrase"]),
+        TempoMap.model_validate(case["tempo"]),
+        Fraction(2),
+        "synth",
+    )
+    assert [o.onset for o in occurrences] == [Fraction(0), Fraction(1, 4)]
+    assert occurrences[-1].gate_end == Fraction(3, 4)

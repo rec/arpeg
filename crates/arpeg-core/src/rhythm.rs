@@ -14,9 +14,11 @@ pub enum Rhythm {
         steps: i64,
         pulses: i64,
         rotation: i64,
+        cycles: Option<i64>,
     },
     Pattern {
         steps: Vec<PatternStep>,
+        cycles: Option<i64>,
     },
 }
 
@@ -107,21 +109,28 @@ impl PatternStep {
 impl Rhythm {
     /// The first cell of an authored rhythm loop, independently of hits and rotation.
     pub fn starts_cycle(&self, index: i64) -> bool {
+        if !self.within_cycles(index) {
+            return false;
+        }
         match self {
             Self::Grid { .. } => false,
             Self::Euclidean { steps, .. } => index % steps == 0,
-            Self::Pattern { steps } => index as usize % steps.len() == 0,
+            Self::Pattern { steps, .. } => index as usize % steps.len() == 0,
         }
     }
 
     pub fn validate(&self) -> Result<(), &'static str> {
+        if matches!(self, Self::Euclidean { cycles: Some(c), .. } | Self::Pattern { cycles: Some(c), .. } if *c <= 0)
+        {
+            return Err("rhythm cycles must be positive");
+        }
         match self {
             Self::Grid { step, .. } | Self::Euclidean { step, .. }
                 if *step <= Beat::from_integer(0) =>
             {
                 return Err("rhythm step must be positive");
             }
-            Self::Pattern { steps } => {
+            Self::Pattern { steps, .. } => {
                 if steps.is_empty()
                     || steps.iter().any(|step| {
                         step.duration() <= Beat::from_integer(0)
@@ -157,9 +166,28 @@ impl Rhythm {
         Ok(())
     }
 
+    /// Finite loops consume their allowance on the absolute rhythm clock.
+    pub fn within_cycles(&self, index: i64) -> bool {
+        match self {
+            Self::Euclidean {
+                steps,
+                cycles: Some(cycles),
+                ..
+            } => index / steps < *cycles,
+            Self::Pattern {
+                steps,
+                cycles: Some(cycles),
+            } => index / (steps.len() as i64) < *cycles,
+            _ => true,
+        }
+    }
+
     /// Positive rotation moves hits later; zero pulses produces silence.
     /// The rhythm must have passed validation before use.
     pub fn allows_step(&self, index: i64) -> bool {
+        if !self.within_cycles(index) {
+            return false;
+        }
         match self {
             Self::Grid { .. } => true,
             Self::Euclidean {
@@ -173,7 +201,7 @@ impl Rhythm {
                 let phase = (i128::from(index) - i128::from(*rotation)).rem_euclid(steps);
                 (phase * pulses) % steps < pulses
             }
-            Self::Pattern { steps } => match &steps[index as usize % steps.len()] {
+            Self::Pattern { steps, .. } => match &steps[index as usize % steps.len()] {
                 PatternStep::Hit {
                     condition: Some(condition),
                     ..
@@ -201,7 +229,7 @@ impl Rhythm {
                     final_gate: duration * gate,
                 }
             }
-            Self::Pattern { steps } => {
+            Self::Pattern { steps, .. } => {
                 let position = index as usize % steps.len();
                 let step = &steps[position];
                 let duration = step.duration();
@@ -216,6 +244,9 @@ impl Rhythm {
                 if repeats > 0 {
                     let mut held = interval;
                     for offset in 1..steps.len() {
+                        if !self.within_cycles(index + offset as i64) {
+                            break;
+                        }
                         let PatternStep::Tie { duration } =
                             &steps[(position + offset) % steps.len()]
                         else {

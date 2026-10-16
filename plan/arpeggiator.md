@@ -572,7 +572,26 @@ start no occurrence. Existing sounding occurrences retain their scheduled ends.
 Implemented in the generic Python/Rust engine and musical WebAssembly playback.
 Shared traces cover multiple passes, selection, repeats, ties, boundary-crossing
 sustains, irregular polling, and Python snapshots. Preset-only custom hits are
-supported; finite repeats and richer conditions remain deferred.
+supported; richer conditions remain deferred.
+
+### Finite rhythm pass completion
+
+Custom and Euclidean rhythms accept optional positive integer `cycles`; omission
+retains indefinite looping. Complete authored passes count on the absolute
+transport timeline, including rests, ties, rejected hits, and empty banks.
+Rotation and swing do not redefine Euclidean pass boundaries. Chord edits do not
+rearm the sequence; seeking derives allowance from the destination position.
+
+After the limit, hits and cycle-start notifications cease while the step clock,
+controls, and session remain active. Pending repeats and final gates finish
+normally, including beyond the end boundary. Tie lookahead excludes cells in
+unplayed passes. Pause/stop/seek retain their normal cleanup semantics.
+
+Implemented in the Python reference and Rust/WebAssembly engines, with shared
+traces for swung rotated Euclidean passes, custom rests, conditional repeats,
+final gates, and ties at the ending. Transport, snapshots, and opaque payloads
+are covered. Limited Euclidean file rendering also respects the limit. Plain
+grid/source rhythms and live cycle-limit changes are outside this slice.
 
 ### Accent and gate pattern completion
 

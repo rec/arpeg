@@ -258,6 +258,7 @@ fn euclidean_profile_rejects_invalid_masks_and_history_use() {
     assert_eq!(
         parsed.rhythm,
         arpeg_core::rhythm::Rhythm::Euclidean {
+            cycles: None,
             swing: arpeg_core::Beat::new(1, 2),
             step: arpeg_core::Beat::new(1, 4),
             steps: 8,

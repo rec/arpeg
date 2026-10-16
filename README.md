@@ -92,6 +92,24 @@ selection and chance unchanged. Passes follow transport position through silence
 and chord edits; repeats share their hit's condition, and ties sustain admitted
 hits normally.
 
+Custom and Euclidean rhythms also accept an optional positive `cycles` limit:
+
+```toml
+[body.rhythm]
+kind = "euclidean"
+steps = 8
+pulses = 3
+step = "1/4 beat"
+cycles = 4
+```
+
+This plays four complete eight-step passes. Omit `cycles` to loop indefinitely.
+Silent passes count, chord edits keep the allowance, and seeking follows the
+transport position. Seeking back to the beginning makes the sequence available
+again. Final notes finish their gates, but ties in unplayed passes cannot extend
+them. The session stays active for controls and cleanup after new hits stop.
+Plain grids have no cycle limit.
+
 Live playback also accepts independent preset accent and gate patterns:
 
 ```toml

@@ -360,7 +360,7 @@ impl<P: Processor> Arpeggiator<P> {
             Rhythm::Grid { step, swing } | Rhythm::Euclidean { step, swing, .. } => {
                 (self.step_index, self.next_step) = crate::rhythm::grid_position(*step, *swing, at);
             }
-            Rhythm::Pattern { steps } => {
+            Rhythm::Pattern { steps, .. } => {
                 let cycle: Beat = (0..steps.len())
                     .map(|i| {
                         self.rhythm
@@ -479,7 +479,7 @@ impl<P: Processor> Arpeggiator<P> {
                 );
                 if admitted {
                     let hit = self.schedule_step(next, decision)?;
-                    if !matches!(&self.rhythm, Rhythm::Pattern { steps } if matches!(steps[self.step_index as usize % steps.len()], PatternStep::Tie { .. }))
+                    if !matches!(&self.rhythm, Rhythm::Pattern { steps, .. } if matches!(steps[self.step_index as usize % steps.len()], PatternStep::Tie { .. }))
                     {
                         self.ports.timing_mut().outcome(hit);
                     }

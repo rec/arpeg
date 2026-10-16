@@ -8,6 +8,7 @@ fn euclidean_rotations_match_canonical_masks() {
         serde_json::from_str(include_str!("../../../conformance/euclidean.json")).unwrap();
     for rotation in -8_i64..16 {
         let rhythm = Rhythm::Euclidean {
+            cycles: None,
             swing: arpeg_core::Beat::new(1, 2),
             step: Beat::new(1, 4),
             steps: 8,
@@ -38,6 +39,7 @@ fn euclidean_pulse_counts_and_spacing() {
         for pulses in 0..=steps {
             for rotation in 0..steps {
                 let rhythm = Rhythm::Euclidean {
+                    cycles: None,
                     swing: arpeg_core::Beat::new(1, 2),
                     step: Beat::new(1, 3),
                     steps,
@@ -64,6 +66,7 @@ fn euclidean_pulse_counts_and_spacing() {
 fn invalid_euclidean_masks_are_rejected_before_playback() {
     for (steps, pulses) in [(0, 0), (-1, 0), (8, -1), (8, 9)] {
         let rhythm = Rhythm::Euclidean {
+            cycles: None,
             swing: arpeg_core::Beat::new(1, 2),
             step: Beat::new(1, 4),
             steps,

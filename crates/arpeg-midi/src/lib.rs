@@ -840,7 +840,10 @@ fn parse_rhythm(body: &toml::map::Map<String, toml::Value>) -> Result<Rhythm, St
         }
         Some("euclidean")
             if rhythm.keys().all(|key| {
-                ["kind", "step", "steps", "pulses", "rotation", "swing"].contains(&key.as_str())
+                [
+                    "kind", "step", "steps", "pulses", "rotation", "swing", "cycles",
+                ]
+                .contains(&key.as_str())
             }) =>
         {
             let steps = rhythm
@@ -856,6 +859,7 @@ fn parse_rhythm(body: &toml::map::Map<String, toml::Value>) -> Result<Rhythm, St
                 .map_or(Some(0), toml::Value::as_integer)
                 .ok_or("Euclidean rotation must be an integer")?;
             Rhythm::Euclidean {
+                cycles: parse_cycles(rhythm)?,
                 swing: parse_swing(rhythm)?,
                 step: parse_beat_duration(rhythm.get("step"))?,
                 steps,
@@ -863,7 +867,11 @@ fn parse_rhythm(body: &toml::map::Map<String, toml::Value>) -> Result<Rhythm, St
                 rotation,
             }
         }
-        Some("pattern") if rhythm.len() == 2 => {
+        Some("pattern")
+            if rhythm
+                .keys()
+                .all(|k| ["kind", "steps", "cycles"].contains(&k.as_str())) =>
+        {
             let steps = rhythm
                 .get("steps")
                 .and_then(toml::Value::as_array)
@@ -898,12 +906,26 @@ fn parse_rhythm(body: &toml::map::Map<String, toml::Value>) -> Result<Rhythm, St
                 };
                 parsed.push(step);
             }
-            Rhythm::Pattern { steps: parsed }
+            Rhythm::Pattern {
+                steps: parsed,
+                cycles: parse_cycles(rhythm)?,
+            }
         }
         _ => return Err("only grid, Euclidean, or pattern rhythm is supported".into()),
     };
     parsed.validate().map_err(str::to_owned)?;
     Ok(parsed)
+}
+
+fn parse_cycles(rhythm: &toml::map::Map<String, toml::Value>) -> Result<Option<i64>, String> {
+    rhythm
+        .get("cycles")
+        .map(|v| {
+            v.as_integer()
+                .filter(|c| *c > 0)
+                .ok_or_else(|| "rhythm cycles must be a positive integer".to_owned())
+        })
+        .transpose()
 }
 
 fn parse_condition(value: &toml::Value) -> Result<PassCondition, String> {

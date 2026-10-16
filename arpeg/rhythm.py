@@ -26,18 +26,20 @@ def decide_step(
     if isinstance(rhythm, Pattern):
         step = rhythm.steps[index % len(rhythm.steps)]
         duration = Fraction(step.duration.removesuffix(" beat"))
-        repeats = step.repeats if isinstance(step, HitStep) else 0
-        if isinstance(step, HitStep) and (condition := step.condition) is not None:
-            current_pass = index // len(rhythm.steps) % condition.out_of + 1
-            if current_pass not in condition.passes:
-                repeats = 0
+        repeats = (
+            step.repeats
+            if isinstance(step, HitStep) and allows_step(rhythm, index)
+            else 0
+        )
         attack_gate = duration / max(1, repeats) * gate
         final_gate = attack_gate
         if repeats:
             held = duration / repeats
             for offset in range(1, len(rhythm.steps)):
                 tied = rhythm.steps[(index + offset) % len(rhythm.steps)]
-                if not isinstance(tied, TieStep):
+                if not within_cycles(rhythm, index + offset) or not isinstance(
+                    tied, TieStep
+                ):
                     break
                 tied_duration = Fraction(tied.duration.removesuffix(" beat"))
                 final_gate = max(
@@ -65,6 +67,8 @@ def decide_step(
 
 def starts_cycle(rhythm: Grid | Euclidean | Pattern, index: int) -> bool:
     """An authored rhythm loop starts at cell zero, independently of its hits."""
+    if not within_cycles(rhythm, index):
+        return False
     if isinstance(rhythm, Euclidean):
         return index % rhythm.steps == 0
     if isinstance(rhythm, Pattern):
@@ -72,10 +76,28 @@ def starts_cycle(rhythm: Grid | Euclidean | Pattern, index: int) -> bool:
     return False
 
 
-def allows_step(rhythm: Grid | Euclidean, index: int) -> bool:
-    """Positive rotation moves hits later; zero pulses produces silence."""
+def within_cycles(rhythm: Grid | Euclidean | Pattern, index: int) -> bool:
+    """Finite loops consume their allowance on the absolute rhythm clock."""
+    if isinstance(rhythm, Grid) or rhythm.cycles is None:
+        return True
+    length = rhythm.steps if isinstance(rhythm, Euclidean) else len(rhythm.steps)
+    return index // length < rhythm.cycles
+
+
+def allows_step(rhythm: Grid | Euclidean | Pattern, index: int) -> bool:
+    """Apply finite limits and the rhythm's mask or per-hit condition."""
+    if not within_cycles(rhythm, index):
+        return False
     if isinstance(rhythm, Grid):
         return True
+    if isinstance(rhythm, Pattern):
+        step = rhythm.steps[index % len(rhythm.steps)]
+        if not isinstance(step, HitStep):
+            return False
+        if (condition := step.condition) is None:
+            return True
+        current_pass = index // len(rhythm.steps) % condition.out_of + 1
+        return current_pass in condition.passes
     phase = (index - rhythm.rotation) % rhythm.steps
     return (phase * rhythm.pulses) % rhythm.steps < rhythm.pulses
 

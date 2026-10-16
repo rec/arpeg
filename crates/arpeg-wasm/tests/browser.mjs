@@ -214,3 +214,22 @@ rhythm={kind="pattern",steps=[{kind="hit",duration="1/2 beat",repeats=2,conditio
         player.free();
     }
 });
+
+test('finite rhythm passes preserve the final gate beyond the ending', () => {
+    const profile = `name="finite"
+title="Finite"
+[body]
+patterns={gates=["1","2"]}
+rhythm={kind="pattern",cycles=1,steps=[{kind="tie",duration="1/4 beat"},{kind="hit",duration="1/4 beat"}]}`;
+    const player = new MidiPlayer(profile, 'internal', 120, 500_000n);
+    try {
+        player.accept(0n, new Uint8Array([144, 60, 100]), 'both');
+        assert.deepEqual(player.advance(125_000n), [new Uint8Array([144, 60, 100])]);
+        assert.deepEqual(player.advance(250_000n), []);
+        assert.deepEqual(player.advance(325_000n), [new Uint8Array([128, 60, 0])]);
+        assert.deepEqual(player.advance(1_000_000n), []);
+        assert.equal(player.active, true);
+    } finally {
+        player.free();
+    }
+});

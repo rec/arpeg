@@ -165,6 +165,7 @@ fn conditional_passes_follow_transport_through_silence_and_chord_edits() {
             Bank::Held,
             Selection::Ascending,
             Rhythm::Pattern {
+                cycles: None,
                 steps: vec![PatternStep::Hit {
                     duration: Beat::new(1, 4),
                     repeats: 1,
@@ -216,6 +217,7 @@ fn skipped_conditions_preserve_the_audible_chance_sequence() {
     use arpeg_core::rhythm::{PassCondition, PatternStep};
     let rhythms = [
         Rhythm::Pattern {
+            cycles: None,
             steps: vec![PatternStep::Hit {
                 duration: Beat::new(1, 4),
                 repeats: 1,
@@ -267,4 +269,71 @@ fn skipped_conditions_preserve_the_audible_chance_sequence() {
             .map(|(a, v)| (*a + Beat::new(1, 4), *v))
             .collect::<Vec<_>>()
     );
+}
+
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+fn finite_cycles_follow_transport_through_silent_passes_and_chord_edits() {
+    use arpeg_core::rhythm::PatternStep;
+    for rhythm in [
+        Rhythm::Pattern {
+            cycles: Some(2),
+            steps: vec![PatternStep::Hit {
+                duration: Beat::new(1, 4),
+                repeats: 1,
+                condition: None,
+            }],
+        },
+        Rhythm::Euclidean {
+            cycles: Some(2),
+            steps: 1,
+            pulses: 1,
+            rotation: 0,
+            step: Beat::new(1, 4),
+            swing: Beat::new(1, 2),
+        },
+    ] {
+        let mut engine = Arpeggiator::new(
+            Bank::Held,
+            Selection::Ascending,
+            rhythm,
+            TokenPorts {
+                timing: TimingPorts::new(Beat::new(4, 5), Beat::from_integer(1)),
+            },
+            Retrigger::OnEmpty,
+            Chance::default(),
+        )
+        .unwrap();
+        engine.advance(Beat::from_integer(0)).unwrap();
+        engine.press(Beat::new(1, 8), 1000, 5000, 42).unwrap();
+        let events = engine.advance(Beat::new(1, 4)).unwrap();
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].value, 42);
+        engine.release(Beat::new(1, 3), 1000).unwrap();
+        engine.press(Beat::new(3, 8), 1001, 5001, 43).unwrap();
+        assert!(
+            !engine
+                .advance(Beat::from_integer(1))
+                .unwrap()
+                .iter()
+                .any(|e| e.start)
+        );
+        assert_eq!(
+            engine
+                .ports
+                .timing
+                .take_events()
+                .events
+                .iter()
+                .filter(|e| e.port == arpeg_core::timing_ports::OutputPort::Cycle)
+                .count(),
+            2
+        );
+        engine.relocate(Beat::new(3, 4));
+        assert!(engine.advance(Beat::from_integer(1)).unwrap().is_empty());
+        engine.relocate(Beat::from_integer(0));
+        assert_eq!(engine.advance(Beat::from_integer(0)).unwrap()[0].value, 43);
+        engine.pause(Beat::from_integer(1));
+        assert!(engine.advance(Beat::from_integer(2)).unwrap().is_empty());
+    }
 }
