@@ -386,3 +386,67 @@ fn transport_finds_the_next_grooved_start() {
         }
     }
 }
+
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+fn transitions_follow_surviving_identity_and_restart_after_removal() {
+    let mut engine = Arpeggiator::new(
+        Bank::Held,
+        Selection::Transition(arpeg_core::Transition {
+            weights: vec![vec![0, 1, 0], vec![0, 0, 1], vec![1, 0, 0]],
+            missing_weight: 0,
+            start_random: false,
+            uniform_when_blocked: false,
+        }),
+        Rhythm::Grid {
+            step: Beat::new(1, 4),
+            swing: Beat::new(1, 2),
+            groove: None,
+        },
+        TokenPorts {
+            timing: TimingPorts::new(Beat::new(4, 5), Beat::from_integer(1)),
+        },
+        Retrigger::OnEmpty,
+        Chance {
+            seed: Some(42),
+            ..Chance::default()
+        },
+    )
+    .unwrap();
+    for (id, rank, value) in [(1000, 0, 42), (1001, 1, 43), (1002, 2, 44)] {
+        engine.press(0.into(), id, rank, value).unwrap();
+    }
+    assert_eq!(
+        engine
+            .advance(Beat::new(1, 4))
+            .unwrap()
+            .iter()
+            .filter(|e| e.start)
+            .map(|e| e.value)
+            .collect::<Vec<_>>(),
+        [42, 43]
+    );
+    engine.release(Beat::new(3, 10), 1000).unwrap();
+    assert_eq!(
+        engine
+            .advance(Beat::new(1, 2))
+            .unwrap()
+            .iter()
+            .filter(|e| e.start)
+            .map(|e| e.value)
+            .collect::<Vec<_>>(),
+        [44]
+    );
+    engine.release(Beat::new(3, 5), 1002).unwrap();
+    engine.press(Beat::new(2, 3), 1003, -1, 45).unwrap();
+    assert_eq!(
+        engine
+            .advance(Beat::new(3, 4))
+            .unwrap()
+            .iter()
+            .filter(|e| e.start)
+            .map(|e| e.value)
+            .collect::<Vec<_>>(),
+        [45]
+    );
+}

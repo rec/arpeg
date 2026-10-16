@@ -112,6 +112,11 @@ rhythms. The WASM player preserves the template duration and applies gates to
 the shaped intervals. A groove cannot be combined with non-straight swing.
 The text demo keeps its existing swing controls.
 
+The musical WASM profile API also accepts `selection.kind = "transition"`
+with a seeded weight matrix. Shared traces cover its blocked-row and opening
+policies; the generated bindings are checked against the weighted-path fixture.
+The demo's existing order controls are unchanged.
+
 ## Verification
 
 After building:

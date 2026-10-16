@@ -28,6 +28,7 @@ from ufor.arpeggiator import (
     Played,
     Shuffle,
     StepPatterns,
+    Transition,
     Walk,
 )
 
@@ -78,6 +79,7 @@ class LiveArpeggiator(Arpeggiator[MusicalValue, LiveEvent]):
                 IndexPattern,
                 Shuffle,
                 Choice,
+                Transition,
                 Walk,
             ),
         ):

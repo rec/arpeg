@@ -26,6 +26,7 @@ from ufor.arpeggiator import (
     Shuffle,
     StepPatterns,
     TieStep,
+    Transition,
     Walk,
 )
 
@@ -50,6 +51,7 @@ class EngineSettings(BaseModel, frozen=True):
         | IndexPattern
         | Shuffle
         | Choice
+        | Transition
         | Walk
     ) = Ascending()
     rhythm: Grid | Euclidean | Pattern = Grid(step="1/4 beat")
@@ -67,7 +69,7 @@ class EngineSettings(BaseModel, frozen=True):
             )
         if self.seed is None and (
             0 < self.probability < 1
-            or isinstance(self.selection, (Shuffle, Choice))
+            or isinstance(self.selection, (Shuffle, Choice, Transition))
             or isinstance(self.selection, Walk)
             and len(self.selection.moves) > 1
         ):
@@ -157,6 +159,7 @@ class Arpeggiator(BaseModel, Generic[Payload, Event]):
         | IndexPattern
         | Shuffle
         | Choice
+        | Transition
         | Walk
     ):
         selection = self.settings.selection
@@ -172,6 +175,7 @@ class Arpeggiator(BaseModel, Generic[Payload, Event]):
                 IndexPattern,
                 Shuffle,
                 Choice,
+                Transition,
                 Walk,
             ),
         )
@@ -486,21 +490,10 @@ class Arpeggiator(BaseModel, Generic[Payload, Event]):
                 or self.previous_note is None
                 or n.id != self.previous_note.id
             ]
-            assert body.seed is not None
-            chosen = draw_below(
-                body.seed,
-                self.settings.name,
-                "choice",
-                self.bank_revision,
-                self.choice_count,
-                sum(w for _, w in candidates),
-            )
-            self.choice_count += 1
-            index = 0
-            while chosen >= candidates[index][1]:
-                chosen -= candidates[index][1]
-                index += 1
-            note = candidates[index][0]
+            note = self._weighted_note(candidates, "choice")
+        elif isinstance(selection, Transition):
+            if (note := self._transition_note(ordered, selection)) is None:
+                return False
         elif isinstance(selection, Shuffle):
             note = self._shuffle_note(ordered, selection)
         elif isinstance(selection, (InsideOut, OutsideIn)):
@@ -642,6 +635,55 @@ class Arpeggiator(BaseModel, Generic[Payload, Event]):
             for i in range(decision.repeats)
         )
         return True
+
+    def _weighted_note(
+        self, candidates: list[tuple[Item[Payload], int]], lane: str
+    ) -> Item[Payload]:
+        seed = self.settings.seed
+        assert seed is not None
+        chosen = draw_below(
+            seed,
+            self.settings.name,
+            lane,
+            self.bank_revision,
+            self.choice_count,
+            sum(w for _, w in candidates),
+        )
+        self.choice_count += 1
+        index = 0
+        while chosen >= candidates[index][1]:
+            chosen -= candidates[index][1]
+            index += 1
+        return candidates[index][0]
+
+    def _transition_note(
+        self, ordered: list[Item[Payload]], selection: Transition
+    ) -> Item[Payload] | None:
+        previous = next(
+            (
+                i
+                for i, n in enumerate(ordered)
+                if self.previous_note is not None and n.id == self.previous_note.id
+            ),
+            None,
+        )
+        if previous is None:
+            if selection.start == "lowest":
+                return ordered[0]
+            candidates = [(n, 1) for n in ordered]
+        else:
+            row = (
+                selection.weights[previous] if previous < len(selection.weights) else []
+            )
+            candidates = [
+                (n, row[i] if i < len(row) else selection.missing_weight)
+                for i, n in enumerate(ordered)
+            ]
+            if not any(w for _, w in candidates):
+                if selection.blocked == "rest":
+                    return None
+                candidates = [(n, 1) for n in ordered]
+        return self._weighted_note(candidates, "transition")
 
     def _shuffle_note(
         self, ordered: list[Item[Payload]], selection: Shuffle

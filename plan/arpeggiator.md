@@ -509,6 +509,25 @@ previous source identity when another note is available, retaining original rank
 weights. One-note banks still play. Repeats reuse a draw; rhythm gaps and rejected
 chance decisions leave the choice counter unchanged. Resets forget the previous
 identity while retaining the counter.
+Weighted transition tables are implemented for held/latched and generic item
+banks in Python, Rust, and the WebAssembly profile API. `kind = "transition"`
+uses a nonempty `weights` matrix of nonnegative u32 entries. Rows and columns
+address the current expanded traversal; zero excludes an edge and missing rows
+or columns use configurable `missing_weight` (default 1). An explicit seed is
+required. `start = "lowest"` opens at rank zero; `"random"` opens uniformly.
+Surviving identities use their current rank after edits; removal repeats the
+opening rule. Bank-edit retrigger overrides preservation.
+
+`blocked = "rest"` preserves the previous entry without consuming a transition
+draw when no available edge has positive weight. `"uniform"` instead draws from
+all entries, deliberately relaxing restrictions. Repeats reuse a choice; rhythm
+rests, zero accents, conditions, and rejected chance decisions do not advance
+transitions. Existing probability-before-selection and realization order remain.
+Snapshots and seeded traces preserve previous identity and draw position.
+Shared traces cover weighted paths, missing entries, blocked/uniform behavior,
+random openings, octave ranks, repeats, and polling. Captured history/phrase
+selection, sample-region selection, and file rendering remain unsupported.
+
 Deriving a new pitch retains a source gesture reference or explicitly chooses
 a synthetic gesture. No hidden pitch generation from an empty bank.
 

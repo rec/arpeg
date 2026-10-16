@@ -159,6 +159,14 @@ impl<P: Processor> Arpeggiator<P> {
                 return Err("choice requires an explicit seed");
             }
         }
+        if let Selection::Transition(transition) = &selection {
+            if transition.weights.is_empty() {
+                return Err("transition requires a nonempty weight table");
+            }
+            if chance.seed.is_none() {
+                return Err("transition requires an explicit seed");
+            }
+        }
         if matches!(selection, Selection::Shuffle { .. }) && chance.seed.is_none() {
             return Err("shuffle requires an explicit seed");
         }
@@ -606,26 +614,51 @@ impl<P: Processor> Arpeggiator<P> {
                     Some((*n, u64::from(weight)))
                 })
                 .collect();
-            let mut chosen = draw_below(
-                self.chance.seed.expect("validated choice seed"),
-                &self.chance.name,
-                "choice",
+            weighted_note(
+                candidates,
+                &self.chance,
                 self.bank_revision,
-                self.choice_count,
-                candidates.iter().map(|(_, w)| w).sum(),
-            );
-            self.choice_count += 1;
-            candidates
-                .into_iter()
-                .find_map(|(note, weight)| {
-                    if chosen < weight {
-                        Some(note)
-                    } else {
-                        chosen -= weight;
-                        None
+                &mut self.choice_count,
+                "choice",
+            )
+        } else if let Selection::Transition(transition) = selection {
+            let previous = ordered
+                .iter()
+                .position(|n| self.previous_key.is_some_and(|(_, _, _, _, id)| id == n.id));
+            if previous.is_none() && !transition.start_random {
+                ordered[0]
+            } else {
+                let row = previous.and_then(|i| transition.weights.get(i));
+                let mut candidates: Vec<_> = ordered
+                    .iter()
+                    .enumerate()
+                    .map(|(i, n)| {
+                        let weight = if previous.is_none() {
+                            1
+                        } else {
+                            row.and_then(|r| r.get(i))
+                                .copied()
+                                .unwrap_or(transition.missing_weight)
+                        };
+                        (*n, u64::from(weight))
+                    })
+                    .collect();
+                if candidates.iter().all(|(_, w)| *w == 0) {
+                    if !transition.uniform_when_blocked {
+                        return Ok(false);
                     }
-                })
-                .expect("positive choice weights")
+                    for (_, weight) in &mut candidates {
+                        *weight = 1;
+                    }
+                }
+                weighted_note(
+                    candidates,
+                    &self.chance,
+                    self.bank_revision,
+                    &mut self.choice_count,
+                    "transition",
+                )
+            }
         } else if let Selection::Shuffle {
             once,
             no_repeat,
@@ -896,4 +929,33 @@ impl<P: Processor> Arpeggiator<P> {
             matches!(selection, Selection::Descending | Selection::ReversePlayed),
         )
     }
+}
+
+fn weighted_note<V: Copy>(
+    candidates: Vec<(Item<V>, u64)>,
+    chance: &Chance,
+    revision: u64,
+    count: &mut u64,
+    lane: &str,
+) -> Item<V> {
+    let mut chosen = draw_below(
+        chance.seed.expect("validated selection seed"),
+        &chance.name,
+        lane,
+        revision,
+        *count,
+        candidates.iter().map(|(_, w)| w).sum(),
+    );
+    *count += 1;
+    candidates
+        .into_iter()
+        .find_map(|(note, weight)| {
+            if chosen < weight {
+                Some(note)
+            } else {
+                chosen -= weight;
+                None
+            }
+        })
+        .expect("positive selection weight total")
 }

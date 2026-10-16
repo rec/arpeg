@@ -255,3 +255,17 @@ rhythm={kind="grid",step="1/4 beat",groove=[3,1,2,2]}`;
         player.free();
     }
 });
+
+test('weighted transition profiles select the same path through web bindings', () => {
+    const profile = readFileSync(new URL('../../../conformance/transition.toml', import.meta.url), 'utf8');
+    const player = new MidiPlayer(profile, 'internal', 120, 500_000n);
+    try {
+        player.accept(0n, new Uint8Array([144, 60, 100]), 'both');
+        player.accept(0n, new Uint8Array([144, 64, 80]), 'both');
+        player.accept(0n, new Uint8Array([144, 67, 60]), 'both');
+        assert.deepEqual(player.advance(500_000n).filter(m => m[0] === 144).map(m => m[1]), [60, 64, 67, 64, 67]);
+        assert.throws(() => new MidiPlayer(profile.replace('seed = 42', ''), 'internal', 120, 500_000n));
+    } finally {
+        player.free();
+    }
+});

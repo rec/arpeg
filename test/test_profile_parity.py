@@ -39,6 +39,7 @@ def test_alternating_profile_round_trips() -> None:
         "index-pattern",
         "shuffle",
         "choice",
+        "transition",
         "live-wind",
         "history-live-wind",
     ],

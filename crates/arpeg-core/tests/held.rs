@@ -269,3 +269,29 @@ fn file_rendering_includes_an_early_grooved_start_before_the_horizon() {
         [Beat::from_integer(0), Beat::new(1, 8)]
     );
 }
+
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+fn transition_selection_requires_live_playback() {
+    let result = render_held(
+        &[],
+        Bank::Held,
+        Selection::Transition(arpeg_core::Transition {
+            weights: vec![vec![1]],
+            missing_weight: 1,
+            start_random: false,
+            uniform_when_blocked: false,
+        }),
+        Rhythm::Grid {
+            step: Beat::new(1, 4),
+            swing: Beat::new(1, 2),
+            groove: None,
+        },
+        Beat::new(4, 5),
+        Beat::from_integer(1),
+    );
+    assert_eq!(
+        result.unwrap_err(),
+        "transition selection currently requires live input"
+    );
+}

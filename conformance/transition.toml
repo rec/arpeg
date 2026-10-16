@@ -1,0 +1,8 @@
+kind = "arpeggiator"
+name = "transition"
+title = "Weighted note-to-note transitions"
+
+[body]
+selection = {kind="transition",weights=[[0,3,1],[1,0,1],[4,1,0]]}
+rhythm = {kind="grid",step="1/4 beat"}
+seed = 42

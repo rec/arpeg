@@ -9,7 +9,7 @@ use arpeg_core::live::Retrigger;
 use arpeg_core::octaves::{Octaves, Traversal};
 use arpeg_core::ports::{PitchBoundary, PitchRegister, ScaleTransform};
 use arpeg_core::rhythm::{PassCondition, PatternStep, Rhythm, StepPatterns};
-use arpeg_core::{Bank, Beat, HeldNote, Selection, Walk, render_held};
+use arpeg_core::{Bank, Beat, HeldNote, Selection, Transition, Walk, render_held};
 use midly::{
     Format, Header, MetaMessage, MidiMessage, Smf, Timing, TrackEvent, TrackEventKind,
     num::{u4, u7, u28},
@@ -430,6 +430,61 @@ pub fn parse_profile(text: &str, path: Option<&Path>) -> Result<Profile, String>
                 no_repeat,
             }
         }
+        Some("transition") => {
+            let table = selection.expect("selection table");
+            if table.keys().any(|k| {
+                !["kind", "weights", "missing_weight", "start", "blocked"].contains(&k.as_str())
+            }) {
+                return Err("unsupported transition option".into());
+            }
+            let weights = table
+                .get("weights")
+                .and_then(toml::Value::as_array)
+                .ok_or("transition requires a weight table")?
+                .iter()
+                .map(|r| {
+                    r.as_array()
+                        .ok_or("transition rows must be arrays")?
+                        .iter()
+                        .map(|v| {
+                            v.as_integer()
+                                .and_then(|v| u32::try_from(v).ok())
+                                .ok_or("transition weights must be nonnegative u32 integers")
+                        })
+                        .collect::<Result<Vec<_>, _>>()
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            if weights.is_empty() {
+                return Err("transition requires a nonempty weight table".into());
+            }
+            let missing_weight = table
+                .get("missing_weight")
+                .map(|v| {
+                    v.as_integer()
+                        .and_then(|v| u32::try_from(v).ok())
+                        .ok_or("missing_weight must be a nonnegative u32 integer")
+                })
+                .transpose()?
+                .unwrap_or(1);
+            let start_random = match table.get("start").and_then(toml::Value::as_str) {
+                Some("random") => true,
+                Some("lowest") => false,
+                None if !table.contains_key("start") => false,
+                _ => return Err("transition start must be lowest or random".into()),
+            };
+            let uniform_when_blocked = match table.get("blocked").and_then(toml::Value::as_str) {
+                Some("uniform") => true,
+                Some("rest") => false,
+                None if !table.contains_key("blocked") => false,
+                _ => return Err("transition blocked must be rest or uniform".into()),
+            };
+            Selection::Transition(Transition {
+                weights,
+                missing_weight,
+                start_random,
+                uniform_when_blocked,
+            })
+        }
         Some("shuffle") => {
             let table = selection.expect("selection table");
             if table
@@ -577,6 +632,9 @@ pub fn parse_profile(text: &str, path: Option<&Path>) -> Result<Profile, String>
     }
     if matches!(selection, Selection::Choice { .. }) && seed.is_none() {
         return Err("choice requires an explicit seed".into());
+    }
+    if matches!(selection, Selection::Transition(_)) && seed.is_none() {
+        return Err("transition requires an explicit seed".into());
     }
     let (transposition, pitch_boundary) = match body.get("transposition") {
         None => (0, PitchBoundary::Drop),
@@ -770,6 +828,11 @@ pub fn parse_profile(text: &str, path: Option<&Path>) -> Result<Profile, String>
             }
             if inversion != 0 {
                 return Err("inversion requires a held or latched bank".into());
+            }
+            if matches!(selection, Selection::Transition(_)) {
+                return Err(
+                    "transition selection currently requires a held or latched bank".into(),
+                );
             }
             if matches!(selection, Selection::Choice { .. }) {
                 return Err("choice selection currently requires a held or latched bank".into());

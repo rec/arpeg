@@ -46,7 +46,16 @@ pub enum Selection {
         repeat_weights: bool,
         no_repeat: bool,
     },
+    Transition(Transition),
     Walk(Walk),
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Transition {
+    pub weights: Vec<Vec<u32>>,
+    pub missing_weight: u32,
+    pub start_random: bool,
+    pub uniform_when_blocked: bool,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -126,6 +135,9 @@ pub fn render_held<'a>(
     if matches!(selection, Selection::Choice { .. }) {
         return Err("choice selection currently requires live input");
     }
+    if matches!(selection, Selection::Transition(_)) {
+        return Err("transition selection currently requires live input");
+    }
     rhythm.validate()?;
     if matches!(rhythm, rhythm::Rhythm::Pattern { .. }) {
         return Err("pattern rhythm currently requires live input");
@@ -204,6 +216,7 @@ fn selection_key<'a>(note: &HeldNote<'a>, selection: &Selection) -> (Beat, &'a s
         | Selection::Walk(_)
         | Selection::Alternating { .. }
         | Selection::Choice { .. }
+        | Selection::Transition(_)
         | Selection::Shuffle { .. }
         | Selection::IndexPattern { .. }
         | Selection::InsideOut

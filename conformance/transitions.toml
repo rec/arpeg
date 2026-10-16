@@ -1,0 +1,43 @@
+[[cases]]
+name = "weighted transitions forbid diagonal edges"
+selection = {kind="transition",weights=[[0,3,1],[1,0,1],[4,1,0]]}
+notes = [[60,100],[64,80],[67,60]]
+through = "1"
+events = [["0","on",60,100],["1/5","off",60,0],["1/4","on",64,80],["9/20","off",64,0],["1/2","on",67,60],["7/10","off",67,0],["3/4","on",64,80],["19/20","off",64,0],["1","on",67,60]]
+
+[[cases]]
+name = "missing rows and columns use weight one"
+selection = {kind="transition",weights=[[0]]}
+notes = [[60,100],[64,80],[67,60]]
+through = "1"
+events = [["0","on",60,100],["1/5","off",60,0],["1/4","on",64,80],["9/20","off",64,0],["1/2","on",64,80],["7/10","off",64,0],["3/4","on",60,100],["19/20","off",60,0],["1","on",67,60]]
+
+[[cases]]
+name = "zero missing weight leaves a blocked row silent"
+selection = {kind="transition",weights=[[0]],missing_weight=0}
+notes = [[60,100],[64,80],[67,60]]
+through = "1"
+events = [["0","on",60,100],["1/5","off",60,0]]
+
+[[cases]]
+name = "random opening and uniform fallback consume reproducible draws"
+selection = {kind="transition",weights=[[0,0,0]],missing_weight=0,start="random",blocked="uniform"}
+notes = [[60,100],[64,80],[67,60]]
+through = "1"
+events = [["0","on",60,100],["1/5","off",60,0],["1/4","on",64,80],["9/20","off",64,0],["1/2","on",60,100],["7/10","off",60,0],["3/4","on",64,80],["19/20","off",64,0],["1","on",67,60]]
+
+[[cases]]
+name = "transition ranks address expanded octave entries"
+selection = {kind="transition",weights=[[0,1,0,0],[0,0,1,0],[0,0,0,1],[1,0,0,0]],missing_weight=0}
+octaves = {offsets=[0,1]}
+notes = [[60,100],[64,80]]
+through = "1"
+events = [["0","on",60,100],["1/5","off",60,0],["1/4","on",64,80],["9/20","off",64,0],["1/2","on",72,100],["7/10","off",72,0],["3/4","on",76,80],["19/20","off",76,0],["1","on",60,100]]
+
+[[cases]]
+name = "repeats retain one transition choice and rests preserve it"
+selection = {kind="transition",weights=[[0,1],[1,0]],missing_weight=0}
+rhythm = {kind="pattern",steps=[{kind="hit",duration="1/2 beat",repeats=2},{kind="rest",duration="1/2 beat"}]}
+notes = [[60,100],[64,80]]
+through = "5/4"
+events = [["0","on",60,100],["1/5","off",60,0],["1/4","on",60,100],["9/20","off",60,0],["1","on",64,80],["6/5","off",64,0],["5/4","on",64,80]]

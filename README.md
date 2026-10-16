@@ -92,6 +92,27 @@ rests, chord edits, and Euclidean loop boundaries. Choose either a groove or
 non-straight swing; `groove = [2, 1]` gives 2:1 swing timing. Custom patterns
 retain their explicitly authored durations.
 
+Weighted transition tables let the current entry influence what comes next:
+
+```toml
+[body]
+selection = {kind = "transition", weights = [[0, 3, 1], [1, 0, 1], [4, 1, 0]]}
+rhythm = {kind = "grid", step = "1/4 beat"}
+seed = 42
+```
+
+Rows identify the current expanded rank; columns weight the next rank. Here
+zero diagonal entries forbid consecutive selections of the same entry. Missing
+rows or columns use `missing_weight = 1`; set it to `0` to restrict the graph.
+`start = "lowest"` is the default; `"random"` gives a seeded uniform opening.
+A surviving entry follows its new rank after chord edits; removing it restarts
+the opening rule. Bank-edit retrigger overrides preservation.
+
+A blocked row defaults to `blocked = "rest"`, retaining its state until a path
+becomes available or it is reset. `"uniform"` keeps playing by allowing every
+available entry, deliberately relaxing the table. Repeats reuse one choice.
+Held and latched banks are supported, including the WebAssembly profile API.
+
 Custom rhythm hits can play only on selected passes through their pattern:
 
 ```toml
