@@ -15,6 +15,7 @@ pub struct HistoryArpeggiator {
     next_capture_id: u64,
     step: Tick,
     pub swing: Tick,
+    pub groove: Option<Vec<Tick>>,
     pub patterns: crate::rhythm::StepPatterns,
     pub ports: PerformancePorts,
     pub chance: Chance,
@@ -49,6 +50,7 @@ impl HistoryArpeggiator {
             next_capture_id: 0,
             step,
             swing: Tick::new(1, 2),
+            groove: None,
             patterns: crate::rhythm::StepPatterns::default(),
             ports: PerformancePorts::new(gate, Tick::from_integer(1)),
             chance: Chance::default(),
@@ -199,14 +201,19 @@ impl HistoryArpeggiator {
         self.processed_to = at;
         self.capture_to = tick;
         self.inclusive = true;
-        (self.step_index, self.next_step) =
-            crate::rhythm::grid_position(self.step, self.swing, at.max(self.next_step));
+        (self.step_index, self.next_step) = crate::rhythm::grid_position(
+            self.step,
+            self.swing,
+            at.max(self.next_step),
+            self.groove.as_deref(),
+        );
         output
     }
 
     pub fn relocate(&mut self, at: Tick, tick: i64) -> Vec<RealizedEvent> {
         let output = self.pause(at, tick);
-        (self.step_index, self.next_step) = crate::rhythm::grid_position(self.step, self.swing, at);
+        (self.step_index, self.next_step) =
+            crate::rhythm::grid_position(self.step, self.swing, at, self.groove.as_deref());
         self.ports.cancel_pending();
         self.bank.last_selected = None;
         self.inclusive = false;
@@ -253,8 +260,12 @@ impl HistoryArpeggiator {
                             / (through - self.processed_to)
                 };
                 self.play_step(deadline, source_at.floor().to_integer(), &mut output)?;
-                self.next_step +=
-                    crate::rhythm::grid_duration(self.step, self.swing, self.step_index);
+                self.next_step += crate::rhythm::grid_duration(
+                    self.step,
+                    self.swing,
+                    self.step_index,
+                    self.groove.as_deref(),
+                );
                 self.step_index += 1;
             } else {
                 let event = self.queue.remove(0);
@@ -363,8 +374,12 @@ impl HistoryArpeggiator {
                 note_id: note.note_id.clone(),
                 onset: at,
                 gate: Some(
-                    crate::rhythm::grid_duration(self.step, self.swing, self.step_index)
-                        * self.ports.gate
+                    crate::rhythm::grid_duration(
+                        self.step,
+                        self.swing,
+                        self.step_index,
+                        self.groove.as_deref(),
+                    ) * self.ports.gate
                         * self.patterns.gates[self.step_index as usize % self.patterns.gates.len()],
                 ),
             }],

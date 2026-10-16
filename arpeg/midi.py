@@ -322,6 +322,7 @@ class MidiPlayer(BaseModel):
             name=self.profile.name,
             step=Fraction(body.rhythm.step.removesuffix(" beat")),
             swing=body.rhythm.swing,
+            groove=body.rhythm.groove,
             patterns=body.patterns or arpeggiator.StepPatterns(),
             gate=body.gate,
             expression_source="recorded",

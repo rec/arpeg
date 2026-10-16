@@ -1,0 +1,21 @@
+[[cases]]
+name = "four-step groove preserves the template duration"
+rhythm = {kind="grid",step="1/4 beat",groove=[3,1,2,2]}
+notes = [[60,100],[64,80]]
+through = "1"
+events = [["0","on",60,100],["3/10","off",60,0],["3/8","on",64,80],["19/40","off",64,0],["1/2","on",60,100],["7/10","off",60,0],["3/4","on",64,80],["19/20","off",64,0],["1","on",60,100]]
+
+[[cases]]
+name = "groove phase is independent of odd Euclidean finite passes"
+rhythm = {kind="euclidean",step="1/4 beat",steps=3,pulses=2,rotation=1,cycles=2,groove=[3,1,2,2]}
+notes = [[60,100],[64,80]]
+through = "2"
+events = [["0","on",60,100],["3/10","off",60,0],["3/8","on",64,80],["19/40","off",64,0],["3/4","on",60,100],["19/20","off",60,0],["1","on",64,80],["13/10","off",64,0]]
+
+[[cases]]
+name = "exact rational groove weights combine with independent patterns"
+rhythm = {kind="grid",step="1/4 beat",groove=["1/2","3/2",1]}
+patterns = {accents=[1,0,2],gates=[1,"1/2"]}
+notes = [[60,100],[64,80]]
+through = "1"
+events = [["0","on",60,100],["1/10","off",60,0],["1/2","on",64,127],["7/10","off",64,0],["3/4","on",60,100],["4/5","off",60,0]]

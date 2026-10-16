@@ -103,6 +103,7 @@ impl MidiPlayer {
                     false,
                 )?;
                 engine.swing = p.swing;
+                engine.groove = p.groove;
                 engine.chance = p.chance;
                 engine.patterns = p.patterns.unwrap_or_default();
                 engine.ports.transposition = p.transposition;

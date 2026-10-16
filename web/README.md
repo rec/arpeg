@@ -107,6 +107,11 @@ remain zero-length notes, and early releases shorten attack/decay correctly.
 The Playing display follows lifecycle times; it describes MIDI ownership, not
 the synth's audible release tail.
 
+Musical presets may include `groove = [3, 1, 2, 2]` on grid or Euclidean
+rhythms. The WASM player preserves the template duration and applies gates to
+the shaped intervals. A groove cannot be combined with non-straight swing.
+The text demo keeps its existing swing controls.
+
 ## Verification
 
 After building:

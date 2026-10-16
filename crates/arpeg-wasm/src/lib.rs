@@ -261,6 +261,7 @@ impl TokenPlayer {
             bank,
             selection,
             Rhythm::Grid {
+                groove: None,
                 step,
                 swing: swing
                     .parse()

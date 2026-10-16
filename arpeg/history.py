@@ -2,11 +2,12 @@
 
 from fractions import Fraction
 from math import floor
-from typing import Literal, Self
+from typing import Annotated, Literal, Self
 
 from pydantic import BaseModel, Field, model_validator
 from ufor import arpeggiator_ports
 from ufor.arpeggiator import StepPatterns
+from ufor.control import Rational
 from ufor.events import MidiEvent
 from ufor.time import Timebase
 
@@ -24,6 +25,9 @@ class LiveHistoryArpeggiator(BaseModel):
 
     step: Fraction
     swing: Fraction = Field(default=Fraction(1, 2), ge=0.5, lt=1)
+    groove: list[Annotated[Rational, Field(gt=0)]] | None = Field(
+        default=None, min_length=1
+    )
     gate: Fraction = Fraction(4, 5)
     patterns: StepPatterns = StepPatterns()
     ports: PerformancePorts | None = None
@@ -46,6 +50,8 @@ class LiveHistoryArpeggiator(BaseModel):
 
     @model_validator(mode="after")
     def valid_history(self) -> Self:
+        if self.groove is not None and self.swing != Fraction(1, 2):
+            raise ValueError("groove cannot be combined with non-straight swing")
         if self.step <= 0 or self.gate < 0:
             raise ValueError(
                 "capture playback requires positive step and nonnegative gate"
@@ -159,13 +165,15 @@ class LiveHistoryArpeggiator(BaseModel):
         self.capture_to = tick
         self.inclusive = True
         self.step_index, self.next_step = grid_position(
-            self.step, self.swing, max(at, self.next_step)
+            self.step, self.swing, max(at, self.next_step), self.groove
         )
         return output
 
     def relocate(self, at: Fraction, tick: int) -> list[RealizedMidiEvent]:
         output = self.pause(at, tick)
-        self.step_index, self.next_step = grid_position(self.step, self.swing, at)
+        self.step_index, self.next_step = grid_position(
+            self.step, self.swing, at, self.groove
+        )
         assert self.ports is not None
         self.ports.pending.clear()
         self.bank.last_selected = None
@@ -210,7 +218,9 @@ class LiveHistoryArpeggiator(BaseModel):
                     / (through - self.processed_to)
                 )
                 output.extend(self._play_step(deadline, floor(source_at)))
-                self.next_step += grid_duration(self.step, self.swing, self.step_index)
+                self.next_step += grid_duration(
+                    self.step, self.swing, self.step_index, self.groove
+                )
                 self.step_index += 1
             else:
                 event = self.queue.pop(0)
@@ -321,7 +331,9 @@ class LiveHistoryArpeggiator(BaseModel):
                     MidiPlacement(
                         note_id=selected.note_id,
                         onset=at,
-                        gate=grid_duration(self.step, self.swing, self.step_index)
+                        gate=grid_duration(
+                            self.step, self.swing, self.step_index, self.groove
+                        )
                         * self.ports.gate
                         * self.patterns.gates[
                             self.step_index % len(self.patterns.gates)

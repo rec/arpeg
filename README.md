@@ -76,6 +76,22 @@ accept swing yet, and there is no live swing control. See the playable
 [exact traces](conformance/swing.toml). The text example offers swing before
 starting; its setting stays fixed during playback.
 
+Grid and Euclidean rhythms can use repeating groove weights:
+
+```toml
+[body.rhythm]
+kind = "grid"
+step = "1/4 beat"
+groove = [3, 1, 2, 2]
+```
+
+This places starts at 0, 3/8, 1/2, 3/4, then 1 beat. The four-step template
+still totals one beat, and gates follow each shaped interval. Weights must be
+positive exact integers or rational strings. Groove phase continues through
+rests, chord edits, and Euclidean loop boundaries. Choose either a groove or
+non-straight swing; `groove = [2, 1]` gives 2:1 swing timing. Custom patterns
+retain their explicitly authored durations.
+
 Custom rhythm hits can play only on selected passes through their pattern:
 
 ```toml

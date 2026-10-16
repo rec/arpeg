@@ -559,6 +559,24 @@ and live swing modulation remain deferred. Shared exact traces cover grid
 starts/gates, rotated odd-length Euclidean loops, zero gates, irregular polling,
 and Python snapshots, with recorded-gesture and transport-position checks.
 
+### Preset groove completion
+
+Grid and Euclidean rhythms accept optional nonempty positive exact `groove`
+weights. Each interval is its weight divided by the total, multiplied by the
+number of weights and the straight step. Thus a complete template preserves
+its duration. Gates follow shaped intervals. Groove phase follows the absolute
+step index through rests, empty banks, rejected hits, edits, and independent
+Euclidean/finite pass boundaries; seeks find the next exact shaped start.
+A groove excludes non-straight swing; `[2, 1]` reproduces swing `2/3`.
+
+Implemented in Python, Rust, and musical WebAssembly profiles, including captured
+history/phrase fitting and supported file rendering. Generic token engines use
+the same timing. Shared traces cover four-step and rational grooves, independent
+patterns, odd rotated Euclidean passes, finite endings, and irregular polling.
+Additional tests cover transport, snapshots, empty banks, chord edits, captured
+gates, and early starts before a file-render horizon. The text demo retains its
+existing controls. Custom-pattern grooves and live timing changes remain deferred.
+
 ### Conditional step completion
 
 Custom hit cells accept optional `condition = {passes = [1, 3], out_of = 4}`

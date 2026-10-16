@@ -67,6 +67,7 @@ pub struct CapturedProfile {
     pub selection: Selection,
     pub step: Beat,
     pub swing: Beat,
+    pub groove: Option<Vec<Beat>>,
     pub gate: Beat,
     pub patterns: Option<StepPatterns>,
     pub retrigger: Retrigger,
@@ -795,7 +796,12 @@ pub fn parse_profile(text: &str, path: Option<&Path>) -> Result<Profile, String>
             if chance.probability != Beat::from_integer(1) {
                 return Err("probability currently requires a held or latched bank".into());
             }
-            let Rhythm::Grid { step, swing } = rhythm else {
+            let Rhythm::Grid {
+                step,
+                swing,
+                groove,
+            } = rhythm
+            else {
                 return Err("captured playback currently requires grid rhythm".into());
             };
             Profile::Captured(CapturedProfile {
@@ -814,6 +820,7 @@ pub fn parse_profile(text: &str, path: Option<&Path>) -> Result<Profile, String>
                 selection,
                 step,
                 swing,
+                groove,
                 gate,
                 patterns,
                 retrigger,
@@ -831,9 +838,10 @@ fn parse_rhythm(body: &toml::map::Map<String, toml::Value>) -> Result<Rhythm, St
         Some("grid")
             if rhythm
                 .keys()
-                .all(|key| ["kind", "step", "swing"].contains(&key.as_str())) =>
+                .all(|key| ["kind", "step", "swing", "groove"].contains(&key.as_str())) =>
         {
             Rhythm::Grid {
+                groove: parse_groove(rhythm)?,
                 swing: parse_swing(rhythm)?,
                 step: parse_beat_duration(rhythm.get("step"))?,
             }
@@ -841,7 +849,7 @@ fn parse_rhythm(body: &toml::map::Map<String, toml::Value>) -> Result<Rhythm, St
         Some("euclidean")
             if rhythm.keys().all(|key| {
                 [
-                    "kind", "step", "steps", "pulses", "rotation", "swing", "cycles",
+                    "kind", "step", "steps", "pulses", "rotation", "swing", "cycles", "groove",
                 ]
                 .contains(&key.as_str())
             }) =>
@@ -860,6 +868,7 @@ fn parse_rhythm(body: &toml::map::Map<String, toml::Value>) -> Result<Rhythm, St
                 .ok_or("Euclidean rotation must be an integer")?;
             Rhythm::Euclidean {
                 cycles: parse_cycles(rhythm)?,
+                groove: parse_groove(rhythm)?,
                 swing: parse_swing(rhythm)?,
                 step: parse_beat_duration(rhythm.get("step"))?,
                 steps,
@@ -983,6 +992,26 @@ fn parse_patterns(value: Option<&toml::Value>) -> Result<Option<StepPatterns>, S
     }
     parsed.validate()?;
     Ok(Some(parsed))
+}
+
+fn parse_groove(rhythm: &toml::map::Map<String, toml::Value>) -> Result<Option<Vec<Beat>>, String> {
+    rhythm
+        .get("groove")
+        .map(|value| {
+            value
+                .as_array()
+                .ok_or("groove must be an array")?
+                .iter()
+                .map(|v| match v {
+                    toml::Value::Integer(v) => Ok(Beat::from_integer(*v)),
+                    toml::Value::String(v) => v
+                        .parse::<Beat>()
+                        .map_err(|_| "groove weights must be exact rationals".to_owned()),
+                    _ => Err("groove weights must be exact rationals".into()),
+                })
+                .collect()
+        })
+        .transpose()
 }
 
 fn parse_swing(rhythm: &toml::map::Map<String, toml::Value>) -> Result<Beat, String> {

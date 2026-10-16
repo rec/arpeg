@@ -1,8 +1,7 @@
 """Deterministic held-note arpeggiation on an exact local beat grid."""
 
 from fractions import Fraction
-from itertools import groupby
-from math import ceil
+from itertools import count, groupby
 
 from ufor.arpeggiator import (
     ArpeggiatorScore,
@@ -98,8 +97,8 @@ def render_held(
     previous_bank: set[str] = set()
     previous_key: tuple[Fraction, str] | None = None
     revision = 0
-    for index in range(ceil(through / step)):
-        at = grid_onset(step, body.rhythm.swing, index)
+    for index in count():
+        at = grid_onset(step, body.rhythm.swing, index, body.rhythm.groove)
         if at >= through:
             break
         active = _bank_at(note_times, body.bank, at)
@@ -122,7 +121,11 @@ def render_held(
             ordered[0],
         )
         previous_key = _selection_key(note, selection)
-        gate_end = at + grid_duration(step, body.rhythm.swing, index) * body.gate
+        gate_end = (
+            at
+            + grid_duration(step, body.rhythm.swing, index, body.rhythm.groove)
+            * body.gate
+        )
         for boundary in sorted(
             {
                 t

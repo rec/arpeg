@@ -17,6 +17,7 @@ fn live_notes_follow_input_and_release_when_bank_empties() {
         Bank::Held,
         Selection::Ascending,
         Rhythm::Grid {
+            groove: None,
             swing: arpeg_core::Beat::new(1, 2),
             step: beat(1, 4),
         },
@@ -85,6 +86,7 @@ fn live_step_order_is_independent_of_poll_intervals() {
         Bank::Held,
         Selection::Ascending,
         Rhythm::Grid {
+            groove: None,
             swing: arpeg_core::Beat::new(1, 2),
             step: beat(1, 4),
         },
@@ -97,6 +99,7 @@ fn live_step_order_is_independent_of_poll_intervals() {
         Bank::Held,
         Selection::Ascending,
         Rhythm::Grid {
+            groove: None,
             swing: arpeg_core::Beat::new(1, 2),
             step: beat(1, 4),
         },
@@ -124,6 +127,7 @@ fn simultaneous_note_ons_join_the_first_step() {
         Bank::Held,
         Selection::Ascending,
         Rhythm::Grid {
+            groove: None,
             swing: arpeg_core::Beat::new(1, 2),
             step: beat(1, 4),
         },
@@ -208,6 +212,7 @@ fn live_classic_matches_shared_python_rust_traces() {
                         .collect(),
                 },
                 Some(rhythm) => Rhythm::Euclidean {
+                    groove: None,
                     cycles: None,
                     swing: arpeg_core::Beat::new(1, 2),
                     step: ratio(
@@ -222,6 +227,7 @@ fn live_classic_matches_shared_python_rust_traces() {
                     rotation: rhythm["rotation"].as_i64().unwrap(),
                 },
                 None => Rhythm::Grid {
+                    groove: None,
                     swing: arpeg_core::Beat::new(1, 2),
                     step: beat(1, 4),
                 },

@@ -233,3 +233,25 @@ rhythm={kind="pattern",cycles=1,steps=[{kind="tie",duration="1/4 beat"},{kind="h
         player.free();
     }
 });
+
+test('groove templates place exact starts through the generated bindings', () => {
+    const profile = `name="groove"
+title="Groove"
+[body]
+rhythm={kind="grid",step="1/4 beat",groove=[3,1,2,2]}`;
+    const player = new MidiPlayer(profile, 'internal', 120, 500_000n);
+    try {
+        player.accept(0n, new Uint8Array([144, 60, 100]), 'both');
+        player.accept(0n, new Uint8Array([144, 64, 80]), 'both');
+        assert.deepEqual(player.advance(0n), [new Uint8Array([144, 60, 100])]);
+        assert.deepEqual(player.advance(150_000n), [new Uint8Array([128, 60, 0])]);
+        assert.deepEqual(player.advance(187_499n), []);
+        assert.deepEqual(player.advance(187_500n), [new Uint8Array([144, 64, 80])]);
+        assert.deepEqual(player.advance(237_500n), [new Uint8Array([128, 64, 0])]);
+        assert.deepEqual(player.advance(250_000n), [new Uint8Array([144, 60, 100])]);
+        assert.deepEqual(player.advance(375_000n), [new Uint8Array([128, 60, 0]), new Uint8Array([144, 64, 80])]);
+        assert.throws(() => new MidiPlayer(profile.replace('groove=[3,1,2,2]', 'groove=[3,1,2,2],swing="2/3"'), 'internal', 120, 500_000n));
+    } finally {
+        player.free();
+    }
+});

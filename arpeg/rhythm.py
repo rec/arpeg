@@ -52,7 +52,10 @@ def decide_step(
                 held += tied_duration
     else:
         duration = grid_duration(
-            Fraction(rhythm.step.removesuffix(" beat")), rhythm.swing, index
+            Fraction(rhythm.step.removesuffix(" beat")),
+            rhythm.swing,
+            index,
+            rhythm.groove,
         )
         repeats = int(allows_step(rhythm, index))
         attack_gate = final_gate = duration * gate
@@ -102,20 +105,44 @@ def allows_step(rhythm: Grid | Euclidean | Pattern, index: int) -> bool:
     return (phase * rhythm.pulses) % rhythm.steps < rhythm.pulses
 
 
-def grid_duration(step: Fraction, swing: Fraction, index: int) -> Fraction:
-    """Stretch the first interval and shorten the second, preserving pair duration."""
+def grid_duration(
+    step: Fraction, swing: Fraction, index: int, groove: list[Fraction] | None = None
+) -> Fraction:
+    """Shape intervals while preserving each timing template's total duration."""
+    if groove is not None:
+        return (
+            step * len(groove) * groove[index % len(groove)] / sum(groove, Fraction(0))
+        )
     return 2 * step * (swing if index % 2 == 0 else 1 - swing)
 
 
-def grid_onset(step: Fraction, swing: Fraction, index: int) -> Fraction:
+def grid_onset(
+    step: Fraction, swing: Fraction, index: int, groove: list[Fraction] | None = None
+) -> Fraction:
+    if groove is not None:
+        cycles, position = divmod(index, len(groove))
+        period = step * len(groove)
+        return period * (
+            cycles + sum(groove[:position], Fraction(0)) / sum(groove, Fraction(0))
+        )
     pairs, second = divmod(index, 2)
     return 2 * step * (pairs + (swing if second else 0))
 
 
 def grid_position(
-    step: Fraction, swing: Fraction, at: Fraction
+    step: Fraction, swing: Fraction, at: Fraction, groove: list[Fraction] | None = None
 ) -> tuple[int, Fraction]:
-    """Find the first opportunity at or after a beat, retaining absolute pair phase."""
+    """Find the first opportunity at or after a beat, retaining template phase."""
+    if groove is not None:
+        period = step * len(groove)
+        cycles = at // period
+        onset = cycles * period
+        scale = period / sum(groove, Fraction(0))
+        for position, weight in enumerate(groove):
+            if onset >= at:
+                return cycles * len(groove) + position, onset
+            onset += weight * scale
+        return (cycles + 1) * len(groove), onset
     pair = 2 * step
     pairs, offset = divmod(at, pair)
     if offset == 0:

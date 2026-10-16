@@ -7,10 +7,12 @@ pub enum Rhythm {
     Grid {
         step: Beat,
         swing: Beat,
+        groove: Option<Vec<Beat>>,
     },
     Euclidean {
         step: Beat,
         swing: Beat,
+        groove: Option<Vec<Beat>>,
         steps: i64,
         pulses: i64,
         rotation: i64,
@@ -151,9 +153,17 @@ impl Rhythm {
             }
             _ => {}
         }
-        if let Self::Grid { swing, .. } | Self::Euclidean { swing, .. } = self {
+        if let Self::Grid { swing, groove, .. } | Self::Euclidean { swing, groove, .. } = self {
             if *swing < Beat::new(1, 2) || *swing >= Beat::from_integer(1) {
                 return Err("swing must be at least 1/2 and less than 1");
+            }
+            if let Some(weights) = groove {
+                if weights.is_empty() || weights.iter().any(|w| *w <= Beat::from_integer(0)) {
+                    return Err("groove requires nonempty positive exact weights");
+                }
+                if *swing != Beat::new(1, 2) {
+                    return Err("groove cannot be combined with non-straight swing");
+                }
             }
         }
         if let Self::Euclidean { steps, pulses, .. } = self {
@@ -219,8 +229,18 @@ impl Rhythm {
         let gate = gate * patterns.gates[index as usize % patterns.gates.len()];
         let accent = patterns.accents[index as usize % patterns.accents.len()];
         match self {
-            Self::Grid { step, swing } | Self::Euclidean { step, swing, .. } => {
-                let duration = grid_duration(*step, *swing, index);
+            Self::Grid {
+                step,
+                swing,
+                groove,
+            }
+            | Self::Euclidean {
+                step,
+                swing,
+                groove,
+                ..
+            } => {
+                let duration = grid_duration(*step, *swing, index, groove.as_deref());
                 RhythmDecision {
                     accent,
                     duration,
@@ -273,7 +293,11 @@ impl Rhythm {
 }
 
 /// Duration of a swung interval, independent of rhythm mask and loop length.
-pub fn grid_duration(step: Beat, swing: Beat, index: i64) -> Beat {
+pub fn grid_duration(step: Beat, swing: Beat, index: i64, groove: Option<&[Beat]>) -> Beat {
+    if let Some(weights) = groove {
+        let total: Beat = weights.iter().copied().sum();
+        return step * weights.len() as i64 * weights[index as usize % weights.len()] / total;
+    }
     step * 2
         * if index % 2 == 0 {
             swing
@@ -282,7 +306,15 @@ pub fn grid_duration(step: Beat, swing: Beat, index: i64) -> Beat {
         }
 }
 
-pub fn grid_onset(step: Beat, swing: Beat, index: i64) -> Beat {
+pub fn grid_onset(step: Beat, swing: Beat, index: i64, groove: Option<&[Beat]>) -> Beat {
+    if let Some(weights) = groove {
+        let length = weights.len() as i64;
+        let cycles = index / length;
+        let position = index as usize % weights.len();
+        let total: Beat = weights.iter().copied().sum();
+        let prefix: Beat = weights[..position].iter().copied().sum();
+        return step * length * (Beat::from_integer(cycles) + prefix / total);
+    }
     step * 2
         * (Beat::from_integer(index.div_euclid(2))
             + if index.rem_euclid(2) == 0 {
@@ -293,13 +325,28 @@ pub fn grid_onset(step: Beat, swing: Beat, index: i64) -> Beat {
 }
 
 /// First opportunity at or after a beat, retaining absolute pair phase.
-pub fn grid_position(step: Beat, swing: Beat, at: Beat) -> (i64, Beat) {
+pub fn grid_position(step: Beat, swing: Beat, at: Beat, groove: Option<&[Beat]>) -> (i64, Beat) {
+    if let Some(weights) = groove {
+        let length = weights.len() as i64;
+        let period = step * length;
+        let cycles = (at / period).floor().to_integer();
+        let mut onset = period * cycles;
+        let total: Beat = weights.iter().copied().sum();
+        let scale = period / total;
+        for (position, weight) in weights.iter().enumerate() {
+            if onset >= at {
+                return (cycles * length + position as i64, onset);
+            }
+            onset += weight * scale;
+        }
+        return ((cycles + 1) * length, onset);
+    }
     let pair = step * 2;
     let pairs = (at / pair).floor().to_integer();
     if at == pair * pairs {
         return (2 * pairs, at);
     }
-    let middle = grid_onset(step, swing, 2 * pairs + 1);
+    let middle = grid_onset(step, swing, 2 * pairs + 1, None);
     if at <= middle {
         (2 * pairs + 1, middle)
     } else {

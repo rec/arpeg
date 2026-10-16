@@ -368,7 +368,9 @@ class Arpeggiator(BaseModel, Generic[Payload, Event]):
         else:
             assert isinstance(rhythm, (Grid, Euclidean))
             step = Fraction(rhythm.step.removesuffix(" beat"))
-            self.step_index, self.next_step = grid_position(step, rhythm.swing, at)
+            self.step_index, self.next_step = grid_position(
+                step, rhythm.swing, at, rhythm.groove
+            )
         self.now = at
         self.previous_note = None
         self.rising = True

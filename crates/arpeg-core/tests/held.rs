@@ -30,6 +30,7 @@ fn euclidean_renderer_matches_shared_exact_trace() {
         Bank::Held,
         Selection::Ascending,
         Rhythm::Euclidean {
+            groove: None,
             cycles: None,
             swing: arpeg_core::Beat::new(1, 2),
             step: Beat::new(1, 4),
@@ -127,6 +128,7 @@ fn held_chord_matches_shared_exact_trace() {
             bank,
             selection,
             Rhythm::Grid {
+                groove: None,
                 step,
                 swing: Beat::new(1, 2),
             },
@@ -188,6 +190,7 @@ fn latch_replace_and_add_keep_their_distinct_banks() {
             bank,
             Selection::Played,
             Rhythm::Grid {
+                groove: None,
                 swing: arpeg_core::Beat::new(1, 2),
                 step: Beat::new(1, 4),
             },
@@ -220,6 +223,7 @@ fn finite_euclidean_rendering_preserves_the_final_gate() {
         Bank::Held,
         Selection::Ascending,
         Rhythm::Euclidean {
+            groove: None,
             cycles: Some(1),
             steps: 2,
             pulses: 2,
@@ -236,4 +240,32 @@ fn finite_euclidean_rendering_preserves_the_final_gate() {
         [Beat::from_integer(0), Beat::new(1, 4)]
     );
     assert_eq!(occurrences.last().unwrap().gate_end, Beat::new(3, 4));
+}
+
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+fn file_rendering_includes_an_early_grooved_start_before_the_horizon() {
+    let notes = [HeldNote {
+        id: "a",
+        key: 60,
+        onset: Beat::from_integer(0),
+        release: Beat::from_integer(2),
+    }];
+    let events = render_held(
+        &notes,
+        Bank::Held,
+        Selection::Ascending,
+        Rhythm::Grid {
+            step: Beat::new(1, 4),
+            swing: Beat::new(1, 2),
+            groove: Some(vec![1.into(), 3.into()]),
+        },
+        Beat::new(4, 5),
+        Beat::new(1, 5),
+    )
+    .unwrap();
+    assert_eq!(
+        events.iter().map(|e| e.onset).collect::<Vec<_>>(),
+        [Beat::from_integer(0), Beat::new(1, 8)]
+    );
 }

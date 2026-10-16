@@ -24,6 +24,7 @@ fn opaque_tokens_match_python_with_independent_overlapping_occurrences() {
                 },
                 Selection::Ascending,
                 Rhythm::Grid {
+                    groove: None,
                     swing: arpeg_core::Beat::new(1, 2),
                     step: Beat::new(1, 4),
                 },
@@ -84,6 +85,7 @@ fn descending_supports_the_full_signed_rank_range() {
         Bank::Held,
         Selection::Descending,
         Rhythm::Grid {
+            groove: None,
             swing: arpeg_core::Beat::new(1, 2),
             step: Beat::new(1, 4),
         },
@@ -119,6 +121,7 @@ fn generic_occurrences_retain_accents_without_reinterpreting_payloads() {
         Bank::Held,
         Selection::Ascending,
         Rhythm::Grid {
+            groove: None,
             step: Beat::new(1, 4),
             swing: Beat::new(1, 2),
         },
@@ -228,6 +231,7 @@ fn skipped_conditions_preserve_the_audible_chance_sequence() {
             }],
         },
         Rhythm::Grid {
+            groove: None,
             step: Beat::new(1, 2),
             swing: Beat::new(1, 2),
         },
@@ -285,6 +289,7 @@ fn finite_cycles_follow_transport_through_silent_passes_and_chord_edits() {
             }],
         },
         Rhythm::Euclidean {
+            groove: None,
             cycles: Some(2),
             steps: 1,
             pulses: 1,
@@ -335,5 +340,49 @@ fn finite_cycles_follow_transport_through_silent_passes_and_chord_edits() {
         assert_eq!(engine.advance(Beat::from_integer(0)).unwrap()[0].value, 43);
         engine.pause(Beat::from_integer(1));
         assert!(engine.advance(Beat::from_integer(2)).unwrap().is_empty());
+    }
+}
+
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+fn transport_finds_the_next_grooved_start() {
+    for seek in [false, true] {
+        for (at, start) in [
+            (Beat::new(1, 4), Beat::new(3, 8)),
+            (Beat::new(3, 8), Beat::new(3, 8)),
+            (Beat::new(2, 5), Beat::new(1, 2)),
+            (Beat::new(4, 5), Beat::from_integer(1)),
+            (Beat::new(25, 4), Beat::new(51, 8)),
+        ] {
+            let mut engine = Arpeggiator::new(
+                Bank::Held,
+                Selection::Ascending,
+                Rhythm::Grid {
+                    step: Beat::new(1, 4),
+                    swing: Beat::new(1, 2),
+                    groove: Some(vec![3.into(), 1.into(), 2.into(), 2.into()]),
+                },
+                TokenPorts {
+                    timing: TimingPorts::new(Beat::new(4, 5), Beat::from_integer(1)),
+                },
+                Retrigger::OnEmpty,
+                Chance::default(),
+            )
+            .unwrap();
+            engine.press(Beat::from_integer(0), 1000, 5000, 42).unwrap();
+            if seek {
+                engine.relocate(at);
+            } else {
+                engine.pause(at);
+            }
+            let events: Vec<_> = engine
+                .advance(start)
+                .unwrap()
+                .iter()
+                .filter(|e| e.start)
+                .map(|e| (e.at, e.value))
+                .collect();
+            assert_eq!(events, [(start, 42)]);
+        }
     }
 }
