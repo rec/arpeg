@@ -76,6 +76,22 @@ accept swing yet, and there is no live swing control. See the playable
 [exact traces](conformance/swing.toml). The text example offers swing before
 starting; its setting stays fixed during playback.
 
+Custom rhythm hits can play only on selected passes through their pattern:
+
+```toml
+[body.rhythm]
+kind = "pattern"
+steps = [
+  {kind = "hit", duration = "1/4 beat"},
+  {kind = "hit", duration = "1/4 beat", condition = {passes = [4], out_of = 4}},
+]
+```
+
+Here the second hit plays only on every fourth pass. Skipped hits leave note
+selection and chance unchanged. Passes follow transport position through silence
+and chord edits; repeats share their hit's condition, and ties sustain admitted
+hits normally.
+
 Live playback also accepts independent preset accent and gate patterns:
 
 ```toml

@@ -193,6 +193,7 @@ fn live_classic_matches_shared_python_rust_traces() {
                             );
                             match step["kind"].as_str().unwrap() {
                                 "hit" => PatternStep::Hit {
+                                    condition: None,
                                     duration,
                                     repeats: step
                                         .get("repeats")

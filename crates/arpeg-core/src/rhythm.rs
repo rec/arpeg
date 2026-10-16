@@ -20,11 +20,42 @@ pub enum Rhythm {
     },
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum PatternStep {
-    Hit { duration: Beat, repeats: usize },
-    Rest { duration: Beat },
-    Tie { duration: Beat },
+    Hit {
+        duration: Beat,
+        repeats: usize,
+        condition: Option<PassCondition>,
+    },
+    Rest {
+        duration: Beat,
+    },
+    Tie {
+        duration: Beat,
+    },
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PassCondition {
+    pub passes: Vec<i64>,
+    pub out_of: i64,
+}
+
+impl PassCondition {
+    pub fn validate(&self) -> Result<(), &'static str> {
+        if self.out_of <= 0
+            || self.passes.is_empty()
+            || self.passes.iter().any(|p| *p <= 0 || *p > self.out_of)
+            || self
+                .passes
+                .iter()
+                .enumerate()
+                .any(|(i, p)| self.passes[..i].contains(p))
+        {
+            return Err("condition requires unique passes between 1 and out_of");
+        }
+        Ok(())
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -64,10 +95,10 @@ pub struct RhythmDecision {
 }
 
 impl PatternStep {
-    fn duration(self) -> Beat {
+    fn duration(&self) -> Beat {
         match self {
             Self::Hit { duration, .. } | Self::Rest { duration } | Self::Tie { duration } => {
-                duration
+                *duration
             }
         }
     }
@@ -98,6 +129,15 @@ impl Rhythm {
                     })
                 {
                     return Err("pattern requires steps with positive durations and repeat counts");
+                }
+                for step in steps {
+                    if let PatternStep::Hit {
+                        condition: Some(condition),
+                        ..
+                    } = step
+                    {
+                        condition.validate()?;
+                    }
                 }
             }
             _ => {}
@@ -133,9 +173,16 @@ impl Rhythm {
                 let phase = (i128::from(index) - i128::from(*rotation)).rem_euclid(steps);
                 (phase * pulses) % steps < pulses
             }
-            Self::Pattern { steps } => {
-                matches!(steps[index as usize % steps.len()], PatternStep::Hit { .. })
-            }
+            Self::Pattern { steps } => match &steps[index as usize % steps.len()] {
+                PatternStep::Hit {
+                    condition: Some(condition),
+                    ..
+                } => condition
+                    .passes
+                    .contains(&(index / steps.len() as i64 % condition.out_of + 1)),
+                PatternStep::Hit { .. } => true,
+                _ => false,
+            },
         }
     }
 
@@ -156,10 +203,10 @@ impl Rhythm {
             }
             Self::Pattern { steps } => {
                 let position = index as usize % steps.len();
-                let step = steps[position];
+                let step = &steps[position];
                 let duration = step.duration();
                 let repeats = if let PatternStep::Hit { repeats, .. } = step {
-                    repeats
+                    if self.allows_step(index) { *repeats } else { 0 }
                 } else {
                     0
                 };
@@ -170,16 +217,16 @@ impl Rhythm {
                     let mut held = interval;
                     for offset in 1..steps.len() {
                         let PatternStep::Tie { duration } =
-                            steps[(position + offset) % steps.len()]
+                            &steps[(position + offset) % steps.len()]
                         else {
                             break;
                         };
                         final_gate = final_gate.max(
-                            held + duration
+                            held + *duration
                                 * base_gate
                                 * patterns.gates[(index as usize + offset) % patterns.gates.len()],
                         );
-                        held += duration;
+                        held += *duration;
                     }
                 }
                 RhythmDecision {

@@ -8,7 +8,7 @@ use arpeg_core::chance::Chance;
 use arpeg_core::live::Retrigger;
 use arpeg_core::octaves::{Octaves, Traversal};
 use arpeg_core::ports::{PitchBoundary, PitchRegister, ScaleTransform};
-use arpeg_core::rhythm::{PatternStep, Rhythm, StepPatterns};
+use arpeg_core::rhythm::{PassCondition, PatternStep, Rhythm, StepPatterns};
 use arpeg_core::{Bank, Beat, HeldNote, Selection, Walk, render_held};
 use midly::{
     Format, Header, MetaMessage, MidiMessage, Smf, Timing, TrackEvent, TrackEventKind,
@@ -874,9 +874,9 @@ fn parse_rhythm(body: &toml::map::Map<String, toml::Value>) -> Result<Rhythm, St
                 let duration = parse_beat_duration(entry.get("duration"))?;
                 let step = match entry.get("kind").and_then(toml::Value::as_str) {
                     Some("hit")
-                        if entry
-                            .keys()
-                            .all(|key| ["kind", "duration", "repeats"].contains(&key.as_str())) =>
+                        if entry.keys().all(|key| {
+                            ["kind", "duration", "repeats", "condition"].contains(&key.as_str())
+                        }) =>
                     {
                         let repeats = entry
                             .get("repeats")
@@ -886,6 +886,7 @@ fn parse_rhythm(body: &toml::map::Map<String, toml::Value>) -> Result<Rhythm, St
                             return Err("repeats must be a positive integer".into());
                         }
                         PatternStep::Hit {
+                            condition: entry.get("condition").map(parse_condition).transpose()?,
                             duration,
                             repeats: usize::try_from(repeats)
                                 .map_err(|_| "repeat count is too large")?,
@@ -903,6 +904,30 @@ fn parse_rhythm(body: &toml::map::Map<String, toml::Value>) -> Result<Rhythm, St
     };
     parsed.validate().map_err(str::to_owned)?;
     Ok(parsed)
+}
+
+fn parse_condition(value: &toml::Value) -> Result<PassCondition, String> {
+    let table = value.as_table().ok_or("condition must be a table")?;
+    if table
+        .keys()
+        .any(|k| !["passes", "out_of"].contains(&k.as_str()))
+    {
+        return Err("unsupported condition field".into());
+    }
+    let passes = table
+        .get("passes")
+        .and_then(toml::Value::as_array)
+        .ok_or("condition requires a passes array")?
+        .iter()
+        .map(|v| v.as_integer().ok_or("condition passes must be integers"))
+        .collect::<Result<Vec<_>, _>>()?;
+    let out_of = table
+        .get("out_of")
+        .and_then(toml::Value::as_integer)
+        .ok_or("condition requires integer out_of")?;
+    let condition = PassCondition { passes, out_of };
+    condition.validate()?;
+    Ok(condition)
 }
 
 fn parse_patterns(value: Option<&toml::Value>) -> Result<Option<StepPatterns>, String> {

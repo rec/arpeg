@@ -1,0 +1,20 @@
+[[cases]]
+name = "selected passes leave the next note untouched"
+rhythm = {kind="pattern",steps=[{kind="hit",duration="1/4 beat",condition={passes=[1,3],out_of=4}},{kind="hit",duration="1/4 beat"}]}
+notes = [[60,100],[64,80],[67,60]]
+through = "2"
+events = [["0","on",60,100],["1/5","off",60,0],["1/4","on",64,80],["9/20","off",64,0],["3/4","on",67,60],["19/20","off",67,0],["1","on",60,100],["6/5","off",60,0],["5/4","on",64,80],["29/20","off",64,0],["7/4","on",67,60],["39/20","off",67,0],["2","on",60,100]]
+
+[[cases]]
+name = "repeats share admission and skipped hits leave ties silent"
+rhythm = {kind="pattern",steps=[{kind="hit",duration="1/2 beat",repeats=2,condition={passes=[2],out_of=2}},{kind="tie",duration="1/4 beat"},{kind="rest",duration="1/4 beat"}]}
+notes = [[60,100],[64,80]]
+through = "37/10"
+events = [["1","on",60,100],["6/5","off",60,0],["5/4","on",60,100],["17/10","off",60,0],["3","on",64,80],["16/5","off",64,0],["13/4","on",64,80],["37/10","off",64,0]]
+
+[[cases]]
+name = "an admitted hit sustains across a pass boundary"
+rhythm = {kind="pattern",steps=[{kind="tie",duration="1/4 beat"},{kind="hit",duration="1/4 beat",condition={passes=[2],out_of=2}}]}
+notes = [[60,100],[64,80]]
+through = "11/5"
+events = [["3/4","on",60,100],["6/5","off",60,0],["7/4","on",64,80],["11/5","off",64,0]]

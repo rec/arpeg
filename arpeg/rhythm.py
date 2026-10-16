@@ -27,6 +27,10 @@ def decide_step(
         step = rhythm.steps[index % len(rhythm.steps)]
         duration = Fraction(step.duration.removesuffix(" beat"))
         repeats = step.repeats if isinstance(step, HitStep) else 0
+        if isinstance(step, HitStep) and (condition := step.condition) is not None:
+            current_pass = index // len(rhythm.steps) % condition.out_of + 1
+            if current_pass not in condition.passes:
+                repeats = 0
         attack_gate = duration / max(1, repeats) * gate
         final_gate = attack_gate
         if repeats:

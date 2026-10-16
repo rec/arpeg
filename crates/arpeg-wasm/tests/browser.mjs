@@ -192,3 +192,25 @@ test('phrase controls publish committed takes and preserve sounding output', () 
         player.free();
     }
 });
+
+test('conditional hits preserve selection and tie through the next pass', () => {
+    const profile = `name="conditional"
+title="Conditional"
+[body]
+rhythm={kind="pattern",steps=[{kind="hit",duration="1/2 beat",repeats=2,condition={passes=[2],out_of=2}},{kind="tie",duration="1/4 beat"},{kind="rest",duration="1/4 beat"}]}`;
+    const player = new MidiPlayer(profile, 'internal', 120, 500_000n);
+    try {
+        player.accept(0n, new Uint8Array([144, 60, 100]), 'both');
+        player.accept(0n, new Uint8Array([144, 64, 80]), 'both');
+        assert.deepEqual(player.advance(499_999n), []);
+        assert.deepEqual(player.advance(500_000n), [new Uint8Array([144, 60, 100])]);
+        assert.deepEqual(player.advance(850_000n), [
+            new Uint8Array([128, 60, 0]), new Uint8Array([144, 60, 100]),
+            new Uint8Array([128, 60, 0]),
+        ]);
+        assert.deepEqual(player.advance(1_499_999n), []);
+        assert.deepEqual(player.advance(1_500_000n), [new Uint8Array([144, 64, 80])]);
+    } finally {
+        player.free();
+    }
+});

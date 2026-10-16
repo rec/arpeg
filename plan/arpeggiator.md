@@ -559,6 +559,21 @@ and live swing modulation remain deferred. Shared exact traces cover grid
 starts/gates, rotated odd-length Euclidean loops, zero gates, irregular polling,
 and Python snapshots, with recorded-gesture and transport-position checks.
 
+### Conditional step completion
+
+Custom hit cells accept optional `condition = {passes = [1, 3], out_of = 4}`
+with unique one-based passes. Absolute rhythm-pattern passes determine admission,
+including silent/empty passes; chord edits retain phase and transport seeks use
+the destination phase. Rejected conditions become rests before chance and
+selection, while accent and gate patterns continue. Repeats share admission;
+accepted hits retain tie lookahead across pass boundaries and rejected hits
+start no occurrence. Existing sounding occurrences retain their scheduled ends.
+
+Implemented in the generic Python/Rust engine and musical WebAssembly playback.
+Shared traces cover multiple passes, selection, repeats, ties, boundary-crossing
+sustains, irregular polling, and Python snapshots. Preset-only custom hits are
+supported; finite repeats and richer conditions remain deferred.
+
 ### Accent and gate pattern completion
 
 Optional preset `body.patterns = {accents = [...], gates = [...]}` is implemented
