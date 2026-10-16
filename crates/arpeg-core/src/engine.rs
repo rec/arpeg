@@ -167,6 +167,12 @@ impl<P: Processor> Arpeggiator<P> {
                 return Err("transition requires an explicit seed");
             }
         }
+        if let Selection::IntervalEnvelope(envelope) = &selection {
+            envelope.validate()?;
+            if chance.seed.is_none() {
+                return Err("interval envelope requires an explicit seed");
+            }
+        }
         if matches!(selection, Selection::Shuffle { .. }) && chance.seed.is_none() {
             return Err("shuffle requires an explicit seed");
         }
@@ -658,6 +664,33 @@ impl<P: Processor> Arpeggiator<P> {
                     &mut self.choice_count,
                     "transition",
                 )
+            }
+        } else if let Selection::IntervalEnvelope(envelope) = selection {
+            let previous = ordered
+                .iter()
+                .position(|n| self.previous_key.is_some_and(|(_, _, _, _, id)| id == n.id));
+            if let Some(previous) = previous {
+                let range = envelope.ranges[self.step_index as usize % envelope.ranges.len()];
+                let (mut low, mut high) = (i128::from(range.min), i128::from(range.max));
+                if envelope.rest_outside {
+                    low = low.max(-(previous as i128));
+                    high = high.min(ordered.len() as i128 - 1 - previous as i128);
+                    if low > high {
+                        return Ok(false);
+                    }
+                }
+                let movement = low
+                    + i128::from(draw_below(
+                        self.chance.seed.expect("validated envelope seed"),
+                        &self.chance.name,
+                        "interval_envelope",
+                        self.bank_revision,
+                        self.step_index as u64,
+                        (high - low + 1) as u64,
+                    ));
+                ordered[(previous as i128 + movement).rem_euclid(ordered.len() as i128) as usize]
+            } else {
+                ordered[0]
             }
         } else if let Selection::Shuffle {
             once,

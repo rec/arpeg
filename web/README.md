@@ -117,6 +117,10 @@ with a seeded weight matrix. Shared traces cover its blocked-row and opening
 policies; the generated bindings are checked against the weighted-path fixture.
 The demo's existing order controls are unchanged.
 
+The musical WASM profile API accepts `selection.kind = "interval_envelope"`
+with inclusive signed rank ranges and an explicit seed. The bindings are checked
+against the same signed-movement trace as Python and native Rust.
+
 ## Verification
 
 After building:

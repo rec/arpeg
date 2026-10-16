@@ -269,3 +269,17 @@ test('weighted transition profiles select the same path through web bindings', (
         player.free();
     }
 });
+
+test('interval envelopes select signed rank moves through web bindings', () => {
+    const profile = readFileSync(new URL('../../../conformance/interval-envelope.toml', import.meta.url), 'utf8');
+    const player = new MidiPlayer(profile, 'internal', 120, 500_000n);
+    try {
+        player.accept(0n, new Uint8Array([144, 60, 100]), 'both');
+        player.accept(0n, new Uint8Array([144, 64, 80]), 'both');
+        player.accept(0n, new Uint8Array([144, 67, 60]), 'both');
+        assert.deepEqual(player.advance(750_000n).filter(m => m[0] === 144).map(m => m[1]), [60, 60, 67, 60, 64, 60, 64]);
+        assert.throws(() => new MidiPlayer(profile.replace('seed = 42', ''), 'internal', 120, 500_000n));
+    } finally {
+        player.free();
+    }
+});

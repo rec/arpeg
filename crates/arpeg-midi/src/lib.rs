@@ -9,7 +9,9 @@ use arpeg_core::live::Retrigger;
 use arpeg_core::octaves::{Octaves, Traversal};
 use arpeg_core::ports::{PitchBoundary, PitchRegister, ScaleTransform};
 use arpeg_core::rhythm::{PassCondition, PatternStep, Rhythm, StepPatterns};
-use arpeg_core::{Bank, Beat, HeldNote, Selection, Transition, Walk, render_held};
+use arpeg_core::{
+    Bank, Beat, HeldNote, IntervalEnvelope, RankRange, Selection, Transition, Walk, render_held,
+};
 use midly::{
     Format, Header, MetaMessage, MidiMessage, Smf, Timing, TrackEvent, TrackEventKind,
     num::{u4, u7, u28},
@@ -430,6 +432,49 @@ pub fn parse_profile(text: &str, path: Option<&Path>) -> Result<Profile, String>
                 no_repeat,
             }
         }
+        Some("interval_envelope") => {
+            let table = selection.expect("selection table");
+            if table
+                .keys()
+                .any(|k| !["kind", "ranges", "boundary"].contains(&k.as_str()))
+            {
+                return Err("unsupported interval envelope option".into());
+            }
+            let ranges = table
+                .get("ranges")
+                .and_then(toml::Value::as_array)
+                .ok_or("interval envelope requires a ranges array")?
+                .iter()
+                .map(|v| {
+                    let range = v.as_table().ok_or("rank range must be a table")?;
+                    if range.keys().any(|k| !["min", "max"].contains(&k.as_str())) {
+                        return Err("unsupported rank range field");
+                    }
+                    Ok(RankRange {
+                        min: range
+                            .get("min")
+                            .and_then(toml::Value::as_integer)
+                            .ok_or("range min must be an integer")?,
+                        max: range
+                            .get("max")
+                            .and_then(toml::Value::as_integer)
+                            .ok_or("range max must be an integer")?,
+                    })
+                })
+                .collect::<Result<Vec<_>, &str>>()?;
+            let rest_outside = match table.get("boundary").and_then(toml::Value::as_str) {
+                Some("rest") => true,
+                Some("wrap") => false,
+                None if !table.contains_key("boundary") => false,
+                _ => return Err("interval envelope boundary must be wrap or rest".into()),
+            };
+            let envelope = IntervalEnvelope {
+                ranges,
+                rest_outside,
+            };
+            envelope.validate()?;
+            Selection::IntervalEnvelope(envelope)
+        }
         Some("transition") => {
             let table = selection.expect("selection table");
             if table.keys().any(|k| {
@@ -636,6 +681,9 @@ pub fn parse_profile(text: &str, path: Option<&Path>) -> Result<Profile, String>
     if matches!(selection, Selection::Transition(_)) && seed.is_none() {
         return Err("transition requires an explicit seed".into());
     }
+    if matches!(selection, Selection::IntervalEnvelope(_)) && seed.is_none() {
+        return Err("interval envelope requires an explicit seed".into());
+    }
     let (transposition, pitch_boundary) = match body.get("transposition") {
         None => (0, PitchBoundary::Drop),
         Some(value) => {
@@ -828,6 +876,9 @@ pub fn parse_profile(text: &str, path: Option<&Path>) -> Result<Profile, String>
             }
             if inversion != 0 {
                 return Err("inversion requires a held or latched bank".into());
+            }
+            if matches!(selection, Selection::IntervalEnvelope(_)) {
+                return Err("interval envelope currently requires a held or latched bank".into());
             }
             if matches!(selection, Selection::Transition(_)) {
                 return Err(

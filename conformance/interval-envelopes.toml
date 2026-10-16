@@ -1,0 +1,43 @@
+[[cases]]
+name = "seeded signed ranges wrap through the bank"
+selection = {kind="interval_envelope",ranges=[{min=1,max=1},{min=-2,max=2},{min=2,max=3}]}
+notes = [[60,100],[64,80],[67,60]]
+through = "3/2"
+events = [["0","on",60,100],["1/5","off",60,0],["1/4","on",60,100],["9/20","off",60,0],["1/2","on",67,60],["7/10","off",67,0],["3/4","on",60,100],["19/20","off",60,0],["1","on",64,80],["6/5","off",64,0],["5/4","on",60,100],["29/20","off",60,0],["3/2","on",64,80]]
+
+[[cases]]
+name = "blocked cells rest while the envelope progresses"
+selection = {kind="interval_envelope",boundary="rest",ranges=[{min=-1,max=-1},{min=-4,max=-2},{min=1,max=1}]}
+notes = [[60,100],[64,80],[67,60]]
+through = "3/2"
+events = [["0","on",60,100],["1/5","off",60,0],["1/2","on",64,80],["7/10","off",64,0],["3/4","on",60,100],["19/20","off",60,0],["5/4","on",64,80],["29/20","off",64,0],["3/2","on",60,100]]
+
+[[cases]]
+name = "Euclidean rests preserve absolute envelope phase"
+selection = {kind="interval_envelope",ranges=[{min=0,max=0},{min=1,max=1},{min=-1,max=-1}]}
+rhythm = {kind="euclidean",steps=3,pulses=2,step="1/4 beat"}
+notes = [[60,100],[64,80],[67,60]]
+through = "3/2"
+events = [["0","on",60,100],["1/5","off",60,0],["1/2","on",67,60],["7/10","off",67,0],["3/4","on",67,60],["19/20","off",67,0],["5/4","on",64,80],["29/20","off",64,0],["3/2","on",64,80]]
+
+[[cases]]
+name = "large signed ranges use bounded arithmetic without enumeration"
+selection = {kind="interval_envelope",ranges=[{min=-9223372036854775808,max=9223372036854775806}]}
+notes = [[60,100],[64,80],[67,60]]
+through = "3/2"
+events = [["0","on",60,100],["1/5","off",60,0],["1/4","on",67,60],["9/20","off",67,0],["1/2","on",64,80],["7/10","off",64,0],["3/4","on",60,100],["19/20","off",60,0],["1","on",67,60],["6/5","off",67,0],["5/4","on",60,100],["29/20","off",60,0],["3/2","on",60,100]]
+
+[[cases]]
+name = "rest policy filters unavailable moves before choosing"
+selection = {kind="interval_envelope",boundary="rest",ranges=[{min=-4,max=-2},{min=2,max=4}]}
+notes = [[60,100],[64,80],[67,60]]
+through = "1"
+events = [["0","on",60,100],["1/5","off",60,0],["1/4","on",67,60],["9/20","off",67,0],["1/2","on",60,100],["7/10","off",60,0],["3/4","on",67,60],["19/20","off",67,0],["1","on",60,100]]
+
+[[cases]]
+name = "repeats reuse a selection while custom rests advance phase"
+selection = {kind="interval_envelope",ranges=[{min=1,max=1},{min=-1,max=-1},{min=2,max=2}]}
+rhythm = {kind="pattern",steps=[{kind="hit",duration="1/2 beat",repeats=2},{kind="rest",duration="1/2 beat"}]}
+notes = [[60,100],[64,80],[67,60]]
+through = "5/4"
+events = [["0","on",60,100],["1/5","off",60,0],["1/4","on",60,100],["9/20","off",60,0],["1","on",67,60],["6/5","off",67,0],["5/4","on",67,60]]

@@ -528,6 +528,23 @@ Shared traces cover weighted paths, missing entries, blocked/uniform behavior,
 random openings, octave ranks, repeats, and polling. Captured history/phrase
 selection, sample-region selection, and file rendering remain unsupported.
 
+Interval envelopes are implemented for held/latched and generic item banks in
+Python, Rust, and the WebAssembly profile API. `kind = "interval_envelope"`
+contains nonempty inclusive signed rank `ranges = [{min = 1, max = 1}, ...]`.
+An explicit seed is required. The opening is rank zero; subsequent selections
+use the cell at absolute rhythm index, including silent/rejected opportunities.
+Repeats share one choice. Surviving source/layer identities follow their current
+ranks; removal and normal retrigger reset selection without resetting phase.
+
+`boundary = "wrap"` samples uniformly among signed moves and wraps afterward;
+`"rest"` first restricts moves to in-bank destinations and rests when none fit.
+The next cell can recover from a blocked range. Signed i64 endpoints and range
+sizes fitting u64 permit bounded sampling without enumerating moves. Shared
+traces cover seeded wrapping, clipped and blocked ranges, extreme arithmetic,
+Euclidean/custom rests, and repeats. Additional checks cover zero accents,
+chance, snapshots, edits, transport, and generic payloads. Captured history/phrase
+selection, sample-region selection, and file rendering remain unsupported.
+
 Deriving a new pitch retains a source gesture reference or explicitly chooses
 a synthetic gesture. No hidden pitch generation from an empty bank.
 

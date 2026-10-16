@@ -47,6 +47,7 @@ pub enum Selection {
         no_repeat: bool,
     },
     Transition(Transition),
+    IntervalEnvelope(IntervalEnvelope),
     Walk(Walk),
 }
 
@@ -56,6 +57,31 @@ pub struct Transition {
     pub missing_weight: u32,
     pub start_random: bool,
     pub uniform_when_blocked: bool,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct RankRange {
+    pub min: i64,
+    pub max: i64,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct IntervalEnvelope {
+    pub ranges: Vec<RankRange>,
+    pub rest_outside: bool,
+}
+
+impl IntervalEnvelope {
+    pub fn validate(&self) -> Result<(), &'static str> {
+        if self.ranges.is_empty()
+            || self.ranges.iter().any(|r| {
+                r.min > r.max || i128::from(r.max) - i128::from(r.min) >= i128::from(u64::MAX)
+            })
+        {
+            return Err("interval envelope requires ordered ranges with sizes fitting u64");
+        }
+        Ok(())
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -138,6 +164,9 @@ pub fn render_held<'a>(
     if matches!(selection, Selection::Transition(_)) {
         return Err("transition selection currently requires live input");
     }
+    if matches!(selection, Selection::IntervalEnvelope(_)) {
+        return Err("interval envelope currently requires live input");
+    }
     rhythm.validate()?;
     if matches!(rhythm, rhythm::Rhythm::Pattern { .. }) {
         return Err("pattern rhythm currently requires live input");
@@ -217,6 +246,7 @@ fn selection_key<'a>(note: &HeldNote<'a>, selection: &Selection) -> (Beat, &'a s
         | Selection::Alternating { .. }
         | Selection::Choice { .. }
         | Selection::Transition(_)
+        | Selection::IntervalEnvelope(_)
         | Selection::Shuffle { .. }
         | Selection::IndexPattern { .. }
         | Selection::InsideOut

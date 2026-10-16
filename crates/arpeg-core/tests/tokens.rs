@@ -450,3 +450,65 @@ fn transitions_follow_surviving_identity_and_restart_after_removal() {
         [45]
     );
 }
+
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+fn transport_keeps_absolute_interval_phase_with_existing_selector_resets() {
+    use arpeg_core::{IntervalEnvelope, RankRange};
+    for (seek, first, second) in [(false, 43, 42), (true, 42, 44)] {
+        let mut engine = Arpeggiator::new(
+            Bank::Held,
+            Selection::IntervalEnvelope(IntervalEnvelope {
+                ranges: vec![
+                    RankRange { min: 1, max: 1 },
+                    RankRange { min: -1, max: -1 },
+                    RankRange { min: 0, max: 0 },
+                ],
+                rest_outside: false,
+            }),
+            Rhythm::Grid {
+                step: Beat::new(1, 4),
+                swing: Beat::new(1, 2),
+                groove: None,
+            },
+            TokenPorts {
+                timing: TimingPorts::new(Beat::new(4, 5), Beat::from_integer(1)),
+            },
+            Retrigger::OnEmpty,
+            Chance {
+                seed: Some(42),
+                ..Chance::default()
+            },
+        )
+        .unwrap();
+        for (id, rank, value) in [(1000, 0, 42), (1001, 1, 43), (1002, 2, 44)] {
+            engine.press(0.into(), id, rank, value).unwrap();
+        }
+        engine.advance(0.into()).unwrap();
+        if seek {
+            engine.relocate(Beat::new(5, 8));
+        } else {
+            engine.pause(Beat::new(5, 8));
+        }
+        assert_eq!(
+            engine
+                .advance(Beat::new(3, 4))
+                .unwrap()
+                .iter()
+                .filter(|e| e.start)
+                .map(|e| e.value)
+                .collect::<Vec<_>>(),
+            [first]
+        );
+        assert_eq!(
+            engine
+                .advance(1.into())
+                .unwrap()
+                .iter()
+                .filter(|e| e.start)
+                .map(|e| e.value)
+                .collect::<Vec<_>>(),
+            [second]
+        );
+    }
+}

@@ -19,6 +19,7 @@ from ufor.arpeggiator import (
     HeldBank,
     IndexPattern,
     InsideOut,
+    IntervalEnvelope,
     LatchedBank,
     OutsideIn,
     Pattern,
@@ -52,6 +53,7 @@ class EngineSettings(BaseModel, frozen=True):
         | Shuffle
         | Choice
         | Transition
+        | IntervalEnvelope
         | Walk
     ) = Ascending()
     rhythm: Grid | Euclidean | Pattern = Grid(step="1/4 beat")
@@ -69,7 +71,9 @@ class EngineSettings(BaseModel, frozen=True):
             )
         if self.seed is None and (
             0 < self.probability < 1
-            or isinstance(self.selection, (Shuffle, Choice, Transition))
+            or isinstance(
+                self.selection, (Shuffle, Choice, Transition, IntervalEnvelope)
+            )
             or isinstance(self.selection, Walk)
             and len(self.selection.moves) > 1
         ):
@@ -160,6 +164,7 @@ class Arpeggiator(BaseModel, Generic[Payload, Event]):
         | Shuffle
         | Choice
         | Transition
+        | IntervalEnvelope
         | Walk
     ):
         selection = self.settings.selection
@@ -176,6 +181,7 @@ class Arpeggiator(BaseModel, Generic[Payload, Event]):
                 Shuffle,
                 Choice,
                 Transition,
+                IntervalEnvelope,
                 Walk,
             ),
         )
@@ -494,6 +500,9 @@ class Arpeggiator(BaseModel, Generic[Payload, Event]):
         elif isinstance(selection, Transition):
             if (note := self._transition_note(ordered, selection)) is None:
                 return False
+        elif isinstance(selection, IntervalEnvelope):
+            if (note := self._interval_note(ordered, selection)) is None:
+                return False
         elif isinstance(selection, Shuffle):
             note = self._shuffle_note(ordered, selection)
         elif isinstance(selection, (InsideOut, OutsideIn)):
@@ -684,6 +693,37 @@ class Arpeggiator(BaseModel, Generic[Payload, Event]):
                     return None
                 candidates = [(n, 1) for n in ordered]
         return self._weighted_note(candidates, "transition")
+
+    def _interval_note(
+        self, ordered: list[Item[Payload]], selection: IntervalEnvelope
+    ) -> Item[Payload] | None:
+        previous = next(
+            (
+                i
+                for i, n in enumerate(ordered)
+                if self.previous_note is not None and n.id == self.previous_note.id
+            ),
+            None,
+        )
+        if previous is None:
+            return ordered[0]
+        interval = selection.ranges[self.step_index % len(selection.ranges)]
+        low, high = interval.min, interval.max
+        if selection.boundary == "rest":
+            low, high = max(low, -previous), min(high, len(ordered) - 1 - previous)
+            if low > high:
+                return None
+        seed = self.settings.seed
+        assert seed is not None
+        move = low + draw_below(
+            seed,
+            self.settings.name,
+            "interval_envelope",
+            self.bank_revision,
+            self.step_index,
+            high - low + 1,
+        )
+        return ordered[(previous + move) % len(ordered)]
 
     def _shuffle_note(
         self, ordered: list[Item[Payload]], selection: Shuffle

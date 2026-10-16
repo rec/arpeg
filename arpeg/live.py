@@ -21,6 +21,7 @@ from ufor.arpeggiator import (
     HeldBank,
     IndexPattern,
     InsideOut,
+    IntervalEnvelope,
     LatchedBank,
     OctaveTraversal,
     OutsideIn,
@@ -80,6 +81,7 @@ class LiveArpeggiator(Arpeggiator[MusicalValue, LiveEvent]):
                 Shuffle,
                 Choice,
                 Transition,
+                IntervalEnvelope,
                 Walk,
             ),
         ):

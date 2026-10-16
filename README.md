@@ -113,6 +113,24 @@ becomes available or it is reset. `"uniform"` keeps playing by allowing every
 available entry, deliberately relaxing the table. Repeats reuse one choice.
 Held and latched banks are supported, including the WebAssembly profile API.
 
+Interval envelopes vary the distance between successive selections:
+
+```toml
+[body]
+selection = {kind = "interval_envelope", ranges = [{min = 1, max = 1}, {min = -2, max = 2}, {min = 2, max = 3}]}
+rhythm = {kind = "grid", step = "1/4 beat"}
+seed = 42
+```
+
+The opening uses the lowest entry. Later selections use the current rhythm
+step's range, choosing a signed rank movement uniformly. `boundary = "wrap"`
+is the default; `"rest"` restricts moves to the bank and rests when none fit.
+Ranges keep their rhythmic phase through rests, chance rejection, and chord
+edits; repeats share a choice. Surviving entries use their current ranks;
+removing the previous entry restarts the opening. Distances address expanded
+entries and work for text as well as musical notes. Held/latched playback and
+the musical WebAssembly profile API are supported.
+
 Custom rhythm hits can play only on selected passes through their pattern:
 
 ```toml

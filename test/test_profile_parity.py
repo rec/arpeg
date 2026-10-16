@@ -40,6 +40,7 @@ def test_alternating_profile_round_trips() -> None:
         "shuffle",
         "choice",
         "transition",
+        "interval-envelope",
         "live-wind",
         "history-live-wind",
     ],
