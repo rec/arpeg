@@ -7,7 +7,7 @@ from fractions import Fraction
 from functools import cached_property
 from typing import Generic, Literal, Self, TypeVar
 
-from pydantic import BaseModel, Field, SerializeAsAny, model_validator
+from pydantic import BaseModel, Field, SerializeAsAny, field_validator, model_validator
 from ufor import arpeggiator_ports
 from ufor.arpeggiator import (
     Alternating,
@@ -15,6 +15,7 @@ from ufor.arpeggiator import (
     Choice,
     Descending,
     Euclidean,
+    Grammar,
     Grid,
     HeldBank,
     IndexPattern,
@@ -50,6 +51,7 @@ class EngineSettings(BaseModel, frozen=True):
         | InsideOut
         | OutsideIn
         | IndexPattern
+        | Grammar
         | Shuffle
         | Choice
         | Transition
@@ -62,6 +64,11 @@ class EngineSettings(BaseModel, frozen=True):
     probability: Fraction = Fraction(1)
     seed: int | None = None
     retrigger: Literal["on_empty", "bank_edit"] = "on_empty"
+
+    @field_validator("selection")
+    @classmethod
+    def prepare_grammar(cls, selection: BaseModel) -> BaseModel:
+        return selection.expand() if isinstance(selection, Grammar) else selection
 
     @model_validator(mode="after")
     def valid_settings(self) -> Self:

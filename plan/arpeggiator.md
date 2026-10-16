@@ -545,6 +545,22 @@ Euclidean/custom rests, and repeats. Additional checks cover zero accents,
 chance, snapshots, edits, transport, and generic payloads. Captured history/phrase
 selection, sample-region selection, and file rendering remain unsupported.
 
+Finite deterministic grammar expansion is implemented in uFor/Python and Rust,
+including the WebAssembly profile API. `kind = "grammar"` specifies an `axiom`
+symbol list, optional replacement `rules`, final `terminals` rank mappings, and
+`rounds` (default zero). Each round rewrites simultaneously; symbols without
+rules persist. Final output must be nonempty and fully mapped. Preparation is
+limited to 32 rounds and 4,096 symbols at every stage, with rejection rather than
+truncation. Rules require no seed and may erase symbols with empty replacements.
+
+The result lowers to the existing index-pattern selector before playback, so
+there is no separate grammar runtime. It inherits expanded ranks, wrap/rest,
+looping, admitted-hit advancement, repeats, bank edits, and snapshot behavior.
+Shared traces cover rounds, unchanged symbols, boundary policies, rests/repeats,
+and Python snapshots; tests also cover Unicode payloads and exact preparation
+limits. Random production alternatives, recursive branch expansion, captured
+history/phrase selection, region selection, and file rendering remain deferred.
+
 Deriving a new pitch retains a source gesture reference or explicitly chooses
 a synthetic gesture. No hidden pitch generation from an empty bank.
 

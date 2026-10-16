@@ -1,0 +1,7 @@
+kind = "arpeggiator"
+name = "grammar"
+title = "A growing two-note motif"
+
+[body]
+selection = {kind="grammar",axiom=["A"],rules={A=["A","B"],B=["A"]},terminals={A=0,B=1},rounds=3}
+rhythm = {kind="grid",step="1/4 beat"}

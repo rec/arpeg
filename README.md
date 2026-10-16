@@ -131,6 +131,22 @@ removing the previous entry restarts the opening. Distances address expanded
 entries and work for text as well as musical notes. Held/latched playback and
 the musical WebAssembly profile API are supported.
 
+Finite grammars prepare longer patterns from small replacement rules:
+
+```toml
+[body]
+selection = {kind = "grammar", axiom = ["A"], rules = {A = ["A", "B"], B = ["A"]}, terminals = {A = 0, B = 1}, rounds = 3}
+rhythm = {kind = "grid", step = "1/4 beat"}
+```
+
+Three simultaneous rounds produce the looping ranks `[0, 1, 0, 0, 1]`.
+Symbols without a rule remain unchanged; final symbols require terminal ranks.
+The prepared result uses existing index-pattern playback, including expanded
+bank ranks, repeats, and `boundary = "wrap"` or `"rest"`. Grammar rules need no
+seed. Preparation rejects empty/unmapped results, more than 32 rounds, or any
+expansion beyond 4,096 symbols. Held/latched playback, generic item banks, and
+the musical WebAssembly profile API are supported.
+
 Custom rhythm hits can play only on selected passes through their pattern:
 
 ```toml

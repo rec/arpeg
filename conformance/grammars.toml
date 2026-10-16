@@ -1,0 +1,28 @@
+[[cases]]
+name = "simultaneous rounds prepare a looping motif without a seed"
+selection = {kind="grammar",axiom=["A"],rules={A=["A","B"],B=["A"]},terminals={A=0,B=1},rounds=3}
+notes = [[60,100],[64,80]]
+through = "5/4"
+events = [["0","on",60,100],["1/5","off",60,0],["1/4","on",64,80],["9/20","off",64,0],["1/2","on",60,100],["7/10","off",60,0],["3/4","on",60,100],["19/20","off",60,0],["1","on",64,80],["6/5","off",64,0],["5/4","on",60,100]]
+
+[[cases]]
+name = "unavailable terminal ranks rest while advancing the prepared pattern"
+selection = {kind="grammar",axiom=["low","high","middle"],terminals={low=0,high=5,middle=1},boundary="rest"}
+notes = [[60,100],[64,80]]
+through = "5/4"
+events = [["0","on",60,100],["1/5","off",60,0],["1/2","on",64,80],["7/10","off",64,0],["3/4","on",60,100],["19/20","off",60,0],["5/4","on",64,80]]
+
+[[cases]]
+name = "wrapping maps terminal ranks into the current bank"
+selection = {kind="grammar",axiom=["low","high","middle"],terminals={low=0,high=5,middle=1}}
+notes = [[60,100],[64,80]]
+through = "3/4"
+events = [["0","on",60,100],["1/5","off",60,0],["1/4","on",64,80],["9/20","off",64,0],["1/2","on",64,80],["7/10","off",64,0],["3/4","on",60,100]]
+
+[[cases]]
+name = "repeats retain a grammar choice and custom rests do not advance it"
+selection = {kind="grammar",axiom=["S"],rules={S=["A","B"]},terminals={A=0,B=1},rounds=2}
+rhythm = {kind="pattern",steps=[{kind="hit",duration="1/2 beat",repeats=2},{kind="rest",duration="1/2 beat"}]}
+notes = [[60,100],[64,80]]
+through = "5/4"
+events = [["0","on",60,100],["1/5","off",60,0],["1/4","on",60,100],["9/20","off",60,0],["1","on",64,80],["6/5","off",64,0],["5/4","on",64,80]]

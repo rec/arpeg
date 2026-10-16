@@ -283,3 +283,16 @@ test('interval envelopes select signed rank moves through web bindings', () => {
         player.free();
     }
 });
+
+test('finite grammars prepare deterministic index patterns through web bindings', () => {
+    const profile = readFileSync(new URL('../../../conformance/grammar.toml', import.meta.url), 'utf8');
+    const player = new MidiPlayer(profile, 'internal', 120, 500_000n);
+    try {
+        player.accept(0n, new Uint8Array([144, 60, 100]), 'both');
+        player.accept(0n, new Uint8Array([144, 64, 80]), 'both');
+        assert.deepEqual(player.advance(625_000n).filter(m => m[0] === 144).map(m => m[1]), [60, 64, 60, 60, 64, 60]);
+        assert.throws(() => new MidiPlayer(profile.replace('rounds=3', 'rounds=33'), 'internal', 120, 500_000n));
+    } finally {
+        player.free();
+    }
+});

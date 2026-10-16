@@ -5,6 +5,7 @@ use std::path::Path;
 
 use arpeg_core::bank::CaptureMode;
 use arpeg_core::chance::Chance;
+use arpeg_core::grammar::Grammar;
 use arpeg_core::live::Retrigger;
 use arpeg_core::octaves::{Octaves, Traversal};
 use arpeg_core::ports::{PitchBoundary, PitchRegister, ScaleTransform};
@@ -354,6 +355,63 @@ pub fn parse_profile(text: &str, path: Option<&Path>) -> Result<Profile, String>
                 .transpose()?
                 .unwrap_or(false);
             Selection::Alternating { repeat_endpoints }
+        }
+        Some("grammar") => {
+            let table = selection.expect("selection table");
+            if table.keys().any(|k| {
+                !["kind", "axiom", "rules", "terminals", "rounds", "boundary"].contains(&k.as_str())
+            }) {
+                return Err("unsupported grammar option".into());
+            }
+            let axiom =
+                parse_grammar_symbols(table.get("axiom").ok_or("grammar requires an axiom")?)?;
+            let rules = match table.get("rules") {
+                None => BTreeMap::new(),
+                Some(value) => value
+                    .as_table()
+                    .ok_or("grammar rules must be a table")?
+                    .iter()
+                    .map(|(k, v)| Ok((k.clone(), parse_grammar_symbols(v)?)))
+                    .collect::<Result<_, String>>()?,
+            };
+            let terminals = table
+                .get("terminals")
+                .and_then(toml::Value::as_table)
+                .ok_or("grammar requires a terminals table")?
+                .iter()
+                .map(|(k, v)| {
+                    Ok((
+                        k.clone(),
+                        v.as_integer()
+                            .and_then(|v| u64::try_from(v).ok())
+                            .ok_or("terminal ranks must be nonnegative integers")?,
+                    ))
+                })
+                .collect::<Result<_, String>>()?;
+            let rounds = table
+                .get("rounds")
+                .map(|v| {
+                    v.as_integer()
+                        .and_then(|v| usize::try_from(v).ok())
+                        .ok_or("grammar rounds must be a nonnegative integer")
+                })
+                .transpose()?
+                .unwrap_or(0);
+            let rest_outside = match table.get("boundary").and_then(toml::Value::as_str) {
+                Some("rest") => true,
+                Some("wrap") => false,
+                None if !table.contains_key("boundary") => false,
+                _ => return Err("grammar boundary must be wrap or rest".into()),
+            };
+            Grammar {
+                axiom,
+                rules,
+                terminals,
+                rounds,
+                rest_outside,
+            }
+            .expand()
+            .map_err(str::to_owned)?
         }
         Some("index_pattern") => {
             let table = selection.expect("selection table");
@@ -941,6 +999,19 @@ pub fn parse_profile(text: &str, path: Option<&Path>) -> Result<Profile, String>
             })
         }
     })
+}
+
+fn parse_grammar_symbols(value: &toml::Value) -> Result<Vec<String>, String> {
+    value
+        .as_array()
+        .ok_or("grammar symbols must be an array")?
+        .iter()
+        .map(|v| {
+            v.as_str()
+                .map(str::to_owned)
+                .ok_or_else(|| "grammar symbols must be strings".to_owned())
+        })
+        .collect()
 }
 
 fn parse_rhythm(body: &toml::map::Map<String, toml::Value>) -> Result<Rhythm, String> {

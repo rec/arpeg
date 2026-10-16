@@ -121,6 +121,10 @@ The musical WASM profile API accepts `selection.kind = "interval_envelope"`
 with inclusive signed rank ranges and an explicit seed. The bindings are checked
 against the same signed-movement trace as Python and native Rust.
 
+The musical WASM profile API accepts `selection.kind = "grammar"` for bounded,
+deterministic preparation of index patterns. Expansion runs before playback;
+the same motif and limits are checked through the generated bindings.
+
 ## Verification
 
 After building:

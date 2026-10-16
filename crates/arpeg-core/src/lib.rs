@@ -8,6 +8,7 @@ pub mod chance;
 pub mod clock;
 pub mod engine;
 pub mod gesture;
+pub mod grammar;
 pub mod history;
 pub mod inversion;
 pub mod live;
