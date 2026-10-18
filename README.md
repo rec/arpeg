@@ -572,14 +572,19 @@ reordered playback have one-second WAV regressions on both sampler backends.
 
 The standalone `arpeg` executable validates supported profiles, renders
 single-track metrical MIDI files containing note and tempo events, and plays
-classic or recorded-history arpeggios through midir on Linux, Windows, and macOS.
+classic or recorded-history arpeggios through meedee/libremidi on Linux, Windows,
+and macOS.
 The Python `arpeg-python` host uses mido and its RtMidi backend to run the
 reference engines with the same presets on those platforms. Both hosts read MIDI
 channel 1 and output on channel 1. The default clock uses internal BPM; both
 hosts also accept external MIDI Clock and transport. They timestamp
 messages when the input callback runs, poll every millisecond, and send events
 immediately when due. Driver timestamps and future output timestamps are not
-used yet. Hardware timing and device behavior have not been verified.
+used yet. The Rust host disables backend timestamp capture and retains its
+host-arrival clock. Virtual-only Mac checks cover delivery and cleanup with
+internal/shared/separate clocks and explicit termination on transport loss;
+physical timing and Linux/Windows native behavior remain unverified for this
+transport migration. See [the migration evidence](doc/performance.md#meedee-host-migration-2026-10-18).
 
 Published releases build native ZIP downloads for Apple Silicon and Intel Macs,
 Windows x64, and Linux x64. Once every native and WebAssembly check passes, the
@@ -988,10 +993,17 @@ rhythm = { kind = "grid", step = "1/4 beat" }
 
 ## Development
 
-Building the Rust MIDI host on Linux requires ALSA development headers and
-`pkg-config` (`libasound2-dev` and `pkg-config` on Debian/Ubuntu). ALSA is also
-needed at runtime. Windows and macOS builds use their system MIDI services.
-The pure event core does not open devices.
+Building the Rust MIDI host requires Rust 1.87+, CMake 3.22+ and a C++20 compiler.
+The optional device-host dependency uses meedee's HTTPS Git `main` branch;
+`Cargo.lock` records the resolved commit for reproducible `--locked` builds.
+meedee statically builds its bundled libremidi, so no separate libremidi install
+is needed. Linux also requires ALSA development headers and `pkg-config`
+(`libasound2-dev` and `pkg-config` on Debian/Ubuntu), with ALSA available at runtime.
+Windows needs an MSVC C++ toolchain/Windows SDK and uses WinMM; macOS uses CoreMIDI.
+Windows MIDI Services is not enabled by this migration. Pure event-core and
+WebAssembly builds keep device-host disabled and do not compile meedee or start
+native MIDI clients. Cross-compiling the device host also requires a target CMake
+toolchain and sysroot; a Cargo target flag alone is insufficient.
 
 GitHub Actions builds and tests both implementations on Linux, Windows, and
 macOS, including Python installation with the MIDI extra. These tests need no

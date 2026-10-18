@@ -920,7 +920,11 @@ must not require a Python compilation step for each user preset.
 The standalone shell owns port enumeration, input/output selection, timestamped
 I/O, internal/external clock, capture controls, file import/export, and a bounded
 status trace. Support Linux, Windows, and macOS through portable MIDI libraries:
-mido with RtMidi for the Python reference host and midir for the Rust executable.
+mido with RtMidi for the Python reference host and meedee/libremidi for the Rust
+executable. The meedee dependency follows its HTTPS Git main branch, with the
+resolved source recorded in Cargo.lock. Rust host builds require Rust 1.87+,
+CMake and a C++20 compiler; device-free and WebAssembly builds exclude this
+optional transport dependency.
 Keep platform-driver details inside those libraries, outside the event kernel.
 Build and test all three platforms with hosted runners; physical MIDI behavior
 requires separate hardware evidence. Do not run audio initialization just to

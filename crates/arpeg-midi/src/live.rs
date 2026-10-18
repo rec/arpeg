@@ -9,7 +9,9 @@ use crate::{
 use arpeg_core::ports::REGISTER_RANGE_ERROR;
 use arpeg_core::tuning::TUNING_ERROR;
 use arpeg_core::{Bank, clock::ClockMode, ports::InputPort};
-use midir::{Ignore, MidiInput, MidiOutput, MidiOutputConnection};
+use meedee::transport::{
+    Input, InputOptions, Output, OutputConnection, OutputOptions, Packet, TimestampMode,
+};
 use std::{
     io::{self, BufRead, Read},
     sync::{
@@ -30,21 +32,25 @@ pub struct PlayOptions {
 }
 
 pub fn list_ports() -> Result<(), String> {
-    let input = MidiInput::new("arpeg input").map_err(|e| format!("MIDI input: {e}"))?;
-    let output = MidiOutput::new("arpeg output").map_err(|e| format!("MIDI output: {e}"))?;
+    let input = Input::new(InputOptions::default()).map_err(|e| format!("MIDI input: {e}"))?;
+    let output = Output::new(OutputOptions::default()).map_err(|e| format!("MIDI output: {e}"))?;
     println!("Sources:");
-    for (index, port) in input.ports().iter().enumerate() {
-        let name = input
-            .port_name(port)
-            .map_err(|e| format!("MIDI source name: {e}"))?;
-        println!("  {index}: {name}");
+    for (index, port) in input
+        .ports()
+        .map_err(|e| format!("MIDI sources: {e}"))?
+        .iter()
+        .enumerate()
+    {
+        println!("  {index}: {}", port.name());
     }
     println!("Destinations:");
-    for (index, port) in output.ports().iter().enumerate() {
-        let name = output
-            .port_name(port)
-            .map_err(|e| format!("MIDI destination name: {e}"))?;
-        println!("  {index}: {name}");
+    for (index, port) in output
+        .ports()
+        .map_err(|e| format!("MIDI destinations: {e}"))?
+        .iter()
+        .enumerate()
+    {
+        println!("  {index}: {}", port.name());
     }
     Ok(())
 }
@@ -74,17 +80,23 @@ pub fn play(
     }
     let held = matches!(&profile, Profile::Classic(p) if p.bank == Bank::Held);
     let mut player = MidiPlayer::new(profile, mode, bpm, timeout_us).map_err(str::to_owned)?;
-    let mut input = MidiInput::new("arpeg input").map_err(|e| format!("MIDI input: {e}"))?;
-    input.ignore(Ignore::None);
-    let output = MidiOutput::new("arpeg output").map_err(|e| format!("MIDI output: {e}"))?;
-    let sources = input.ports();
+    let input_options = InputOptions {
+        timestamps: TimestampMode::Off,
+        receive_byte_limit: limits.bytes,
+        ..InputOptions::default()
+    };
+    let input = Input::new(input_options).map_err(|e| format!("MIDI input: {e}"))?;
+    let output = Output::new(OutputOptions::default()).map_err(|e| format!("MIDI output: {e}"))?;
+    let sources = input.ports().map_err(|e| format!("MIDI sources: {e}"))?;
     let source = sources
         .get(source_index)
         .ok_or("MIDI source index is unavailable")?;
     if clock_source.is_some_and(|i| i >= sources.len()) {
         return Err("MIDI clock source index is unavailable".into());
     }
-    let destinations = output.ports();
+    let destinations = output
+        .ports()
+        .map_err(|e| format!("MIDI destinations: {e}"))?;
     let destination = destinations
         .get(destination_index)
         .ok_or("MIDI destination index is unavailable")?;
@@ -93,48 +105,52 @@ pub fn play(
     let receiver = Arc::new(Inbox::new(limits, "MIDI input", Arc::clone(&failure)));
     let sender = Arc::clone(&receiver);
     let clock_sender = Arc::clone(&receiver);
-    let _input_connection = input
-        .connect(
-            source,
-            "arpeg input",
-            move |_timestamp, data, sender| {
-                let source = if separate {
-                    InputSource::Notes
-                } else {
-                    InputSource::Both
-                };
-                let arrival = Instant::now();
-                sender.put(data.len(), || (arrival, data.to_vec(), source));
-            },
-            sender,
-        )
+    let input_connection = input
+        .connect(source, move |packet| {
+            let arrival = Instant::now();
+            let Packet::Bytes(data) = packet.packet else {
+                return;
+            };
+            let source = if separate {
+                InputSource::Notes
+            } else {
+                InputSource::Both
+            };
+            sender.put(data.len(), || (arrival, data, source));
+        })
         .map_err(|e| format!("connect MIDI source: {e}"))?;
-    let _clock_connection = if separate {
-        let mut input =
-            MidiInput::new("arpeg clock").map_err(|e| format!("MIDI clock input: {e}"))?;
-        input.ignore(Ignore::None);
-        let ports = input.ports();
+    let clock_connection = if separate {
+        let input = Input::new(input_options).map_err(|e| format!("MIDI clock input: {e}"))?;
+        let ports = input
+            .ports()
+            .map_err(|e| format!("MIDI clock sources: {e}"))?;
+        let index = clock_source.expect("separate clock input");
         let port = ports
-            .get(clock_source.expect("separate clock input"))
+            .get(index)
             .ok_or("MIDI clock source index is unavailable")?;
+        let selected = &sources[index];
+        if port.name() != selected.name()
+            || port.backend_id() != selected.backend_id()
+            || port.backend() != selected.backend()
+        {
+            return Err("MIDI clock source changed during discovery; select ports again".into());
+        }
         Some(
             input
-                .connect(
-                    port,
-                    "arpeg clock",
-                    move |_timestamp, data, sender| {
-                        let arrival = Instant::now();
-                        sender.put(data.len(), || (arrival, data.to_vec(), InputSource::Clock));
-                    },
-                    clock_sender,
-                )
+                .connect(port, move |packet| {
+                    let arrival = Instant::now();
+                    let Packet::Bytes(data) = packet.packet else {
+                        return;
+                    };
+                    clock_sender.put(data.len(), || (arrival, data, InputSource::Clock));
+                })
                 .map_err(|e| format!("connect MIDI clock: {e}"))?,
         )
     } else {
         None
     };
     let mut output = output
-        .connect(destination, "arpeg output")
+        .connect(destination)
         .map_err(|e| format!("connect MIDI destination: {e}"))?;
     let stopped = Arc::new(AtomicBool::new(false));
     let signal = Arc::clone(&stopped);
@@ -191,8 +207,13 @@ pub fn play(
     };
     let mut notes = MidiMessages::new(limits.max_message_bytes);
     let mut clocks = MidiMessages::new(limits.max_message_bytes);
-    let result = (|| -> Result<(), String> {
+    let mut result = (|| -> Result<(), String> {
         while !stopped.load(Ordering::SeqCst) {
+            for connection in std::iter::once(&input_connection).chain(clock_connection.as_ref()) {
+                if connection.dropped_packets() != 0 || connection.callback_panicked() {
+                    return Err("MIDI transport input lost; play session ended".into());
+                }
+            }
             for _ in 0..limits.packets {
                 let Some((arrival, data, source)) = receiver.pop()? else {
                     break;
@@ -292,23 +313,44 @@ pub fn play(
         failure.check()
     })();
     let messages = player.stop(elapsed(Instant::now())).unwrap_or_default();
-    if let Err(error) = delivery.cleanup(&messages, |data| {
-        output.send(data).map_err(|e| format!("MIDI send: {e}"))
-    }) {
-        eprintln!("MIDI cleanup failed: {error}");
-        return result.and(Err(error));
+    let cleanup = delivery.cleanup(&messages, |data| {
+        output
+            .send(&Packet::Bytes(data.to_vec()))
+            .map_err(|e| format!("MIDI send: {e}"))
+    });
+    // Evaluate every close, even when musical cleanup or another close fails.
+    let input_close = input_connection
+        .close()
+        .map(|_| ())
+        .map_err(|e| format!("close MIDI source: {e}"));
+    let clock_close = clock_connection.map_or(Ok(()), |connection| {
+        connection
+            .close()
+            .map(|_| ())
+            .map_err(|e| format!("close MIDI clock: {e}"))
+    });
+    let output_close = output
+        .close()
+        .map(|_| ())
+        .map_err(|e| format!("close MIDI destination: {e}"));
+    for operation in [cleanup, input_close, clock_close, output_close] {
+        if let Err(error) = operation {
+            eprintln!("MIDI cleanup failed: {error}");
+            result = result.and(Err(error));
+        }
     }
     result
 }
 
 fn send(
-    port: &mut MidiOutputConnection,
+    port: &mut OutputConnection,
     delivery: &mut MidiDelivery,
     origin: Instant,
     messages: Vec<Vec<u8>>,
 ) -> Result<(), String> {
     delivery.send(&messages, origin.elapsed().as_nanos(), |data| {
-        port.send(data).map_err(|e| format!("MIDI send: {e}"))
+        port.send(&Packet::Bytes(data.to_vec()))
+            .map_err(|e| format!("MIDI send: {e}"))
     })
 }
 

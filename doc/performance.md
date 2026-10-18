@@ -123,3 +123,54 @@ Hardware verification is pending. When the devices are available:
 4. Repeat native installation/validation on systems without a Python/audio
    development environment. Linux/Windows hardware remains separate evidence
    from their hosted build and software checks.
+
+
+## meedee host migration, 2026-10-18
+
+The Rust device host now uses the HTTPS `main` branch of meedee instead of
+midir. Cargo.lock resolves meedee to `38c0cbcd8e267c8acb5c481cdd5cb56411663cdc`.
+Only the device-host feature enables it. The Python host, musical engines,
+file renderer, WebAssembly bindings and authored profiles are unchanged.
+
+Host callbacks continue to timestamp arrival with `Instant`; backend timestamp
+capture is disabled. Raw MIDI 1 chunks go through arpeg's existing bounded
+framer. Separate note/clock inputs retain independent parser state and use each
+client's own discovery snapshot. A changed clock selection during discovery
+fails explicitly. meedee receive drops or callback panics terminate playback.
+The existing byte budget and sent-note ownership decide output and cleanup;
+failed sends are not retried. Explicit connection closes report errors, including
+when musical cleanup has already failed. Rust native operations remain in-process
+and can block on a native driver; Python isolation is not implicitly introduced.
+
+The Git dependency builds bundled libremidi successfully on this Mac with Rust
+1.99.0, CMake 4.4.4 and the installed C++ toolchain. Rust workspace tests pass:
+135 ordinary tests, with one native check ignored. The no-default-features suite
+passes 122 tests. Workspace Clippy with `-D warnings`, formatting and a release executable build
+pass. Standalone download documentation includes the statically linked transport
+licenses without changing the packaging tool.
+The WebAssembly dependency tree excludes meedee; the local Rust installation
+has no wasm32 target, so actual WebAssembly compilation remains with the
+existing release-only CI gate. No CI trigger changes or workflow runs were made.
+
+The native check requires explicit invocation:
+
+```sh
+cargo test -p arpeg-midi --test native_host --locked -- --ignored --nocapture
+```
+
+It launches a supervised native fixture with a 30-second deadline, terminating
+its process group on timeout. The fixture creates only its own virtual source,
+clock source and destination, discovers their CLI indices and launches the actual
+`arpeg play` executable. It verifies NoteOn delivery and matching NoteOff after
+quit with internal clock, shared external clock and separate external clock.
+A fourth case sets the native receive budget below a NoteOn packet's size and
+checks explicit transport-loss termination without producing output.
+Ordinary test runs do not create endpoints or contact the MIDI service.
+
+The agent-context attempt fails before creating endpoints, with CoreMIDI keeper
+initialization error 268435459. The owner's ordinary Terminal run passes all
+four cases, with the supervised result completing in 2.61 seconds. See
+[the retained Terminal result](meedee-host-native-macos.txt). This establishes
+virtual-only production host behavior on this Mac, not physical interface
+latency, unplug/replug recovery or Linux/Windows qualification. Build dependencies
+and those platform gates remain explicit; release CI is still release-only.

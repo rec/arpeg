@@ -2,7 +2,7 @@
 name = "arpeg-midi"
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.85"
+rust-version = "1.87"
 
 [[bin]]
 name = "arpeg"
@@ -11,12 +11,12 @@ required-features = ["device-host"]
 
 [features]
 default = ["device-host"]
-device-host = ["dep:ctrlc", "dep:midir"]
+device-host = ["dep:ctrlc", "dep:meedee"]
 
 [dependencies]
 arpeg-core = { path = "../arpeg-core" }
 ctrlc = { version = "3.4", optional = true }
-midir = { version = "0.11", optional = true }
+meedee = { git = "https://github.com/rec/meedee", branch = "main", optional = true }
 midly = { version = "0.5.3", default-features = false, features = ["std"] }
 num-rational = "0.4"
 toml = "1.1"
