@@ -2,12 +2,13 @@ from fractions import Fraction
 from pathlib import Path
 from tomllib import loads
 
-import mido
 import pytest
+from meedee import codecs
+from meedee.messages import NoteOn
 from ufor.arpeggiator import Octaves, PitchRegister, Transposition
 
 from arpeg.live import LiveArpeggiator
-from arpeg.midi import MidiPlayer
+from arpeg.midi import MidiPlayer, decode_message
 from arpeg.profile import parse_profile
 
 
@@ -72,9 +73,9 @@ def test_folded_history_preserves_recorded_expression_and_release_velocity() -> 
         (8_000_000, [176, 2, 80]),
         (50_000_000, [128, 60, 20]),
     ]:
-        player.accept(at, mido.Message.from_bytes(data))
+        player.accept(at, decode_message(data))
     output = player.advance(225_000_000)
-    assert [m.bytes() for m in output] == [
+    assert [list(codecs.encode(m)) for m in output] == [
         [176, 2, 0],
         [144, 72, 100],
         [176, 2, 80],
@@ -91,9 +92,9 @@ gate=2
 register_limits={low=60,high=72,boundary="error"}
 """)
     player = MidiPlayer(profile=profile)
-    player.accept(0, mido.Message("note_on", note=60, velocity=100))
-    player.accept(0, mido.Message("note_on", note=73, velocity=90))
-    assert [m.bytes() for m in player.advance(0)] == [[144, 60, 100]]
+    player.accept(0, NoteOn(channel=1, note=60, velocity=100))
+    player.accept(0, NoteOn(channel=1, note=73, velocity=90))
+    assert [list(codecs.encode(m)) for m in player.advance(0)] == [[144, 60, 100]]
     with pytest.raises(RuntimeError, match="register limits"):
         player.advance(125_000_000)
-    assert [m.bytes() for m in player.stop(125_000_000)] == [[128, 60, 0]]
+    assert [list(codecs.encode(m)) for m in player.stop(125_000_000)] == [[128, 60, 0]]

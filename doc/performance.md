@@ -174,3 +174,42 @@ four cases, with the supervised result completing in 2.61 seconds. See
 virtual-only production host behavior on this Mac, not physical interface
 latency, unplug/replug recovery or Linux/Windows qualification. Build dependencies
 and those platform gates remain explicit; release CI is still release-only.
+
+
+## Python meedee host migration, 2026-10-19
+
+The Python host and MidiPlayer now use native immutable meedee messages instead
+of Mido/RtMidi. The optional MIDI extra uses meedee from HTTPS `main`; uv.lock
+records revision `2f444e311a558dc8ada9bb89530639aaa6e04c87`.
+The pure musical engines remain independent of native transport.
+
+Python transport defaults to process isolation; `--no-isolated` selects
+in-process operation. Both modes preserve parent callback arrival timestamps,
+with backend timestamp capture disabled. Independent bounded decoders frame note
+and separate-clock inputs. Decoder diagnostics, receive drops, sequence gaps and
+worker failures end playback. Cleanup releases only successfully sent owned
+notes and does not retry failed sends. Native message channels use 1–16;
+existing wire output and musical conformance fixtures are unchanged.
+
+The ordinary Python suite passes 488 tests. Ruff, Python formatting, type checks
+and pyupgrade pass. Native checks are explicitly selected, not part of ordinary
+test collection:
+
+```sh
+uv run --frozen --extra midi pytest -q -s test/qualification/python_host.py
+```
+
+Each process mode has a 45-second supervisor and uses only test-created virtual
+endpoints. The actual Python CLI delivers NoteOn and quit cleanup NoteOff with
+internal, shared external and separate external clocks. A fourth case per mode
+sets the native receive budget below a NoteOn packet's size, then checks explicit
+loss termination without another packet. That quiet-loss case exposed stale
+isolated drop reporting; the meedee revision above fixes it using the existing
+forwarder's idle wake-up, without additional MIDI traffic.
+
+The owner's ordinary Terminal run passes all eight scenarios in 8.28 seconds.
+See [the retained Terminal result](meedee-python-native-macos.txt). These checks
+establish virtual-only operation on this Mac. They do not establish physical
+interface latency, unplug/replug behavior or Linux/Windows/Pi qualification.
+Isolation adds process and communication overhead; in-process native operations
+can block on drivers. Release-only CI triggers are unchanged.

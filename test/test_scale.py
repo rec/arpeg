@@ -2,13 +2,13 @@ from fractions import Fraction
 from pathlib import Path
 from tomllib import loads
 
-import mido
 import pytest
+from meedee import codecs
 from ufor.arpeggiator import Octaves, PitchRegister, ScaleTransform, Transposition
 from ufor.scale import Scale
 
 from arpeg.live import LiveArpeggiator
-from arpeg.midi import MidiPlayer
+from arpeg.midi import MidiPlayer, decode_message
 from arpeg.profile import parse_profile
 
 
@@ -78,9 +78,9 @@ def test_scale_history_preserves_recorded_expression_and_release_velocity() -> N
         (8_000_000, [176, 2, 80]),
         (50_000_000, [128, 60, 20]),
     ]:
-        player.accept(at, mido.Message.from_bytes(data))
+        player.accept(at, decode_message(data))
     output = player.advance(225_000_000)
-    assert [m.bytes() for m in output] == [
+    assert [list(codecs.encode(m)) for m in output] == [
         [176, 2, 0],
         [144, 62, 100],
         [176, 2, 80],

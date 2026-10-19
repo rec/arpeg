@@ -2,12 +2,17 @@ from math import log2
 from pathlib import Path
 from tomllib import loads
 
-import mido
 import pytest
+from meedee import codecs
+from meedee.messages import (
+    Message,
+    NoteOn,
+    PitchBend,
+)
 from ufor.arpeggiator import Arpeggiator, ArpeggiatorScore
 from ufor.tuning import Tuning
 
-from arpeg.midi import MidiPlayer
+from arpeg.midi import MidiPlayer, decode_message
 from arpeg.output import MidiDelivery
 from arpeg.profile import parse_profile
 from arpeg.tuning import PreparedTuning
@@ -27,14 +32,17 @@ def test_nineteen_divisions_encode_tuning_and_current_expression() -> None:
             ),
         )
     )
-    player.accept(0, mido.Message("note_on", note=70, velocity=100))
-    assert [m.bytes() for m in player.advance(0)] == [[224, 27, 52], [144, 70, 100]]
+    player.accept(0, NoteOn(channel=1, note=70, velocity=100))
+    assert [list(codecs.encode(m)) for m in player.advance(0)] == [
+        [224, 27, 52],
+        [144, 70, 100],
+    ]
     assert [
-        m.bytes()
-        for m in player.accept(1_000_000, mido.Message("pitchwheel", pitch=4096))
+        list(codecs.encode(m))
+        for m in player.accept(1_000_000, PitchBend(channel=1, value=4096))
     ] == [[224, 27, 84]]
     player = MidiPlayer.model_validate_json(player.model_dump_json())
-    assert [m.bytes() for m in player.stop(2_000_000)] == [[128, 70, 0]]
+    assert [list(codecs.encode(m)) for m in player.stop(2_000_000)] == [[128, 70, 0]]
 
 
 @pytest.mark.parametrize(
@@ -94,8 +102,11 @@ def test_period_transforms_follow_a_three_to_one_tuning(
     player = MidiPlayer(
         profile=ArpeggiatorScore(name="tritave", title="Tritave", body=body)
     )
-    player.accept(0, mido.Message("note_on", note=69, velocity=100))
-    assert [m.bytes() for m in player.advance(0)] == [[224, 80, 64], [144, 88, 100]]
+    player.accept(0, NoteOn(channel=1, note=69, velocity=100))
+    assert [list(codecs.encode(m)) for m in player.advance(0)] == [
+        [224, 80, 64],
+        [144, 88, 100],
+    ]
 
 
 def test_bend_overflow_cleanup_releases_the_note_actually_sent() -> None:
@@ -110,19 +121,19 @@ def test_bend_overflow_cleanup_releases_the_note_actually_sent() -> None:
         profile=ArpeggiatorScore(name="overflow", title="Overflow", body=body)
     )
     for k in [69, 70]:
-        player.accept(0, mido.Message("note_on", note=k, velocity=100))
+        player.accept(0, NoteOn(channel=1, note=k, velocity=100))
     delivery = MidiDelivery()
-    sent: list[mido.Message] = []
+    sent: list[Message] = []
     delivery.send(player.advance(0), 0, sent.append)
     delivery.send(
-        player.accept(1_000_000, mido.Message("pitchwheel", pitch=-8192)),
+        player.accept(1_000_000, PitchBend(channel=1, value=-8192)),
         1_000_000,
         sent.append,
     )
     with pytest.raises(RuntimeError, match="bend range"):
         player.advance(125_000_000)
     delivery.cleanup(player.stop(125_000_000), sent.append)
-    assert sent[-1].bytes() == [128, 69, 0]
+    assert list(codecs.encode(sent[-1])) == [128, 69, 0]
     assert not delivery.owned
 
 
@@ -144,8 +155,8 @@ def test_shared_tuning_wire_traces(case: dict[str, object]) -> None:
     inputs = case["input"]
     assert isinstance(inputs, list)
     for data in inputs:
-        assert player.accept(0, mido.Message.from_bytes(data)) == []
-    assert [m.bytes() for m in player.advance(0)] == case["output"]
+        assert player.accept(0, decode_message(data)) == []
+    assert [list(codecs.encode(m)) for m in player.advance(0)] == case["output"]
 
 
 def test_recorded_bends_keep_the_tuning_offset_and_release_velocity() -> None:
@@ -164,9 +175,9 @@ def test_recorded_bends_keep_the_tuning_offset_and_release_velocity() -> None:
         (8_000_000, [224, 0, 96]),
         (50_000_000, [128, 70, 20]),
     ]:
-        player.accept(at, mido.Message.from_bytes(data))
+        player.accept(at, decode_message(data))
     output = player.advance(225_000_000)
-    assert [m.bytes() for m in output] == [
+    assert [list(codecs.encode(m)) for m in output] == [
         [224, 27, 52],
         [224, 27, 52],
         [144, 70, 100],

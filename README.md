@@ -574,14 +574,15 @@ The standalone `arpeg` executable validates supported profiles, renders
 single-track metrical MIDI files containing note and tempo events, and plays
 classic or recorded-history arpeggios through meedee/libremidi on Linux, Windows,
 and macOS.
-The Python `arpeg-python` host uses mido and its RtMidi backend to run the
-reference engines with the same presets on those platforms. Both hosts read MIDI
-channel 1 and output on channel 1. The default clock uses internal BPM; both
+The Python `arpeg-python` host also uses meedee/libremidi and runs the reference
+engines with the same presets. Its MIDI clients are isolated in worker processes
+by default; `--no-isolated` selects lower-resource in-process operation. Both
+hosts read MIDI channel 1 and output on channel 1. The default clock uses internal BPM; both
 hosts also accept external MIDI Clock and transport. They timestamp
-messages when the input callback runs, poll every millisecond, and send events
-immediately when due. Driver timestamps and future output timestamps are not
-used yet. The Rust host disables backend timestamp capture and retains its
-host-arrival clock. Virtual-only Mac checks cover delivery and cleanup with
+messages when the input callback runs in the host process, poll every
+millisecond, and send events immediately when due. Isolation adds transport
+overhead; both hosts disable backend timestamp capture and do not schedule
+future native output timestamps. Virtual-only Mac checks cover delivery and cleanup with
 internal/shared/separate clocks and explicit termination on transport loss;
 physical timing and Linux/Windows native behavior remain unverified for this
 transport migration. See [the migration evidence](doc/performance.md#meedee-host-migration-2026-10-18).
@@ -596,8 +597,11 @@ timing/load probes, dense-capture cleanup regressions, and remaining device-host
 limits. These checks do not establish physical MIDI or synth latency.
 
 Python MIDI port access requires the `midi` extra. The default package installs
-the reference engines without mido or the native RtMidi backend. The `midi`
-extra supplies both; development installs retain mido for MIDI unit tests:
+the pure reference engines without meedee. The `midi` extra supplies meedee
+and its native extension; development installs include it for message tests.
+`MidiPlayer` accepts and returns immutable `meedee.messages.Message` objects,
+with channels 1–16. Mido/RtMidi are no longer used. Source installs build the
+HTTPS Git `main` dependency and require the native build tools listed below:
 
 ```sh
 uv sync --extra midi
@@ -607,10 +611,14 @@ uv run --extra midi arpeg-python play --profile conformance/history-wind.toml --
 ```
 
 Use the indices listed by the host you intend to run; Python and Rust port
-enumeration need not use the same order. Mido's RtMidi backend filters incoming
-active-sensing messages; received note, controller, bend, clock, and SysEx
-messages are handled through its portable API. Native driver selection is
-inside the MIDI libraries, with no OS-specific calls in arpeg.
+enumeration need not use the same order. The Python host decodes raw chunks
+with a bounded meedee decoder per input. Running status, fragmented SysEx and
+interleaved real-time messages retain their protocol semantics. Decoder
+diagnostics, packet-sequence gaps and observed receive loss stop playback and
+attempt the existing owned-note cleanup, without retrying uncertain sends.
+Backend selection stays inside meedee; the Rust host keeps its existing framer.
+The Python CLI can select in-process operation with `--no-isolated` for both
+`list-ports` and `play`. See [Python migration evidence](doc/performance.md#python-meedee-host-migration-2026-10-19).
 
 ```sh
 cargo run -p arpeg-midi -- validate conformance/up.toml

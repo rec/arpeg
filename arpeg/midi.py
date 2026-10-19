@@ -1,7 +1,8 @@
-"""Portable mido host for the Python reference engines."""
+"""meedee MIDI host for the Python reference engines."""
 
 from contextlib import ExitStack
 from fractions import Fraction
+from functools import partial
 from pathlib import Path
 from queue import Empty
 from sys import exit, stderr, stdin
@@ -9,8 +10,9 @@ from threading import Thread
 from time import perf_counter_ns, sleep
 from typing import Annotated, Literal, Self
 
-import mido
 import tyro
+from meedee import codecs, events, midi
+from meedee.messages import Message
 from pydantic import BaseModel, Field, model_validator
 from ufor import arpeggiator, arpeggiator_ports
 from ufor.events import MidiEvent
@@ -20,7 +22,7 @@ from .clock import ClockMode, TransportClock
 from .expression import entry_messages, envelfo_message, expression_lane, tuning_message
 from .gesture import RealizedMidiEvent
 from .history import LiveHistoryArpeggiator
-from .inbox import Inbox, InputFailure
+from .inbox import Inbox, InputFailure, InputOverflow
 from .live import LiveArpeggiator, LiveEvent
 from .output import MidiDelivery
 from .ports import PerformancePorts
@@ -28,17 +30,29 @@ from .profile import parse_profile
 from .tuning import PreparedTuning
 
 
+def decode_message(data: list[int] | bytes) -> Message:
+    """Decode exactly one complete primitive message, rejecting diagnostics."""
+    decoder = codecs.Decoder()
+    result = decoder.feed(bytes(data)) + decoder.finish()
+    if len(result) != 1 or not isinstance(message := result[0], Message):
+        raise ValueError("expected exactly one complete MIDI message")
+    return message
+
+
 class ListPorts(BaseModel, frozen=True):
     """List MIDI source and destination indices."""
 
+    isolated: bool = True
+
     def run(self) -> None:
-        backend = mido.Backend("mido.backends.rtmidi")
+        input_client = midi.Input(isolated=self.isolated)
+        output_client = midi.Output(isolated=self.isolated)
         print("Sources:")
-        for index, name in enumerate(backend.get_input_names()):
-            print(f"  {index}: {name}")
+        for index, port in enumerate(input_client.ports()):
+            print(f"  {index}: {port.name}")
         print("Destinations:")
-        for index, name in enumerate(backend.get_output_names()):
-            print(f"  {index}: {name}")
+        for index, port in enumerate(output_client.ports()):
+            print(f"  {index}: {port.name}")
 
 
 class Play(BaseModel, frozen=True):
@@ -51,6 +65,7 @@ class Play(BaseModel, frozen=True):
     clock: ClockMode = ClockMode.internal
     clock_source: int | None = Field(default=None, ge=0)
     clock_timeout_ms: int = Field(default=500, gt=0)
+    isolated: bool = True
     input_packets: int = Field(default=4096, gt=0)
     input_bytes: int = Field(default=1048576, gt=0)
     max_message_bytes: int = Field(default=65536, gt=0)
@@ -67,9 +82,14 @@ class Play(BaseModel, frozen=True):
                 mode=self.clock, bpm=self.bpm, timeout_us=self.clock_timeout_ms * 1000
             ),
         )
-        backend = mido.Backend("mido.backends.rtmidi")
-        sources = backend.get_input_names()
-        destinations = backend.get_output_names()
+        input_client = midi.Input(
+            isolated=self.isolated,
+            timestamps=midi.TimestampMode.Off,
+            receive_byte_limit=self.input_bytes,
+        )
+        output_client = midi.Output(isolated=self.isolated)
+        sources = input_client.ports()
+        destinations = output_client.ports()
         if self.source >= len(sources):
             raise ValueError("MIDI source index is unavailable")
         if self.destination >= len(destinations):
@@ -78,7 +98,9 @@ class Play(BaseModel, frozen=True):
             raise ValueError("MIDI clock source index is unavailable")
         separate = self.clock_source is not None and self.clock_source != self.source
         failure = InputFailure()
-        incoming = Inbox[tuple[int, mido.Message, Literal["notes", "clock", "both"]]](
+        incoming = Inbox[
+            tuple[int, events.ReceivedPacket, Literal["notes", "clock", "both"]]
+        ](
             packets=self.input_packets,
             bytes=self.input_bytes,
             max_message_bytes=self.max_message_bytes,
@@ -96,30 +118,68 @@ class Play(BaseModel, frozen=True):
             burst_bytes=self.output_burst_bytes,
         )
 
-        def receive(message: mido.Message) -> None:
-            incoming.put(
-                (perf_counter_ns(), message, "notes" if separate else "both"),
-                len(message),
-            )
+        def receive(
+            packet: events.ReceivedPacket,
+            *,
+            source: Literal["notes", "clock", "both"],
+        ) -> None:
+            at = perf_counter_ns()
+            if not isinstance(packet.packet, bytes):
+                with failure.lock:
+                    failure.reason = failure.reason or "unexpected UMP on MIDI 1 input"
+                return
+            incoming.put((at, packet, source), len(packet.packet))
 
-        def receive_clock(message: mido.Message) -> None:
-            incoming.put((perf_counter_ns(), message, "clock"), len(message))
-
+        decoders = [
+            codecs.Decoder(sysex_limit=max(1, self.max_message_bytes - 2)),
+            codecs.Decoder(sysex_limit=max(1, self.max_message_bytes - 2)),
+        ]
+        sequences = [0, 0]
         Thread(target=_read_commands, args=(commands,), daemon=True).start()
         with ExitStack() as stack:
             output = stack.enter_context(
-                backend.open_output(destinations[self.destination])
+                output_client.connect(destinations[self.destination])
             )
-            stack.enter_context(
-                backend.open_input(sources[self.source], callback=receive)
-            )
-            if separate:
-                assert self.clock_source is not None
+            connections = [
                 stack.enter_context(
-                    backend.open_input(
-                        sources[self.clock_source], callback=receive_clock
+                    input_client.connect(
+                        sources[self.source],
+                        partial(receive, source="notes" if separate else "both"),
                     )
                 )
+            ]
+            if separate:
+                assert self.clock_source is not None
+                clock = midi.Input(
+                    isolated=self.isolated,
+                    timestamps=midi.TimestampMode.Off,
+                    receive_byte_limit=self.input_bytes,
+                )
+                clock_ports = clock.ports()
+                if self.clock_source >= len(clock_ports):
+                    raise ValueError("MIDI clock source index is unavailable")
+                selected = sources[self.clock_source]
+                port = clock_ports[self.clock_source]
+                if (port.name, port.backend, port.backend_id) != (
+                    selected.name,
+                    selected.backend,
+                    selected.backend_id,
+                ):
+                    raise ValueError(
+                        "MIDI clock source changed during discovery; select ports again"
+                    )
+                connections.append(
+                    stack.enter_context(
+                        clock.connect(
+                            port,
+                            partial(receive, source="clock"),
+                        )
+                    )
+                )
+
+            def send(message: Message) -> None:
+                output.send(codecs.encode(message))
+
             print(
                 f"Playing with {self.clock} clock. "
                 "Enter start, pause, continue, tempo BPM, gate FRACTION, "
@@ -131,22 +191,53 @@ class Play(BaseModel, frozen=True):
             stopped = False
             try:
                 while not stopped:
+                    for connection in connections:
+                        if connection.worker_failure is not None:
+                            raise connection.worker_failure
+                        if connection.dropped_packets:
+                            raise InputOverflow(
+                                "MIDI transport input lost; play session ended"
+                            )
+                        if connection.closed:
+                            raise RuntimeError("MIDI input closed; play session ended")
+                    if output.worker_failure is not None:
+                        raise output.worker_failure
                     for _ in range(self.input_packets):
                         try:
-                            at, message, source = incoming.get_nowait()
+                            at, packet, source = incoming.get_nowait()
                         except Empty:
                             break
-                        delivery.send(
-                            player.accept(at, message, source=source),
-                            perf_counter_ns(),
-                            output.send,
-                        )
+                        index = int(source == "clock")
+                        if (
+                            packet.sequence is not None
+                            and packet.sequence != sequences[index]
+                        ):
+                            raise InputOverflow(
+                                "MIDI transport input lost; play session ended"
+                            )
+                        sequences[index] += 1
+                        assert isinstance(packet.packet, bytes)
+                        for message in decoders[index].feed(packet.packet):
+                            if isinstance(message, codecs.Diagnostic):
+                                raise InputOverflow(
+                                    f"MIDI decode {message.kind} "
+                                    f"at byte {message.offset}; play session ended"
+                                )
+                            if len(codecs.encode(message)) > self.max_message_bytes:
+                                raise InputOverflow(
+                                    "MIDI message overflow; play session ended"
+                                )
+                            delivery.send(
+                                player.accept(at, message, source=source),
+                                perf_counter_ns(),
+                                send,
+                            )
                     for _ in range(commands.packets):
                         try:
                             command = commands.get_nowait()
                         except Empty:
                             break
-                        messages: list[mido.Message] = []
+                        messages: list[Message] = []
                         if command == "clear":
                             if isinstance(profile.body.bank, arpeggiator.HeldBank):
                                 print(
@@ -161,7 +252,7 @@ class Play(BaseModel, frozen=True):
                             ]
                             messages.extend(
                                 player.accept(
-                                    perf_counter_ns(), mido.Message.from_bytes([status])
+                                    perf_counter_ns(), decode_message([status])
                                 )
                             )
                         elif command in ("record", "commit", "overdub", "undo"):
@@ -214,13 +305,13 @@ class Play(BaseModel, frozen=True):
                                 print(str(error), file=stderr)
                         else:
                             stopped = True
-                        delivery.send(messages, perf_counter_ns(), output.send)
+                        delivery.send(messages, perf_counter_ns(), send)
                     failure.check()
                     if not stopped:
                         delivery.send(
                             player.advance(perf_counter_ns()),
                             perf_counter_ns(),
-                            output.send,
+                            send,
                         )
                     if player.take_events().exhausted:
                         print(
@@ -229,10 +320,17 @@ class Play(BaseModel, frozen=True):
                             file=stderr,
                         )
                     sleep(0.001)
+                for decoder in decoders:
+                    for message in decoder.finish():
+                        if isinstance(message, codecs.Diagnostic):
+                            raise InputOverflow(
+                                f"MIDI decode {message.kind} "
+                                f"at byte {message.offset}; play session ended"
+                            )
             except KeyboardInterrupt:
                 pass
             finally:
-                delivery.cleanup(player.stop(perf_counter_ns()), output.send)
+                delivery.cleanup(player.stop(perf_counter_ns()), send)
 
 
 class ScheduledMidi(BaseModel, frozen=True):
@@ -343,13 +441,13 @@ class MidiPlayer(BaseModel):
     def accept(
         self,
         at_ns: int,
-        message: mido.Message,
+        message: Message,
         *,
         source: Literal["notes", "clock", "both"] = "both",
-    ) -> list[mido.Message]:
+    ) -> list[Message]:
         self._check_ready()
         assert self.engine is not None
-        data = message.bytes()
+        data = list(codecs.encode(message))
         transport = data[0] in (0xF8, 0xFA, 0xFB, 0xFC, 0xF2)
         if transport:
             if (
@@ -394,7 +492,7 @@ class MidiPlayer(BaseModel):
                     and self.output_key is not None
                 ):
                     output.append(
-                        mido.Message.from_bytes(
+                        decode_message(
                             tuning_message(
                                 data, self.tuning_offset, self.profile.body.bend_range
                             )
@@ -432,7 +530,7 @@ class MidiPlayer(BaseModel):
                 and self.output_key is not None
             ):
                 output.append(
-                    mido.Message.from_bytes(
+                    decode_message(
                         tuning_message(
                             data, self.tuning_offset, self.profile.body.bend_range
                         )
@@ -440,7 +538,7 @@ class MidiPlayer(BaseModel):
                 )
         return output
 
-    def advance(self, at_ns: int) -> list[mido.Message]:
+    def advance(self, at_ns: int) -> list[Message]:
         self.schedule(at_ns)
         return self.realize()
 
@@ -485,7 +583,7 @@ class MidiPlayer(BaseModel):
 
     def realize(
         self, controls: list[arpeggiator_ports.ArpeggiatorControl] | None = None
-    ) -> list[mido.Message]:
+    ) -> list[Message]:
         """Apply expression to pending attacks, or to a continuing note once.
 
         Invalid control ownership leaves the pending batch available for correction.
@@ -508,7 +606,7 @@ class MidiPlayer(BaseModel):
             output.extend(self._release_output())
         if samples and not attacks and scheduled.active and self.output_key is not None:
             output.extend(
-                mido.Message.from_bytes(
+                decode_message(
                     tuning_message(d, self.tuning_offset, self.profile.body.bend_range)
                 )
                 for _, _, d in samples
@@ -516,7 +614,7 @@ class MidiPlayer(BaseModel):
         self.scheduled = None
         return output
 
-    def clear(self, at_ns: int) -> list[mido.Message]:
+    def clear(self, at_ns: int) -> list[Message]:
         assert self.engine is not None
         output = self.advance(at_ns)
         tick = self._elapsed(at_ns)
@@ -525,16 +623,16 @@ class MidiPlayer(BaseModel):
             return output + self._note_messages(engine.clear(at))
         return output + self._history_messages(engine.clear(at, tick))
 
-    def stop(self, at_ns: int) -> list[mido.Message]:
+    def stop(self, at_ns: int) -> list[Message]:
         tick = self._elapsed(at_ns)
         self.clock.halt(tick)
         return self._pause(tick)
 
-    def set_tempo(self, at_ns: int, bpm: int) -> list[mido.Message]:
+    def set_tempo(self, at_ns: int, bpm: int) -> list[Message]:
         self.schedule(at_ns, tempo=bpm)
         return self.realize()
 
-    def capture(self, at_ns: int, command: str) -> list[mido.Message]:
+    def capture(self, at_ns: int, command: str) -> list[Message]:
         self._check_ready()
         if (
             not isinstance(self.engine, LiveHistoryArpeggiator)
@@ -573,7 +671,7 @@ class MidiPlayer(BaseModel):
 
     def control(
         self, at_ns: int, control: arpeggiator_ports.ArpeggiatorControl
-    ) -> list[mido.Message]:
+    ) -> list[Message]:
         self._check_ready()
         assert self.engine is not None and self.engine.ports is not None
         lane = (
@@ -602,7 +700,7 @@ class MidiPlayer(BaseModel):
             self.envelfo_expression[lane] = control.value
             if self.clock.active and self.output_key is not None:
                 output.append(
-                    mido.Message.from_bytes(
+                    decode_message(
                         tuning_message(
                             data,
                             self.tuning_offset,
@@ -666,7 +764,7 @@ class MidiPlayer(BaseModel):
             )
             self.output_note = None
 
-    def _pause(self, tick: int) -> list[mido.Message]:
+    def _pause(self, tick: int) -> list[Message]:
         assert self.engine is not None
         cancelled = self.scheduled is not None
         self.scheduled = None
@@ -678,10 +776,10 @@ class MidiPlayer(BaseModel):
             output = [] if cancelled else self._history_messages(history)
         return output + self._release_output()
 
-    def _release_output(self) -> list[mido.Message]:
-        output: list[mido.Message] = []
+    def _release_output(self) -> list[Message]:
+        output: list[Message] = []
         if self.output_key is not None:
-            output.append(mido.Message.from_bytes([128, self.output_key, 0]))
+            output.append(decode_message([128, self.output_key, 0]))
             self._end_note(self.clock.beat, 0)
             self.output_key = None
             self.output_id = None
@@ -702,12 +800,12 @@ class MidiPlayer(BaseModel):
             raise ValueError(f"{lane} is not owned by Envelfo")
         return lane, control.value, envelfo_message(lane, control.value)
 
-    def _note_messages(self, events: list[LiveEvent]) -> list[mido.Message]:
-        output: list[mido.Message] = []
+    def _note_messages(self, events: list[LiveEvent]) -> list[Message]:
+        output: list[Message] = []
         for event in events:
             if event.kind == "on":
                 if self.output_key is not None:
-                    output.append(mido.Message.from_bytes([0x80, self.output_key, 0]))
+                    output.append(decode_message([0x80, self.output_key, 0]))
                     self._end_note(event.at, 0)
                     self.output_id = None
                     self.output_key = None
@@ -726,29 +824,25 @@ class MidiPlayer(BaseModel):
                 ):
                     entry.insert(0, [0xE0, 0, 64])
                 output.extend(
-                    mido.Message.from_bytes(
+                    decode_message(
                         tuning_message(
                             d, self.tuning_offset, self.profile.body.bend_range
                         )
                     )
                     for d in entry
                 )
-                output.append(
-                    mido.Message.from_bytes([0x90, event.key, event.velocity])
-                )
+                output.append(decode_message([0x90, event.key, event.velocity]))
                 self.output_id = event.id
                 self.output_key = event.key
             elif event.id == self.output_id:
-                output.append(
-                    mido.Message.from_bytes([0x80, event.key, event.velocity])
-                )
+                output.append(decode_message([0x80, event.key, event.velocity]))
                 self._end_note(event.at, event.velocity)
                 self.output_id = None
                 self.output_key = None
         return output
 
-    def _history_messages(self, events: list[RealizedMidiEvent]) -> list[mido.Message]:
-        output: list[mido.Message] = []
+    def _history_messages(self, events: list[RealizedMidiEvent]) -> list[Message]:
+        output: list[Message] = []
         initialized: set[tuple[Fraction, str | None]] = set()
         attacks = {
             (e.at, e.source_note): e
@@ -782,7 +876,7 @@ class MidiPlayer(BaseModel):
                 ):
                     entry.insert(0, [0xE0, 0, 64])
                 output.extend(
-                    mido.Message.from_bytes(
+                    decode_message(
                         tuning_message(
                             d, self.tuning_offset, self.profile.body.bend_range
                         )
@@ -801,7 +895,7 @@ class MidiPlayer(BaseModel):
                 self._end_note(event.at, event.data[2])
                 self.output_key = None
             output.append(
-                mido.Message.from_bytes(
+                decode_message(
                     tuning_message(
                         event.data, self.tuning_offset, self.profile.body.bend_range
                     )
@@ -824,7 +918,7 @@ def main() -> None:
     )
     try:
         command.run()
-    except (ValueError, OSError, RuntimeError, ImportError) as error:
+    except (ValueError, OSError, RuntimeError, ImportError, midi.MidiError) as error:
         exit(str(error))
 
 

@@ -2,7 +2,12 @@
 
 from collections.abc import Callable
 
-import mido
+from meedee import codecs
+from meedee.messages import (
+    Message,
+    NoteOff,
+    NoteOn,
+)
 from pydantic import BaseModel, Field
 
 
@@ -20,9 +25,9 @@ class MidiDelivery(BaseModel):
 
     def send(
         self,
-        messages: list[mido.Message],
+        messages: list[Message],
         at_ns: int,
-        write: Callable[[mido.Message], None],
+        write: Callable[[Message], None],
     ) -> None:
         if self.failed:
             raise OutputOverload("MIDI output bandwidth exceeded; play session ended")
@@ -36,7 +41,7 @@ class MidiDelivery(BaseModel):
                     self.credit + (at_ns - self.updated_ns) * self.bytes_per_second,
                 )
             )
-            required = sum(len(m) for m in messages) * 1_000_000_000
+            required = sum(len(codecs.encode(m)) for m in messages) * 1_000_000_000
             if required > available:
                 self.failed = True
                 raise OutputOverload(
@@ -49,32 +54,33 @@ class MidiDelivery(BaseModel):
             self._record(message)
 
     def cleanup(
-        self, messages: list[mido.Message], write: Callable[[mido.Message], None]
+        self, messages: list[Message], write: Callable[[Message], None]
     ) -> None:
         """Preserve supplied release velocities, then release any remaining owners."""
         for message in messages:
-            if len(message) != 3:
+            if not (
+                isinstance(message, NoteOff)
+                or isinstance(message, NoteOn)
+                and message.velocity == 0
+            ):
                 continue
-            status, key, velocity = message.bytes()
-            if (status & 0xF0 == 0x80 or status & 0xF0 == 0x90 and velocity == 0) and (
-                status & 15
-            ) * 128 + key in self.owned:
+            note = (message.channel - 1) * 128 + message.note
+            if note in self.owned:
                 write(message)
                 self._record(message)
         while self.owned:
             note = min(self.owned)
-            message = mido.Message.from_bytes([0x80 | note // 128, note % 128, 0])
+            message = NoteOff(channel=note // 128 + 1, note=note % 128, velocity=0)
             write(message)
             self._record(message)
 
-    def _record(self, message: mido.Message) -> None:
-        if len(message) != 3:
+    def _record(self, message: Message) -> None:
+        if not isinstance(message, (NoteOn, NoteOff)):
             return
-        status, key, velocity = message.bytes()
-        note = (status & 15) * 128 + key
-        if status & 0xF0 == 0x90 and velocity > 0:
+        note = (message.channel - 1) * 128 + message.note
+        if isinstance(message, NoteOn) and message.velocity > 0:
             self.owned[note] = self.owned.get(note, 0) + 1
-        elif status & 0xF0 == 0x80 or status & 0xF0 == 0x90 and velocity == 0:
+        else:
             if (count := self.owned.get(note, 0)) > 1:
                 self.owned[note] = count - 1
             else:

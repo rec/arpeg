@@ -2,12 +2,13 @@ from fractions import Fraction
 from pathlib import Path
 from tomllib import loads
 
-import mido
 import pytest
+from meedee import codecs
+from meedee.messages import NoteOn
 from ufor.arpeggiator import Octaves, Shuffle
 
 from arpeg.live import LiveArpeggiator
-from arpeg.midi import MidiPlayer
+from arpeg.midi import MidiPlayer, decode_message
 from arpeg.profile import parse_profile
 
 
@@ -73,8 +74,8 @@ def test_octave_history_replays_original_expression_at_each_pitch() -> None:
         (8_000_000, [176, 2, 80]),
         (50_000_000, [128, 60, 20]),
     ]:
-        player.accept(at, mido.Message.from_bytes(data))
-    output = [m.bytes() for m in player.advance(475_000_000)]
+        player.accept(at, decode_message(data))
+    output = [list(codecs.encode(m)) for m in player.advance(475_000_000)]
     for i, key in enumerate([48, 60, 72]):
         assert output[i * 4 : (i + 1) * 4] == [
             [176, 2, 0],
@@ -133,8 +134,8 @@ transposition={boundary="error"}
 gate=2
 """)
     player = MidiPlayer(profile=profile)
-    player.accept(0, mido.Message("note_on", note=120, velocity=100))
-    assert [m.bytes() for m in player.advance(0)] == [[144, 120, 100]]
+    player.accept(0, NoteOn(channel=1, note=120, velocity=100))
+    assert [list(codecs.encode(m)) for m in player.advance(0)] == [[144, 120, 100]]
     with pytest.raises(ValueError, match="outside MIDI"):
         player.advance(125_000_000)
-    assert [m.bytes() for m in player.stop(125_000_000)] == [[128, 120, 0]]
+    assert [list(codecs.encode(m)) for m in player.stop(125_000_000)] == [[128, 120, 0]]

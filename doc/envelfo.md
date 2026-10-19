@@ -6,7 +6,9 @@ Install the Python extra with `uv sync --extra envelfo` in this checkout, or
 Rust hosts use the separate `arpeg-envelfo` crate. Neither event core depends
 on the other. This integration has no NumPy, audio engine, Python bindings,
 MIDI device dependency, or new executable. The Rust MIDI player is used only
-as a device-free development dependency in its conformance tests.
+as a device-free development dependency in its conformance tests. The Python
+`MidiPlayer` examples additionally require `arpeg[midi,envelfo]` (or both extras
+with uv); the bridge itself remains independent of meedee and MIDI devices.
 
 ## Contract and scheduling phases
 

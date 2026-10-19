@@ -1,11 +1,12 @@
 from pathlib import Path
 from tomllib import loads
 
-import mido
 import pytest
+from meedee import codecs
+from meedee.messages import Message
 from ufor.arpeggiator_ports import ArpeggiatorNoteEvent
 
-from arpeg.midi import MidiPlayer
+from arpeg.midi import MidiPlayer, decode_message
 from arpeg.profile import parse_profile
 
 
@@ -26,7 +27,7 @@ def test_lifecycle_matches_delivered_midi_and_survives_snapshots(
     assert isinstance(actions, list)
     for action in actions:
         at = action["at"] * 1000
-        messages: list[mido.Message] = []
+        messages: list[Message] = []
         notes: list[ArpeggiatorNoteEvent] = []
         if poll_us is not None:
             for tick in range(previous + poll_us * 1000, at, poll_us * 1000):
@@ -35,7 +36,7 @@ def test_lifecycle_matches_delivered_midi_and_survives_snapshots(
                 assert not batch.exhausted
                 notes.extend(batch.notes)
         if "data" in action:
-            messages.extend(player.accept(at, mido.Message.from_bytes(action["data"])))
+            messages.extend(player.accept(at, decode_message(action["data"])))
         elif "capture" in action:
             messages.extend(player.capture(at, action["capture"]))
         elif "stop" in action:
@@ -47,7 +48,7 @@ def test_lifecycle_matches_delivered_midi_and_survives_snapshots(
         batch = player.take_events()
         assert not batch.exhausted
         notes.extend(batch.notes)
-        assert [m.bytes() for m in messages] == action["output"], action
+        assert [list(codecs.encode(m)) for m in messages] == action["output"], action
         assert [
             [str(n.at), n.port.value, n.occurrence, n.source, n.key, n.velocity]
             for n in notes
@@ -62,7 +63,7 @@ def test_full_note_buffer_skips_repeats_without_losing_ends_or_replaying_attacks
     player = MidiPlayer(
         profile=parse_profile(Path("conformance/lifecycle-repeats.toml").read_text())
     )
-    player.accept(0, mido.Message.from_bytes([144, 60, 100]))
+    player.accept(0, decode_message([144, 60, 100]))
     output = player.advance(125_000_000_000)
     batch = player.take_events()
     assert batch.exhausted
@@ -72,7 +73,7 @@ def test_full_note_buffer_skips_repeats_without_losing_ends_or_replaying_attacks
         a.occurrence == b.occurrence and a.port == "note_start" and b.port == "note_end"
         for a, b in zip(batch.notes[::2], batch.notes[1::2], strict=True)
     )
-    assert [m.bytes() for m in player.advance(125_050_000_000)] == [
+    assert [list(codecs.encode(m)) for m in player.advance(125_050_000_000)] == [
         [144, 60, 100],
         [128, 60, 0],
     ]
@@ -83,10 +84,12 @@ def test_owned_end_keeps_its_reserved_slot_across_an_undrained_snapshot() -> Non
     player = MidiPlayer(
         profile=parse_profile(Path("conformance/live-wind.toml").read_text())
     )
-    player.accept(0, mido.Message.from_bytes([144, 60, 100]))
+    player.accept(0, decode_message([144, 60, 100]))
     player.advance(255_875_000_000)
     player = MidiPlayer.model_validate_json(player.model_dump_json())
-    assert [m.bytes() for m in player.stop(255_876_000_000)] == [[128, 60, 0]]
+    assert [list(codecs.encode(m)) for m in player.stop(255_876_000_000)] == [
+        [128, 60, 0]
+    ]
     batch = player.take_events()
     assert not batch.exhausted
     assert len(batch.notes) == 4096
