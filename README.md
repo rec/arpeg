@@ -643,16 +643,16 @@ Both play commands accept these positive integer limits:
 | `--input-bytes` | 1048576 | Queued MIDI payload bytes across those inputs |
 | `--max-message-bytes` | 65536 | One packet or assembled SysEx message, including delimiters |
 
-Python receives complete Mido messages; Rust also bounds SysEx assembled across
-packets. Overflow releases owned output notes, reports an error, and ends the
-session. Restart playback to obtain fresh input state. There is no queue-age
+Both hosts receive raw meedee byte chunks and bound SysEx assembled across
+packets. Overflow attempts to release owned output notes, reports an error, and
+ends the session. Restart playback to obtain fresh input state. There is no queue-age
 cutoff or controller coalescing. Console input is limited to 32 queued commands
 and 1024 UTF-8 bytes per line, including its newline, with the same overflow
 policy. Callbacks never wait for queue space.
 
 These limits bound payload retained by arpeg, plus one packet being processed
-and Rust's partial SysEx per input. MIDI libraries and drivers manage their own
-buffers; Mido assembles messages before arpeg receives them.
+and one partial SysEx per input. meedee additionally maintains bounded receive
+queues per connection; operating-system and driver buffers are separate.
 
 ### Output bandwidth
 
