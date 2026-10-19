@@ -3,7 +3,6 @@ from fractions import Fraction
 from pathlib import Path
 from tomllib import loads
 
-import mido
 import pytest
 from ufor.arpeggiator import ArpeggiatorScore, Grid
 from ufor.arpeggiator_capture import CapturedPhrase
@@ -12,7 +11,7 @@ from ufor.control import TempoMap
 from arpeg.engine import EngineSettings, TokenArpeggiator
 from arpeg.held import render_held
 from arpeg.live import LiveArpeggiator
-from arpeg.midi import MidiPlayer
+from arpeg.midi import MidiPlayer, decode_message
 from arpeg.profile import parse_profile
 
 
@@ -108,8 +107,8 @@ def test_captured_gestures_fit_each_grooved_interval() -> None:
         }
     )
     player = MidiPlayer(profile=profile)
-    player.accept(0, mido.Message.from_bytes([144, 60, 100]))
-    player.accept(50_000_000, mido.Message.from_bytes([128, 60, 20]))
+    player.accept(0, decode_message([144, 60, 100]))
+    player.accept(50_000_000, decode_message([128, 60, 20]))
     player.advance(500_000_000)
     assert [(e.port.value, e.at) for e in player.take_events().notes] == [
         ("note_start", Fraction(3, 8)),

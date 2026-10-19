@@ -2,15 +2,16 @@ from fractions import Fraction
 from pathlib import Path
 from tomllib import loads
 
-import mido
 import pytest
 from envelfo.runtime import envelfo_at, envelfo_event, initial_envelfo
+from meedee import codecs
+from meedee.messages import Message, NoteOff, NoteOn
 from pydantic import TypeAdapter
 from ufor import arpeggiator_ports, envelfo
 from ufor.arpeggiator import SelectionOffset, Transposition
 
 from arpeg.live import LiveArpeggiator
-from arpeg.midi import MidiPlayer
+from arpeg.midi import MidiPlayer, decode_message
 from arpeg.ports import PerformancePorts
 from arpeg.profile import parse_profile
 
@@ -123,16 +124,16 @@ def test_pitch_range_error_still_releases_the_last_delivered_note(
     player = MidiPlayer(profile=profile)
     if profile_name == "phrase-wind":
         player.capture(0, "record")
-    player.accept(0, mido.Message.from_bytes([144, 120, 100]))
+    player.accept(0, decode_message([144, 120, 100]))
     if profile_name == "phrase-wind":
         player.capture(0, "commit")
-    assert [m.bytes() for m in player.advance(0)] == [[144, 120, 100]]
+    assert [list(codecs.encode(m)) for m in player.advance(0)] == [[144, 120, 100]]
     player.control(
         50_000_000, arpeggiator_ports.ArpeggiatorControl(port="transposition", value=12)
     )
     with pytest.raises(ValueError, match="outside MIDI range"):
         player.advance(250_000_000)
-    assert [m.bytes() for m in player.stop(250_000_000)] == [[128, 120, 0]]
+    assert [list(codecs.encode(m)) for m in player.stop(250_000_000)] == [[128, 120, 0]]
 
 
 @pytest.mark.parametrize("port", ["transposition", "selection_offset"])
@@ -168,7 +169,7 @@ def test_shared_envelfo_port_trace(
     previous_at = 0
     for action in actions:
         at = action["at"] * 1000
-        output: list[mido.Message] = []
+        output: list[Message] = []
         events: list[arpeggiator_ports.ArpeggiatorOutput] = []
         if poll_us is not None:
             for tick in range(previous_at + poll_us * 1000, at, poll_us * 1000):
@@ -177,7 +178,7 @@ def test_shared_envelfo_port_trace(
                 assert not batch.exhausted
                 events.extend(batch.events)
         if "data" in action:
-            output.extend(player.accept(at, mido.Message.from_bytes(action["data"])))
+            output.extend(player.accept(at, decode_message(action["data"])))
         elif "capture" in action:
             output.extend(player.capture(at, action["capture"]))
         elif "port" in action:
@@ -194,7 +195,7 @@ def test_shared_envelfo_port_trace(
         batch = player.take_events()
         assert not batch.exhausted
         events.extend(batch.events)
-        assert [m.bytes() for m in output] == action["output"], action
+        assert [list(codecs.encode(m)) for m in output] == action["output"], action
         assert [
             [str(e.at), e.port.value, e.index, e.revision] for e in events
         ] == action["events"], action
@@ -204,7 +205,7 @@ def test_shared_envelfo_port_trace(
 
 def test_invalid_controls_leave_pending_music_unchanged() -> None:
     player = MidiPlayer(profile=parse_profile(Path("conformance/up.toml").read_text()))
-    player.accept(0, mido.Message.from_bytes([144, 60, 100]))
+    player.accept(0, decode_message([144, 60, 100]))
     player.advance(0)
     snapshot = player.model_dump_json()
     with pytest.raises(ValueError, match="explicit seed"):
@@ -215,7 +216,9 @@ def test_invalid_controls_leave_pending_music_unchanged() -> None:
             ),
         )
     assert player.model_dump_json() == snapshot
-    assert [m.bytes() for m in player.advance(100_000_000)] == [[128, 60, 0]]
+    assert [list(codecs.encode(m)) for m in player.advance(100_000_000)] == [
+        [128, 60, 0]
+    ]
 
 
 @pytest.mark.parametrize(
@@ -267,14 +270,16 @@ def test_step_notifications_reserve_space_for_the_whole_step(
 
 def test_full_event_buffer_skips_attacks_and_still_releases_owned_notes() -> None:
     player = MidiPlayer(profile=parse_profile(Path("conformance/up.toml").read_text()))
-    player.accept(0, mido.Message.from_bytes([144, 60, 100]))
+    player.accept(0, decode_message([144, 60, 100]))
     output = player.advance(256_000_000_000)
-    assert sum(m.type == "note_on" for m in output) == 2048
-    assert sum(m.type == "note_off" for m in output) == 2048
+    assert sum(isinstance(m, NoteOn) for m in output) == 2048
+    assert sum(isinstance(m, NoteOff) for m in output) == 2048
     batch = player.take_events()
     assert len(batch.events) == 4096
     assert batch.exhausted
-    assert [m.bytes() for m in player.advance(256_125_000_000)] == [[144, 60, 100]]
+    assert [list(codecs.encode(m)) for m in player.advance(256_125_000_000)] == [
+        [144, 60, 100]
+    ]
     assert not player.take_events().exhausted
 
 
@@ -301,7 +306,7 @@ def test_envelfo_samples_drive_density_and_receive_hit_events() -> None:
     )
     receiver_state = initial_envelfo(receiver, Fraction(0))
     player = MidiPlayer(profile=parse_profile(Path("conformance/up.toml").read_text()))
-    player.accept(0, mido.Message.from_bytes([144, 60, 100]))
+    player.accept(0, decode_message([144, 60, 100]))
     hits: list[int] = []
     for index in range(5):
         at = Fraction(index, 4)

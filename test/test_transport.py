@@ -3,14 +3,15 @@ from pathlib import Path
 from tomllib import loads
 from typing import Literal
 
-import mido
 import pytest
+from meedee import codecs
+from meedee.messages import Message
 from ufor.arpeggiator import ArpeggiatorScore
 from ufor.codec import parse_score
 
 from arpeg.clock import ClockMode, TransportClock
 from arpeg.history import LiveHistoryArpeggiator
-from arpeg.midi import MidiPlayer
+from arpeg.midi import MidiPlayer, decode_message
 
 
 @pytest.mark.parametrize(
@@ -38,16 +39,14 @@ def test_shared_transport_trace(case: dict[str, object], poll_us: int | None) ->
     previous_at = 0
     for action in actions:
         at = action["at"] * 1000
-        output: list[mido.Message] = []
+        output: list[Message] = []
         if poll_us is not None:
             for tick in range(previous_at + poll_us * 1000, at, poll_us * 1000):
                 output.extend(player.advance(tick))
         if "data" in action:
             source: Literal["notes", "clock", "both"] = action.get("source", "both")
             output.extend(
-                player.accept(
-                    at, mido.Message.from_bytes(action["data"]), source=source
-                )
+                player.accept(at, decode_message(action["data"]), source=source)
             )
         elif "tempo" in action:
             output.extend(player.set_tempo(at, action["tempo"]))
@@ -57,7 +56,7 @@ def test_shared_transport_trace(case: dict[str, object], poll_us: int | None) ->
             output.extend(player.clear(at))
         else:
             output.extend(player.advance(at))
-        assert [m.bytes() for m in output] == action["output"], action
+        assert [list(codecs.encode(m)) for m in output] == action["output"], action
         assert player.clock.beat == Fraction(action["beat"]), action
         assert player.clock.active == action["active"], action
         if "state" in action:

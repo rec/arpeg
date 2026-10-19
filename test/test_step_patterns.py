@@ -2,14 +2,14 @@ from fractions import Fraction
 from pathlib import Path
 from tomllib import loads
 
-import mido
 import pytest
+from meedee import codecs
 from ufor import arpeggiator_ports
 from ufor.arpeggiator import StepPatterns
 
 from arpeg.engine import EngineSettings, TokenArpeggiator
 from arpeg.live import LiveArpeggiator
-from arpeg.midi import MidiPlayer
+from arpeg.midi import MidiPlayer, decode_message
 from arpeg.profile import parse_profile
 
 
@@ -123,8 +123,8 @@ def test_history_accents_preserve_recorded_expression_and_release_velocity() -> 
         (0, [144, 60, 81]),
         (50_000_000, [128, 60, 20]),
     ]:
-        player.accept(at, mido.Message.from_bytes(data))
-    assert [m.bytes() for m in player.advance(225_000_000)] == [
+        player.accept(at, decode_message(data))
+    assert [list(codecs.encode(m)) for m in player.advance(225_000_000)] == [
         [176, 2, 30],
         [144, 60, 41],
         [128, 60, 20],

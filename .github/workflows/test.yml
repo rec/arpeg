@@ -38,11 +38,6 @@ jobs:
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y libasound2-dev pkg-config
       - name: Install Python with MIDI support
-        # Read the public SSH-pinned dependency over HTTPS without an SSH key.
-        env:
-          GIT_CONFIG_COUNT: "1"
-          GIT_CONFIG_KEY_0: url.https://github.com/.insteadOf
-          GIT_CONFIG_VALUE_0: ssh://git@github.com/
         run: uv sync --frozen --extra midi
       - name: Test Python reference and host message handling
         run: uv run --frozen --extra midi pytest

@@ -1,11 +1,11 @@
 from fractions import Fraction
 from pathlib import Path
 
-import mido
 import pytest
+from meedee import codecs
 
 from arpeg.history import LiveHistoryArpeggiator
-from arpeg.midi import MidiPlayer
+from arpeg.midi import MidiPlayer, decode_message
 from arpeg.profile import parse_profile
 
 
@@ -19,7 +19,7 @@ def test_invalid_capture_controls_preserve_pending_output() -> None:
             player.capture(100_000_000, command)
         assert player.model_dump_json() == snapshot
     player.capture(0, "record")
-    player.accept(0, mido.Message.from_bytes([144, 60, 100]))
+    player.accept(0, decode_message([144, 60, 100]))
     snapshot = player.model_dump_json()
     with pytest.raises(ValueError, match="already recording"):
         player.capture(100_000_000, "record")
@@ -28,7 +28,9 @@ def test_invalid_capture_controls_preserve_pending_output() -> None:
     player.advance(0)
     with pytest.raises(ValueError, match="record before"):
         player.capture(100_000_000, "commit")
-    assert [m.bytes() for m in player.advance(100_000_000)] == [[128, 60, 0]]
+    assert [list(codecs.encode(m)) for m in player.advance(100_000_000)] == [
+        [128, 60, 0]
+    ]
 
 
 def test_take_limit_can_be_recovered_without_reusing_capture_identities() -> None:
@@ -52,8 +54,10 @@ def test_take_limit_can_be_recovered_without_reusing_capture_identities() -> Non
     assert player.engine.bank.recording.capture_id == "take-129"
     player.clear(0)
     player.capture(0, "record")
-    player.accept(0, mido.Message.from_bytes([144, 64, 90]))
+    player.accept(0, decode_message([144, 64, 90]))
     player.capture(0, "commit")
-    assert [m.bytes() for m in player.advance(125_000_000)] == [[144, 64, 90]]
+    assert [list(codecs.encode(m)) for m in player.advance(125_000_000)] == [
+        [144, 64, 90]
+    ]
     assert player.engine.bank.published[0].capture_id == "take-130"
     assert player.clock.beat == Fraction(1, 4)

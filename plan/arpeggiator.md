@@ -920,9 +920,11 @@ must not require a Python compilation step for each user preset.
 The standalone shell owns port enumeration, input/output selection, timestamped
 I/O, internal/external clock, capture controls, file import/export, and a bounded
 status trace. Support Linux, Windows, and macOS through portable MIDI libraries:
-mido with RtMidi for the Python reference host and meedee/libremidi for the Rust
-executable. The meedee dependency follows its HTTPS Git main branch, with the
-resolved source recorded in Cargo.lock. Rust host builds require Rust 1.87+,
+meedee/libremidi for both the Python reference host and Rust executable.
+Python defaults to process isolation with an explicit in-process option;
+arrival timestamps remain in the parent host clock. The meedee dependencies
+follow HTTPS Git main branches, with resolved sources recorded in Cargo.lock
+and uv.lock. Rust host builds require Rust 1.87+,
 CMake and a C++20 compiler; device-free and WebAssembly builds exclude this
 optional transport dependency.
 Keep platform-driver details inside those libraries, outside the event kernel.
@@ -1106,7 +1108,7 @@ policy; generic occurrences do not impose pitch, velocity, channel, or MIDI
 range semantics. Existing MIDI capture/history remain specialized musical code.
 
 arpeg and enveLFO remain separate repositories with an optional bridge. Python
-mido and RtMidi are optional MIDI dependencies. The focused browser text example
+meedee is the optional MIDI dependency; Mido and RtMidi have been removed. The focused browser text example
 uses real key-down/key-up events, ignores keyboard repeat, orders tokens by entry
 into the bank, and appends strings at occurrence starts. Leaving its input area
 stops the session. Shared Python/Rust traces cover non-MIDI ranks, Unicode,

@@ -2,14 +2,14 @@ from fractions import Fraction
 from pathlib import Path
 from tomllib import loads
 
-import mido
 import pytest
 from envelfo import patch
+from meedee import codecs
 from ufor import arpeggiator_ports, control, envelfo
 from ufor.segments import Segment
 
 from arpeg.envelfo import EnveLFOBridge
-from arpeg.midi import MidiPlayer
+from arpeg.midi import MidiPlayer, decode_message
 from arpeg.profile import parse_profile
 
 
@@ -29,7 +29,7 @@ def test_composition_trace_and_restoration(poll_us: int | None) -> None:
                 assert not batch.exhausted
                 assert not any(e.port == "hit" for e in batch.events)
         for data in action.get("data", []):
-            output.extend(player.accept(tick, mido.Message.from_bytes(data)))
+            output.extend(player.accept(tick, decode_message(data)))
         if action.get("stop"):
             output.extend(player.stop(tick))
         player.schedule(tick, tempo=action.get("tempo"))
@@ -44,7 +44,7 @@ def test_composition_trace_and_restoration(poll_us: int | None) -> None:
             {"breath": action["breath"], "accent": action["accent"]}
         )
         output.extend(player.realize(result.controls))
-        assert [m.bytes() for m in output] == action["output"], action
+        assert [list(codecs.encode(m)) for m in output] == action["output"], action
         player = MidiPlayer.model_validate_json(player.model_dump_json())
         bridge = EnveLFOBridge.model_validate_json(bridge.model_dump_json())
         previous = tick

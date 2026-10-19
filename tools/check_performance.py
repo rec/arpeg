@@ -5,8 +5,12 @@ from json import dumps
 from pathlib import Path
 from time import perf_counter_ns, sleep
 
-import mido
 import tyro
+from meedee import codecs
+from meedee.messages import (
+    ControlChange,
+    NoteOn,
+)
 from pydantic import BaseModel, Field
 
 from arpeg.midi import MidiPlayer
@@ -35,7 +39,7 @@ class CheckPerformance(BaseModel, frozen=True):
         exhausted = False
         stalled = False
         origin = perf_counter_ns()
-        player.accept(0, mido.Message("note_on", note=60, velocity=100))
+        player.accept(0, NoteOn(channel=1, note=60, velocity=100))
         while (now := perf_counter_ns() - origin) < duration:
             if not stalled and self.stall_ms and now >= duration // 2:
                 sleep(self.stall_ms / 1000)
@@ -44,12 +48,12 @@ class CheckPerformance(BaseModel, frozen=True):
             started = perf_counter_ns()
             while next_input <= now:
                 messages = player.accept(
-                    next_input, mido.Message("control_change", control=2, value=64)
+                    next_input, ControlChange(channel=1, controller=2, value=64)
                 )
-                wire_bytes += sum(len(m.bytes()) for m in messages)
+                wire_bytes += sum(len(list(codecs.encode(m))) for m in messages)
                 next_input += interval
             messages = player.advance(now)
-            wire_bytes += sum(len(m.bytes()) for m in messages)
+            wire_bytes += sum(len(list(codecs.encode(m))) for m in messages)
             batch = player.take_events()
             exhausted |= batch.exhausted
             delivered = perf_counter_ns() - origin
@@ -66,7 +70,7 @@ class CheckPerformance(BaseModel, frozen=True):
             samples.append(perf_counter_ns() - started)
             sleep(0.001)
         wire_bytes += sum(
-            len(m.bytes()) for m in player.stop(perf_counter_ns() - origin)
+            len(list(codecs.encode(m))) for m in player.stop(perf_counter_ns() - origin)
         )
         for event in player.take_events().notes:
             if (
