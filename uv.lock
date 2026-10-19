@@ -3,7 +3,7 @@ revision = 3
 requires-python = ">=3.13"
 
 [options]
-exclude-newer = "2026-10-12T09:10:08.155985Z"
+exclude-newer = "2026-10-12T09:45:41.895393Z"
 exclude-newer-span = "P1W"
 
 [[package]]
@@ -131,7 +131,7 @@ wheels = [
 [[package]]
 name = "meedee"
 version = "0.2.0"
-source = { git = "https://github.com/rec/meedee?branch=main#38c0cbcd8e267c8acb5c481cdd5cb56411663cdc" }
+source = { git = "https://github.com/rec/meedee?branch=main#2f444e311a558dc8ada9bb89530639aaa6e04c87" }
 
 [[package]]
 name = "mido"
