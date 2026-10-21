@@ -62,6 +62,7 @@ impl Grammar {
         Ok(Selection::IndexPattern {
             indices,
             rest_outside: self.rest_outside,
+            intervals: None,
         })
     }
 }

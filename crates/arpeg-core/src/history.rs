@@ -347,6 +347,7 @@ impl HistoryArpeggiator {
             .ok_or("missing captured note")?;
         let Some(key) = self.ports.realize_pitch(
             i128::from(source.key)
+                + i128::from(self.bank.selected_interval())
                 + i128::from(
                     self.ports
                         .tuning

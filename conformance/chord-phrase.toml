@@ -1,0 +1,7 @@
+name = "chord-phrase"
+title = "Chord ranks with a changing register"
+
+[body]
+bank = {kind = "held"}
+selection = {kind = "index_pattern", indices = [0, 1, 2, 1], intervals = [0, 0, 12, -12]}
+rhythm = {kind = "grid", step = "1/4 beat"}

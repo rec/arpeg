@@ -36,6 +36,7 @@ pub enum Selection {
     IndexPattern {
         indices: Vec<u64>,
         rest_outside: bool,
+        intervals: Option<Vec<i64>>,
     },
     Shuffle {
         once: bool,

@@ -507,6 +507,41 @@ marked samples reject this selection.
 [Shared traces](conformance/index-pattern.json) check the order and both
 boundary policies under irregular polling.
 
+### Phrase substitution and chord-relative templates
+
+An index pattern can substitute notes from the current chord and apply an
+authored pitch interval to each selection:
+
+```toml
+[body]
+selection = {kind = "index_pattern", indices = [0, 1, 2, 1], intervals = [0, 0, 12, -12]}
+rhythm = {kind = "grid", step = "1/4 beat"}
+```
+
+With C4–E4–G4 this plays C4–E4–G5–E3. Changing the chord changes the source
+notes while retaining the template position, unless bank-edit retrigger is
+enabled. Each occurrence keeps its selected source's velocity, identity, and
+captured expression. Source pitches and the captured phrase remain unchanged.
+For a literal melody relative to the lowest chord entry, use
+`indices = [0, 0, 0, 0]` and `intervals = [0, 4, 7, 12]`.
+
+Intervals are signed whole pitch-grid steps, which are semitones with ordinary
+tuning. There must be one interval per index; omission leaves pitches unchanged.
+Selection offset and octave expansion choose the source first, then the phrase
+interval applies before scale mapping, tuning, global transposition, and pitch
+limits. The source rank, rather than a recognized chord name, is the anchor.
+No notes are generated from an empty bank.
+
+Missing-rank rests consume their slot and interval together; masked or rejected
+opportunities do not. Repeats and ties retain their realized pitches through
+later chord edits. Held and latched banks support the existing rhythms; history
+and committed phrase banks retain their grid-only, fitted-gesture contract.
+This is authored template playback. Conversion of a recorded phrase against a
+separate live chord is not implemented. File rendering and marked samples still
+reject index patterns; nonzero pitch intervals require a musical destination.
+See [the playable chord phrase](conformance/chord-phrase.toml) and
+[shared phrase traces](conformance/phrase-templates.toml).
+
 [Shuffle selection](conformance/shuffle.toml) visits every note once per cycle.
 `selection = { kind = "shuffle" }` shuffles again each cycle; `mode = "once"`
 repeats the initial order. An explicit integer `seed` is required. The default

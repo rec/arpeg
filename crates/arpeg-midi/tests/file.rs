@@ -405,6 +405,7 @@ fn index_pattern_defaults_to_wrap_and_validates_live_only_options() {
         arpeg_core::Selection::IndexPattern {
             indices: vec![0, 2, 1, 2],
             rest_outside: false,
+            intervals: None,
         }
     );
     let explicit = profile.replace(
@@ -419,6 +420,7 @@ fn index_pattern_defaults_to_wrap_and_validates_live_only_options() {
         arpeg_core::Selection::IndexPattern {
             indices: vec![0, 2, 1, 2],
             rest_outside: true,
+            intervals: None,
         }
     );
     for indices in ["[]", "[-1]", "[1.5]", "[true]", "[\"1\"]"] {

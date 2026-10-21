@@ -54,7 +54,11 @@ pub trait Processor {
         &self,
         item: &Item<Self::Value>,
         _accent: Beat,
+        pitch_interval: i64,
     ) -> Result<Option<Self::Value>, &'static str> {
+        if pitch_interval != 0 {
+            return Err("pitch intervals require a musical destination");
+        }
         Ok(Some(item.value))
     }
     fn conflicts(&self, _left: Self::Value, _right: Self::Value) -> bool {
@@ -176,9 +180,15 @@ impl<P: Processor> Arpeggiator<P> {
         if matches!(selection, Selection::Shuffle { .. }) && chance.seed.is_none() {
             return Err("shuffle requires an explicit seed");
         }
-        if let Selection::IndexPattern { indices, .. } = &selection {
+        if let Selection::IndexPattern {
+            indices, intervals, ..
+        } = &selection
+        {
             if indices.is_empty() {
                 return Err("index pattern requires at least one index");
+            }
+            if intervals.as_ref().is_some_and(|v| v.len() != indices.len()) {
+                return Err("intervals must have one value per index");
             }
         }
         if let Selection::Walk(walk) = &selection {
@@ -585,12 +595,17 @@ impl<P: Processor> Arpeggiator<P> {
         let selection = &self.selection;
         let mut ordered = active.clone();
         ordered.sort_unstable_by_key(|note| self.selection_key(note, selection));
+        let mut pitch_interval = 0;
         let selected = if let Selection::IndexPattern {
             indices,
             rest_outside,
+            intervals,
         } = selection
         {
             let index = indices[self.pattern_position];
+            if let Some(intervals) = intervals {
+                pitch_interval = intervals[self.pattern_position];
+            }
             self.pattern_position = (self.pattern_position + 1) % indices.len();
             if *rest_outside && index >= ordered.len() as u64 {
                 return Ok(false);
@@ -840,7 +855,10 @@ impl<P: Processor> Arpeggiator<P> {
         } else {
             selected
         };
-        let Some(value) = self.ports.realize(&selected, decision.accent)? else {
+        let Some(value) = self
+            .ports
+            .realize(&selected, decision.accent, pitch_interval)?
+        else {
             return Ok(false);
         };
         let interval = decision.duration / decision.repeats as i64;

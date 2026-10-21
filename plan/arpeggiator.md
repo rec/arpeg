@@ -578,6 +578,23 @@ current input bank, and chord-relative interval patterns. Chord recognition is
 an optional explicit mapping policy with declared ambiguity rules. Begin with
 literal interval templates; do not require machine learning or PyTorch.
 
+Authored rank substitution and chord-relative interval templates are implemented
+as the existing index-pattern selector with optional `intervals`, a list of
+signed i64 pitch-grid offsets matching `indices`. One admitted hit consumes one
+rank/interval pair. An outside-rank rest consumes its pair; rhythm rests, zero
+accents and rejected chance do not. The selected source retains identity,
+velocity, release velocity and recorded gesture. The interval follows selection
+offset and octave expansion and precedes scale mapping, tuning, global
+transposition and register limits. Repeats/ties retain the realized pitch.
+Ordinary bank edits preserve template position; existing retrigger, empty-bank,
+clear and relocation rules restart it. Python, Rust and the WebAssembly profile
+path share these semantics for held/latched and grid-based history/phrase banks.
+Shared `conformance/phrase-templates.toml` traces and focused checks cover source
+substitution, literal melodies, rests, pitch limits, octaves, repeated attacks,
+ties, transform order, nineteen-division tuning and Python snapshots.
+Fixed-note playback independent of an input bank, recorded-phrase conversion
+against a separate live chord, and automatic chord recognition remain deferred.
+
 Arbitrary external algorithms use the planned provider boundary: prepare or
 record their decisions first. There is no `eval` field or unrestricted program
 execution inside an event or audio callback.

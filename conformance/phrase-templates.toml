@@ -1,0 +1,45 @@
+[[cases]]
+name = "rank-substitution"
+selection = {kind = "index_pattern", indices = [0, 2, 1, 2]}
+keys = [60, 67, 64, 67]
+beats = ["1/4", "1/2", "3/4", "1"]
+
+[[cases]]
+name = "literal-root-relative-melody"
+selection = {kind = "index_pattern", indices = [0, 0, 0, 0], intervals = [0, 4, 7, 12]}
+keys = [60, 64, 67, 72]
+beats = ["1/4", "1/2", "3/4", "1"]
+
+[[cases]]
+name = "chord-ranks-with-register-intervals"
+selection = {kind = "index_pattern", indices = [0, 1, 2, 0], intervals = [12, -12, 0, 7]}
+keys = [72, 52, 67, 67]
+beats = ["1/4", "1/2", "3/4", "1"]
+
+[[cases]]
+name = "outside-rank-rest-consumes-its-interval"
+selection = {kind = "index_pattern", indices = [0, 4, 1, 0], intervals = [0, 99, 12, -12], boundary = "rest"}
+keys = [60, 76, 48]
+beats = ["1/4", "3/4", "1"]
+
+[[cases]]
+name = "out-of-register-intervals-drop"
+selection = {kind = "index_pattern", indices = [0, 0, 0, 0], intervals = [0, 100, 7, -100]}
+keys = [60, 67]
+beats = ["1/4", "3/4"]
+
+[[cases]]
+name = "intervals-use-octave-expanded-source-ranks"
+selection = {kind = "index_pattern", indices = [3, 1, 4, 2], intervals = [0, -12, 7, 0]}
+octaves = {offsets = [0, 1]}
+keys = [72, 52, 83, 67]
+beats = ["1/4", "1/2", "3/4", "1"]
+
+[[cases]]
+name = "empty-accents-retain-phrase-position"
+held_keys = [72, 52, 67]
+held_beats = ["0", "1/2", "3/4"]
+selection = {kind = "index_pattern", indices = [0, 1, 2, 0], intervals = [12, -12, 0, 7]}
+patterns = {accents = [1, 0, 1]}
+keys = [72, 52]
+beats = ["1/2", "3/4"]
