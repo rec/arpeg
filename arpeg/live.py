@@ -10,6 +10,7 @@ from fractions import Fraction
 from typing import Literal, Self
 
 from pydantic import BaseModel, Field, model_validator
+from ufor import arpeggiator_ports
 from ufor.arpeggiator import (
     Alternating,
     ArpeggiatorScore,
@@ -43,6 +44,7 @@ from .tuning import PreparedTuning
 
 
 class LiveEvent(BaseModel, frozen=True):
+    channel: int = Field(default=1, ge=1, le=16)
     at: Fraction
     kind: Literal["on", "off"]
     id: int
@@ -63,10 +65,20 @@ class LiveArpeggiator(Arpeggiator[MusicalValue, LiveEvent]):
 
     profile: ArpeggiatorScore = Field(frozen=True)
     ports: PerformancePorts | None = None
+    lanes: dict[str, LiveArpeggiator] = Field(default_factory=dict)
 
     @model_validator(mode="after")
     def prepare_ports(self) -> Self:
         body = self.profile.body
+        if (
+            body.expression.source != "current"
+            or body.expression.timing != "original"
+            or body.expression.gaps != "omit"
+            or "recorded" in body.expression.lanes.values()
+        ):
+            raise ValueError(
+                "held and latched playback require current, original expression"
+            )
         if not isinstance(body.bank, (HeldBank, LatchedBank)):
             raise ValueError("live mode requires a held or latched bank")
         if not isinstance(
@@ -107,6 +119,7 @@ class LiveArpeggiator(Arpeggiator[MusicalValue, LiveEvent]):
             probability=body.probability,
             seed=body.seed,
             retrigger=body.retrigger,
+            strum=body.strum,
         )
         if self.ports is None:
             self.ports = PerformancePorts(
@@ -118,14 +131,94 @@ class LiveArpeggiator(Arpeggiator[MusicalValue, LiveEvent]):
                 scale=body.scale,
                 tuning=PreparedTuning.prepare(body),
             )
+        if body.lanes is not None and not self.lanes:
+            self.lanes = {
+                n: LiveArpeggiator(
+                    profile=ArpeggiatorScore(
+                        name=f"{self.profile.name}.{n}", title=n, body=b
+                    )
+                )
+                for n, b in sorted(body.lanes.items())
+            }
         return self
 
     def note_on(self, at: Fraction, key: int, velocity: int) -> list[LiveEvent]:
         value = MusicalValue(key=key, velocity=velocity)
-        return self.press(at, key, key, value)
+        events = self.press(at, key, key, value)
+        events.extend(
+            e for a in self.lanes.values() for e in a.note_on(at, key, velocity)
+        )
+        return sorted(events, key=lambda e: e.at)
 
     def note_off(self, at: Fraction, key: int) -> list[LiveEvent]:
-        return self.release(at, key)
+        events = self.release(at, key)
+        events.extend(e for a in self.lanes.values() for e in a.note_off(at, key))
+        return sorted(events, key=lambda e: e.at)
+
+    def advance(self, through: Fraction) -> list[LiveEvent]:
+        events = super().advance(through)
+        events.extend(e for a in self.lanes.values() for e in a.advance(through))
+        return sorted(events, key=lambda e: e.at)
+
+    def next_deadline(self) -> Fraction:
+        return min(
+            [super().next_deadline(), *(a.next_deadline() for a in self.lanes.values())]
+        )
+
+    def before(self, through: Fraction) -> list[LiveEvent]:
+        events = super().before(through)
+        events.extend(e for a in self.lanes.values() for e in a.before(through))
+        return sorted(events, key=lambda e: e.at)
+
+    def pause(self, at: Fraction) -> list[LiveEvent]:
+        events = super().pause(at)
+        events.extend(e for a in self.lanes.values() for e in a.pause(at))
+        return sorted(events, key=lambda e: e.at)
+
+    def relocate(self, at: Fraction) -> list[LiveEvent]:
+        events = super().relocate(at)
+        events.extend(e for a in self.lanes.values() for e in a.relocate(at))
+        return sorted(events, key=lambda e: e.at)
+
+    def stop(self, at: Fraction) -> list[LiveEvent]:
+        events = super().stop(at)
+        events.extend(e for a in self.lanes.values() for e in a.stop(at))
+        return sorted(events, key=lambda e: e.at)
+
+    def clear(self, at: Fraction) -> list[LiveEvent]:
+        if self.lanes:
+            if not any(
+                isinstance(a.profile.body.bank, LatchedBank)
+                for a in [self, *self.lanes.values()]
+            ):
+                raise ValueError("clear requires a latched bank")
+            events = (
+                super().clear(at)
+                if isinstance(self.profile.body.bank, LatchedBank)
+                else super().before(at)
+            )
+        else:
+            events = super().clear(at)
+        events.extend(
+            e
+            for a in self.lanes.values()
+            for e in (
+                a.clear(at)
+                if isinstance(a.profile.body.bank, LatchedBank)
+                else a.before(at)
+            )
+        )
+        return sorted(events, key=lambda e: e.at)
+
+    def control(
+        self, at: Fraction, control: arpeggiator_ports.ArpeggiatorControl
+    ) -> list[LiveEvent]:
+        for lane in [self, *self.lanes.values()]:
+            assert lane.ports is not None
+            lane.ports.check_control(control, lane.settings.seed)
+        events = super().control(at, control)
+        events.extend(e for a in self.lanes.values() for e in a.control(at, control))
+        return sorted(events, key=lambda e: e.at)
 
     def _expand(self, active: list[Item[MusicalValue]]) -> list[Item[MusicalValue]]:
         assert self.ports is not None
@@ -187,6 +280,7 @@ class LiveArpeggiator(Arpeggiator[MusicalValue, LiveEvent]):
         accent: Fraction,
     ) -> LiveEvent:
         return LiveEvent(
+            channel=self.profile.body.channel,
             at=at,
             kind=kind,
             id=id,

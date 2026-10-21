@@ -542,6 +542,56 @@ reject index patterns; nonzero pitch intervals require a musical destination.
 See [the playable chord phrase](conformance/chord-phrase.toml) and
 [shared phrase traces](conformance/phrase-templates.toml).
 
+### Strums and independent arp lanes
+
+```toml
+[body]
+rhythm = {kind = "grid", step = "1/2 beat"}
+gate = "1/2"
+strum = {spacing = "1/8 beat"}
+
+[body.lanes.bass]
+channel = 2
+rhythm = {kind = "grid", step = "1/3 beat"}
+gate = "1/2"
+transposition = {semitones = -12}
+```
+
+The primary lane strums the held chord on channel 1 while the named bass lane
+arpeggiates independently on channel 2. All lanes receive the same channel-1
+input and use one transport and tempo. Each lane has a complete preset body
+with its own defaults, bank, selector, rhythm, gates, patterns and random state.
+Settings are not inherited from the primary lane. `channel` ranges from 1 to 16
+and defaults to 1; every lane must have a distinct channel. There may be up to
+15 additional lanes, and lanes cannot nest. Named lanes process in name order
+after the primary lane; events merge by exact beat, preserving that order for
+equal times. Decision and note notifications include their 1-based `channel`.
+
+Strums support held and latched banks with ascending, descending or played
+selection. Each admitted hit freezes the expanded chord, applies selection
+offset and pitch transforms, then places attacks at successive exact `spacing`
+intervals. Spacing must be positive. Gates run from each note's own onset;
+repeats reuse the chord snapshot and ties extend the last repeat group. Strums
+may overlap later hits. Same-pitch collisions retain the existing handoff rule
+within a channel. Later chord edits do not rewrite queued attacks; an empty
+held bank cancels them. Stop and seek cancel queued attacks and release every
+owned note in every lane. Clear clears latched lanes while held lanes continue.
+
+Breath, bend and pressure are channel-wide within each lane. Expression follows
+each lane's configured current/Envelfo ownership. Simultaneously sounding notes
+on a channel must require the same tuning bend; a conflict ends playback with
+an error and permits owned-note cleanup. Independent per-note expression needs
+a channel allocator and is outside this delivery. Live scalar controls broadcast
+to all lanes; preset settings can differ independently. History and phrase
+banks support a configured output channel but reject strums and multiple lanes.
+The limited file renderer rejects these live features.
+
+Each lane retains its 4,096-decision buffer; merged decisions are bounded by
+16 lanes. The MIDI player reserves all owned releases in its shared 4,096-note
+notification buffer. A strum that would exceed 4,096 queued attacks fails before
+queuing the new group. See [the playable preset](conformance/strummed-lanes.toml)
+and [shared exact traces](conformance/strums-lanes.toml).
+
 [Shuffle selection](conformance/shuffle.toml) visits every note once per cycle.
 `selection = { kind = "shuffle" }` shuffles again each cycle; `mode = "once"`
 repeats the initial order. An explicit integer `seed` is required. The default
@@ -625,7 +675,8 @@ and macOS.
 The Python `arpeg-python` host also uses meedee/libremidi and runs the reference
 engines with the same presets. Its MIDI clients are isolated in worker processes
 by default; `--no-isolated` selects lower-resource in-process operation. Both
-hosts read MIDI channel 1 and output on channel 1. The default clock uses internal BPM; both
+hosts read MIDI channel 1 and output on the configured lane channels (channel 1
+by default). The default clock uses internal BPM; both
 hosts also accept external MIDI Clock and transport. They timestamp
 messages when the input callback runs in the host process, poll every
 millisecond, and send events immediately when due. Isolation adds transport
@@ -799,7 +850,7 @@ not extend that cell or become part of its gesture.
 Use either preset as the `--profile` value in Python or the profile argument in
 Rust. [Shared performance traces](conformance/performance.toml) cover live and
 recorded expression, handoff, unknown state, pause and clear cleanup. The live
-hosts still have one independent expression owner on channel 1. MPE and MIDI 2.0
+hosts share expression within each dedicated lane channel. MPE and MIDI 2.0
 remain later work.
 
 ### Live phrase capture

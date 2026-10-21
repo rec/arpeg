@@ -33,6 +33,9 @@ pub mod output;
 pub mod player;
 
 pub struct HeldProfile {
+    pub channel: u8,
+    pub strum_spacing: Option<Beat>,
+    pub lanes: Vec<HeldProfile>,
     pub inversion: i64,
     pub voicing: Vec<i64>,
     pub register_limits: Option<PitchRegister>,
@@ -55,6 +58,7 @@ pub struct HeldProfile {
 }
 
 pub struct CapturedProfile {
+    pub channel: u8,
     pub register_limits: Option<PitchRegister>,
     pub scale: Option<ScaleTransform>,
     pub tuning: Option<PreparedTuning>,
@@ -162,6 +166,9 @@ pub fn parse_profile(text: &str, path: Option<&Path>) -> Result<Profile, String>
             "scale",
             "tuning",
             "bend_range",
+            "channel",
+            "strum",
+            "lanes",
         ]
         .contains(&key.as_str())
     }) {
@@ -922,8 +929,72 @@ pub fn parse_profile(text: &str, path: Option<&Path>) -> Result<Profile, String>
     {
         return Err("finite tunings cannot use period-based transforms or folding".into());
     }
+    let channel = match body.get("channel") {
+        None => 0,
+        Some(v) => {
+            v.as_integer()
+                .filter(|v| (1..=16).contains(v))
+                .ok_or("channel must be an integer from 1 to 16")? as u8
+                - 1
+        }
+    };
+    let strum_spacing = body
+        .get("strum")
+        .map(|v| {
+            let table = v.as_table().ok_or("strum must be a table")?;
+            if table.len() != 1 {
+                return Err("strum requires only spacing".to_owned());
+            }
+            let spacing = parse_beat_duration(table.get("spacing"))?;
+            if spacing <= Beat::from_integer(0) {
+                return Err("strum spacing must be positive".into());
+            }
+            Ok(spacing)
+        })
+        .transpose()?;
+    if strum_spacing.is_some()
+        && !matches!(
+            selection,
+            Selection::Ascending
+                | Selection::Descending
+                | Selection::Played
+                | Selection::ReversePlayed
+        )
+    {
+        return Err("strums require classic selection".into());
+    }
+    let mut lanes = Vec::new();
+    if let Some(value) = body.get("lanes") {
+        let table = value.as_table().ok_or("lanes must be a table")?;
+        if table.is_empty() || table.len() > 15 {
+            return Err("lanes require 1..15 additional lanes".into());
+        }
+        let mut channels = vec![channel];
+        for (lane, value) in table {
+            let child = value.as_table().ok_or("lane must be a profile body")?;
+            if lane.is_empty() || child.contains_key("lanes") {
+                return Err("lane names must be nonempty and lanes cannot nest".into());
+            }
+            let mut source = score.clone();
+            source.insert("name".into(), toml::Value::String(format!("{name}.{lane}")));
+            source.insert("body".into(), value.clone());
+            let Profile::Classic(child) =
+                parse_profile(&toml::to_string(&source).map_err(|e| e.to_string())?, None)?
+            else {
+                return Err("multiple lanes require held or latched banks".into());
+            };
+            if channels.contains(&child.channel) {
+                return Err("each lane requires a distinct MIDI channel".into());
+            }
+            channels.push(child.channel);
+            lanes.push(child);
+        }
+    }
     Ok(match bank {
         ParsedBank::Classic(bank) => Profile::Classic(HeldProfile {
+            channel,
+            strum_spacing,
+            lanes,
             inversion,
             voicing,
             register_limits,
@@ -945,6 +1016,9 @@ pub fn parse_profile(text: &str, path: Option<&Path>) -> Result<Profile, String>
             retrigger,
         }),
         ParsedBank::Captured(mode) => {
+            if strum_spacing.is_some() || !lanes.is_empty() {
+                return Err("strums and multiple lanes require held or latched banks".into());
+            }
             if !voicing.is_empty() {
                 return Err("voicing requires a held or latched bank".into());
             }
@@ -980,6 +1054,7 @@ pub fn parse_profile(text: &str, path: Option<&Path>) -> Result<Profile, String>
                 return Err("captured playback currently requires grid rhythm".into());
             };
             Profile::Captured(CapturedProfile {
+                channel,
                 register_limits,
                 scale,
                 tuning,
@@ -1249,6 +1324,9 @@ pub fn render_file(profile: &str, input: &[u8], path: Option<&Path>) -> Result<V
     }
     if profile.chance.probability != Beat::from_integer(1) {
         return Err("probability currently requires live input".into());
+    }
+    if profile.strum_spacing.is_some() || !profile.lanes.is_empty() || profile.channel != 0 {
+        return Err("strums and channel lanes require live playback".into());
     }
     if profile.transposition != 0 {
         return Err("transposition currently requires live input".into());

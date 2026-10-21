@@ -91,7 +91,7 @@ at the next step; sounding notes and pending repeats retain their target.
 
 Call `take_events()` after each operation to collect
 `{ events, notes, exhausted }`. Each decision event is
-`{ at, port, index, revision }`: `at` is
+`{ at, channel, port, index, revision }`: `channel` is 1-based and `at` is
 an exact beat string, `port` is `capture_ready`, `cycle`, `step`, `hit`, or `rest`, and the counters are
 BigInt values. Each step emits `step` before its `hit` or `rest`; ties emit only
 `step`, and repeats share one hit event. History and phrase banks emit
@@ -122,7 +122,8 @@ and pauses, restored before the next note-on, and never added to the input
 recording. An unknown lane has no invented initial value. Controls for lanes
 owned by current or recorded expression throw before changing playback state.
 The `notes` list reports actual output `note_start`/`note_end` with exact beat
-`at`, BigInt `occurrence`, string `source`, and numeric MIDI `key`/`velocity`.
+`at`, 1-based `channel`, BigInt `occurrence`, string `source`, and numeric MIDI
+`key`/`velocity`.
 Held/latched sources use `input:ID`; captured sources use `CAPTURE:NOTE`.
 Repeated pitches and attacks have distinct occurrences. Handoffs end the old
 occurrence before starting another; zero gates start then end at the same beat.

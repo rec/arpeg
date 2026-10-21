@@ -25,6 +25,7 @@ pub enum OutputKind {
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct OutputEvent {
+    pub channel: u8,
     pub at: Beat,
     pub kind: OutputKind,
 }
@@ -36,9 +37,26 @@ pub struct MusicalValue {
     pub tuning_semitones: f64,
 }
 
-pub type LiveArpeggiator = Arpeggiator<PerformancePorts>;
+pub struct LiveArpeggiator {
+    pub engine: Arpeggiator<PerformancePorts>,
+    pub lanes: Vec<LiveArpeggiator>,
+    bank: Bank,
+}
 
-impl Arpeggiator<PerformancePorts> {
+impl std::ops::Deref for LiveArpeggiator {
+    type Target = Arpeggiator<PerformancePorts>;
+    fn deref(&self) -> &Self::Target {
+        &self.engine
+    }
+}
+
+impl std::ops::DerefMut for LiveArpeggiator {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.engine
+    }
+}
+
+impl LiveArpeggiator {
     pub fn musical(
         bank: Bank,
         selection: Selection,
@@ -48,7 +66,11 @@ impl Arpeggiator<PerformancePorts> {
         chance: Chance,
     ) -> Result<Self, &'static str> {
         let ports = PerformancePorts::new(gate, chance.probability);
-        Self::new(bank, selection, rhythm, ports, retrigger, chance)
+        Ok(Self {
+            engine: Arpeggiator::new(bank, selection, rhythm, ports, retrigger, chance)?,
+            lanes: Vec::new(),
+            bank,
+        })
     }
     pub fn note_on(
         &mut self,
@@ -59,7 +81,7 @@ impl Arpeggiator<PerformancePorts> {
         if key > 127 || velocity == 0 || velocity > 127 {
             return Err("note key and velocity must be MIDI values");
         }
-        self.press(
+        let mut events = self.engine.press(
             at,
             u64::from(key),
             i128::from(key),
@@ -68,16 +90,119 @@ impl Arpeggiator<PerformancePorts> {
                 velocity,
                 tuning_semitones: 0.0,
             },
-        )
+        )?;
+        for lane in &mut self.lanes {
+            events.extend(lane.note_on(at, key, velocity)?);
+        }
+        events.sort_by_key(|e| e.at);
+        Ok(events)
     }
     pub fn note_off(&mut self, at: Beat, key: u8) -> Result<Vec<OutputEvent>, &'static str> {
-        self.release(at, u64::from(key))
+        let mut events = self.engine.release(at, u64::from(key))?;
+        for lane in &mut self.lanes {
+            events.extend(lane.note_off(at, key)?);
+        }
+        events.sort_by_key(|e| e.at);
+        Ok(events)
+    }
+
+    pub fn advance(&mut self, at: Beat) -> Result<Vec<OutputEvent>, &'static str> {
+        let mut events = self.engine.advance(at)?;
+        for lane in &mut self.lanes {
+            events.extend(lane.advance(at)?);
+        }
+        events.sort_by_key(|e| e.at);
+        Ok(events)
+    }
+
+    pub fn before(&mut self, at: Beat) -> Result<Vec<OutputEvent>, &'static str> {
+        let mut events = self.engine.before(at)?;
+        for lane in &mut self.lanes {
+            events.extend(lane.before(at)?);
+        }
+        events.sort_by_key(|e| e.at);
+        Ok(events)
+    }
+
+    pub fn pause(&mut self, at: Beat) -> Vec<OutputEvent> {
+        let mut events = self.engine.pause(at);
+        for lane in &mut self.lanes {
+            events.extend(lane.pause(at));
+        }
+        events.sort_by_key(|e| e.at);
+        events
+    }
+
+    pub fn relocate(&mut self, at: Beat) -> Vec<OutputEvent> {
+        let mut events = self.engine.relocate(at);
+        for lane in &mut self.lanes {
+            events.extend(lane.relocate(at));
+        }
+        events.sort_by_key(|e| e.at);
+        events
+    }
+
+    pub fn stop(&mut self, at: Beat) -> Result<Vec<OutputEvent>, &'static str> {
+        let mut events = self.engine.stop(at)?;
+        for lane in &mut self.lanes {
+            events.extend(lane.stop(at)?);
+        }
+        events.sort_by_key(|e| e.at);
+        Ok(events)
+    }
+
+    pub fn clear(&mut self, at: Beat) -> Result<Vec<OutputEvent>, &'static str> {
+        if self.bank == Bank::Held && self.lanes.iter().all(|l| l.bank == Bank::Held) {
+            return Err("clear requires a latched bank");
+        }
+        let mut events = if self.bank == Bank::Held {
+            self.engine.before(at)?
+        } else {
+            self.engine.clear(at)?
+        };
+        for lane in &mut self.lanes {
+            events.extend(if lane.bank == Bank::Held {
+                lane.before(at)?
+            } else {
+                lane.clear(at)?
+            });
+        }
+        events.sort_by_key(|e| e.at);
+        Ok(events)
+    }
+
+    pub fn control(
+        &mut self,
+        at: Beat,
+        port: InputPort,
+        value: Beat,
+    ) -> Result<Vec<OutputEvent>, &'static str> {
+        PerformancePorts::check_control(port, value, self.chance.seed)?;
+        for lane in &self.lanes {
+            PerformancePorts::check_control(port, value, lane.chance.seed)?;
+        }
+        let mut events = self.engine.control(at, port, value)?;
+        for lane in &mut self.lanes {
+            events.extend(lane.control(at, port, value)?);
+        }
+        events.sort_by_key(|e| e.at);
+        Ok(events)
+    }
+
+    pub fn next_deadline(&self) -> Beat {
+        self.lanes
+            .iter()
+            .map(|l| l.next_deadline())
+            .fold(self.engine.next_deadline(), Beat::min)
     }
 }
 
 impl Processor for PerformancePorts {
     type Value = MusicalValue;
     type Event = OutputEvent;
+    fn strum_spacing(&self) -> Option<Beat> {
+        self.strum_spacing
+    }
     fn timing(&self) -> &TimingPorts {
         &self.timing
     }
@@ -155,6 +280,7 @@ impl Processor for PerformancePorts {
             ..
         } = occurrence;
         OutputEvent {
+            channel: self.channel,
             at,
             kind: if start {
                 OutputKind::NoteOn {

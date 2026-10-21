@@ -84,6 +84,7 @@ fn lifecycle_matches_shared_delivered_midi_with_irregular_polling() {
                     .map(|n| {
                         let n = n.as_array().unwrap();
                         NoteEvent {
+                            channel: 1,
                             at: n[0].as_str().unwrap().parse().unwrap(),
                             port: match n[1].as_str().unwrap() {
                                 "note_start" => NotePort::NoteStart,

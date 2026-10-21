@@ -607,6 +607,35 @@ conditional steps, probability, finite pattern repeats, and independent pattern
 lengths. Polyphony, strums, and several independently clocked lanes use the same
 scheduling model.
 
+Strums and dedicated-channel lanes are implemented in Python and Rust, including
+the WebAssembly profile path. `strum = {spacing = "1/8 beat"}` freezes a full
+held/latched chord per admitted hit in ascending/descending/played order, then
+stages each attack with its own gate. Repeats retain the chord snapshot; ties
+extend the last repeat group. Pitch and selection transforms apply before
+queuing. Bank edits retain pending groups, while empty held banks, stop, clear
+of latched banks, and relocation cancel their queued attacks and release owners.
+Strums may cross later opportunities, with the existing same-pitch handoff rule.
+
+`body.lanes.NAME` supplies an additional complete held/latched preset body, with
+independent bank, rhythm, selector, patterns and RNG name `PROFILE.NAME`. It has
+its own defaults rather than inheriting primary-lane settings. The primary
+lane and up to 15 additional lanes require distinct `channel` values in 1..16.
+They share input and one transport; named lanes process in name order after the
+primary lane, and output merges by exact beat preserving lane order at ties.
+Scalar controls broadcast to all lanes. Clear affects latched banks; held banks
+continue. Decision/lifecycle events carry their 1-based channel. MIDI output
+ownership now tracks each occurrence per channel and reserves every owned end.
+Decision buffers remain bounded per lane; a strum has a 4,096-pending-attack
+limit. Overlapping notes must share tuning bend within a channel; conflicts
+fail explicitly and leave cleanup available. Independent captured-gesture strums,
+per-note channel allocation and MPE remain deferred. Single captured banks can
+choose an output channel; captured multi-lane banks are rejected.
+
+`conformance/strums-lanes.toml` and device-free regressions cover exact strum
+order/gates, polymetric bass, irregular polling, Python snapshots, edits,
+repeats/ties, shared expression, cleanup, external-clock ownership and note-event
+exhaustion. The example preset is `conformance/strummed-lanes.toml`.
+
 Specify Euclidean phase exactly. For `n > 0`, `0 <= k <= n`, and step `i`, the
 canonical unrotated gate is `(i * k) mod n < k`. Positive rotation moves hits
 later by replacing `i` with `(i - rotation) mod n`. Thus `k=3, n=8` is

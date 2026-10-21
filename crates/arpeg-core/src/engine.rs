@@ -45,6 +45,9 @@ pub struct Occurrence<V: Copy> {
 pub trait Processor {
     type Value: Copy;
     type Event;
+    fn strum_spacing(&self) -> Option<Beat> {
+        None
+    }
     fn timing(&self) -> &TimingPorts;
     fn timing_mut(&mut self) -> &mut TimingPorts;
     fn expand(&self, active: &[Item<Self::Value>]) -> Result<Vec<Item<Self::Value>>, &'static str> {
@@ -595,6 +598,63 @@ impl<P: Processor> Arpeggiator<P> {
         let selection = &self.selection;
         let mut ordered = active.clone();
         ordered.sort_unstable_by_key(|note| self.selection_key(note, selection));
+        if let Some(spacing) = self.ports.strum_spacing() {
+            if !matches!(
+                selection,
+                Selection::Ascending
+                    | Selection::Descending
+                    | Selection::Played
+                    | Selection::ReversePlayed
+            ) {
+                return Err("strums require classic selection");
+            }
+            if spacing <= Beat::from_integer(0) {
+                return Err("strum spacing must be positive");
+            }
+            if ordered
+                .len()
+                .checked_mul(decision.repeats)
+                .and_then(|n| self.pending.len().checked_add(n))
+                .is_none_or(|n| n > 4096)
+            {
+                return Err("strum exceeds the 4096 pending-attack limit");
+            }
+            let interval = decision.duration / decision.repeats as i64;
+            let mut attacks = Vec::new();
+            let mut ranked = ordered.clone();
+            ranked.sort_unstable_by_key(|n| self.selection_key(n, &Selection::Ascending));
+            for (i, note) in ordered.iter().enumerate() {
+                let selected = if self.ports.timing().selection_offset != 0 {
+                    let rank = ranked.iter().position(|n| n.id == note.id).unwrap();
+                    let Some(rank) = self.ports.timing().offset_rank(rank, ranked.len()) else {
+                        continue;
+                    };
+                    &ranked[rank]
+                } else {
+                    note
+                };
+                let Some(value) = self.ports.realize(selected, decision.accent, 0)? else {
+                    continue;
+                };
+                for j in 0..decision.repeats {
+                    attacks.push(Attack {
+                        at: at + interval * j as i64 + spacing * i as i64,
+                        note: *selected,
+                        value,
+                        accent: decision.accent,
+                        gate: if j == decision.repeats - 1 {
+                            decision.final_gate
+                        } else {
+                            decision.gate
+                        },
+                    });
+                }
+            }
+            let hit = !attacks.is_empty();
+            self.pending.extend(attacks);
+            self.pending.sort_by_key(|a| a.at);
+            return Ok(hit);
+        }
         let mut pitch_interval = 0;
         let selected = if let Selection::IndexPattern {
             indices,

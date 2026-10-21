@@ -83,9 +83,9 @@ test('Envelfo ports return exact event coordinates and accept step-boundary cont
         assert.deepEqual(player.control(0n, 'gate', '1/5'), []);
         assert.deepEqual(player.advance(0n), [new Uint8Array([0x90, 60, 100])]);
         assert.deepEqual(player.take_events(), { events: [
-            { at: '0', port: 'step', index: 0n, revision: 1n },
-            { at: '0', port: 'hit', index: 0n, revision: 1n },
-        ], notes: [{ at: '0', port: 'note_start', occurrence: 0n, source: 'input:0', key: 60, velocity: 100 }], exhausted: false });
+            { channel: 1, at: '0', port: 'step', index: 0n, revision: 1n },
+            { channel: 1, at: '0', port: 'hit', index: 0n, revision: 1n },
+        ], notes: [{ channel: 1, at: '0', port: 'note_start', occurrence: 0n, source: 'input:0', key: 60, velocity: 100 }], exhausted: false });
         assert.throws(() => player.control(10_000n, 'density', '2'));
         assert.throws(() => player.control(10_000n, 'other', '1'));
         assert.throws(() => player.control(10_000n, 'gate', '0.5'));
@@ -93,9 +93,26 @@ test('Envelfo ports return exact event coordinates and accept step-boundary cont
         assert.deepEqual(player.control(50_000n, 'density', '0'), []);
         assert.deepEqual(player.advance(125_000n), []);
         assert.deepEqual(player.take_events(), { events: [
-            { at: '1/4', port: 'step', index: 1n, revision: 1n },
-            { at: '1/4', port: 'rest', index: 1n, revision: 1n },
-        ], notes: [{ at: '1/20', port: 'note_end', occurrence: 0n, source: 'input:0', key: 60, velocity: 0 }], exhausted: false });
+            { channel: 1, at: '1/4', port: 'step', index: 1n, revision: 1n },
+            { channel: 1, at: '1/4', port: 'rest', index: 1n, revision: 1n },
+        ], notes: [{ channel: 1, at: '1/20', port: 'note_end', occurrence: 0n, source: 'input:0', key: 60, velocity: 0 }], exhausted: false });
+    } finally {
+        player.free();
+    }
+});
+
+test('strums and independent lanes preserve channels and cancel queued attacks', () => {
+    const profile = readFileSync(new URL('../../../conformance/strummed-lanes.toml', import.meta.url), 'utf8');
+    const player = new MidiPlayer(profile, 'internal', 120, 500_000n);
+    try {
+        for (const [key, velocity] of [[60, 90], [64, 80], [67, 70]]) {
+            player.accept(0n, new Uint8Array([144, key, velocity]), 'both');
+        }
+        assert.deepEqual(player.advance(0n), [new Uint8Array([144, 60, 90]), new Uint8Array([145, 48, 90])]);
+        assert.deepEqual(player.advance(62_500n), [new Uint8Array([144, 64, 80])]);
+        assert.deepEqual(player.take_events().notes.map(n => n.channel), [1, 2, 1]);
+        assert.deepEqual(player.stop(75_000n), [new Uint8Array([128, 60, 0]), new Uint8Array([128, 64, 0]), new Uint8Array([129, 48, 0])]);
+        assert.deepEqual(player.advance(200_000n), []);
     } finally {
         player.free();
     }
@@ -107,15 +124,15 @@ test('note lifecycle identifies delivered pitches and cleanup releases', () => {
     try {
         player.accept(0n, new Uint8Array([144, 60, 100]), 'both');
         player.advance(0n);
-        assert.deepEqual(player.take_events().notes, [{ at: '0', port: 'note_start', occurrence: 0n, source: 'input:0', key: 60, velocity: 100 }]);
+        assert.deepEqual(player.take_events().notes, [{ channel: 1, at: '0', port: 'note_start', occurrence: 0n, source: 'input:0', key: 60, velocity: 100 }]);
         player.control(50_000n, 'transposition', '12');
         player.advance(125_000n);
         assert.deepEqual(player.take_events().notes, [
-            { at: '1/5', port: 'note_end', occurrence: 0n, source: 'input:0', key: 60, velocity: 0 },
-            { at: '1/4', port: 'note_start', occurrence: 1n, source: 'input:0', key: 72, velocity: 100 },
+            { channel: 1, at: '1/5', port: 'note_end', occurrence: 0n, source: 'input:0', key: 60, velocity: 0 },
+            { channel: 1, at: '1/4', port: 'note_start', occurrence: 1n, source: 'input:0', key: 72, velocity: 100 },
         ]);
         player.stop(150_000n);
-        assert.deepEqual(player.take_events().notes, [{ at: '3/10', port: 'note_end', occurrence: 1n, source: 'input:0', key: 72, velocity: 0 }]);
+        assert.deepEqual(player.take_events().notes, [{ channel: 1, at: '3/10', port: 'note_end', occurrence: 1n, source: 'input:0', key: 72, velocity: 0 }]);
         player.stop(160_000n);
         assert.deepEqual(player.take_events().notes, []);
     } finally {
@@ -132,7 +149,7 @@ test('rhythm cycle notifications keep their exact phase through rests and seeks'
         assert.deepEqual(player.take_events().events.map(e => [e.port, e.index]), [['cycle', 0n], ['step', 0n], ['rest', 0n]]);
         player.advance(375_000n);
         assert.deepEqual(player.take_events().events.filter(e => e.port === 'cycle'), [
-            { at: '3/4', port: 'cycle', index: 3n, revision: 0n },
+            { channel: 1, at: '3/4', port: 'cycle', index: 3n, revision: 0n },
         ]);
         player.accept(400_000n, new Uint8Array([242, 6, 0]), 'both');
         player.advance(400_000n);
@@ -152,10 +169,10 @@ test('capture readiness reports publication before the step and omits empty undo
         assert.deepEqual(player.take_events().events.map(e => e.port), ['step', 'rest']);
         player.advance(125_000n);
         assert.deepEqual(player.take_events(), { events: [
-            { at: '1/4', port: 'capture_ready', index: 1n, revision: 1n },
-            { at: '1/4', port: 'step', index: 1n, revision: 1n },
-            { at: '1/4', port: 'hit', index: 1n, revision: 1n },
-        ], notes: [{ at: '1/4', port: 'note_start', occurrence: 0n, source: 'take-0:note-0', key: 60, velocity: 100 }], exhausted: false });
+            { channel: 1, at: '1/4', port: 'capture_ready', index: 1n, revision: 1n },
+            { channel: 1, at: '1/4', port: 'step', index: 1n, revision: 1n },
+            { channel: 1, at: '1/4', port: 'hit', index: 1n, revision: 1n },
+        ], notes: [{ channel: 1, at: '1/4', port: 'note_start', occurrence: 0n, source: 'take-0:note-0', key: 60, velocity: 100 }], exhausted: false });
         player.advance(250_000n);
         assert.deepEqual(player.take_events().events.map(e => e.port), ['step', 'hit']);
         player.capture(260_000n, 'undo');

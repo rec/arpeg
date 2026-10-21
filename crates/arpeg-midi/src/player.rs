@@ -10,7 +10,7 @@ use arpeg_core::{
 };
 
 use crate::{
-    Profile,
+    HeldProfile, Profile,
     expression::{self, Lane, Source},
 };
 
@@ -19,6 +19,30 @@ pub enum InputSource {
     Notes,
     Clock,
     Both,
+}
+
+fn prepare_lane(p: HeldProfile) -> Result<LiveArpeggiator, &'static str> {
+    let mut engine =
+        LiveArpeggiator::musical(p.bank, p.selection, p.rhythm, p.gate, p.retrigger, p.chance)?;
+    engine.patterns = p.patterns.unwrap_or_default();
+    engine.ports.channel = p.channel;
+    engine.ports.strum_spacing = p.strum_spacing;
+    engine.ports.transposition = p.transposition;
+    engine.ports.pitch_boundary = p.pitch_boundary;
+    engine.ports.register_limits = p.register_limits;
+    engine.ports.scale = p.scale;
+    engine.ports.tuning = p.tuning;
+    engine.ports.selection_offset = p.selection_offset;
+    engine.ports.offset_rest_outside = p.offset_rest_outside;
+    engine.ports.octaves = p.octaves;
+    engine.ports.inversion = p.inversion;
+    engine.ports.voicing = p.voicing;
+    engine.lanes = p
+        .lanes
+        .into_iter()
+        .map(prepare_lane)
+        .collect::<Result<_, _>>()?;
+    Ok(engine)
 }
 
 enum Engine {
@@ -33,9 +57,17 @@ struct ScheduledMidi {
     release: bool,
 }
 
-pub struct MidiPlayer {
+#[derive(Clone)]
+struct ChannelSettings {
     bend_range: Option<f64>,
-    tuning_offset: f64,
+    sources: std::collections::BTreeMap<Lane, Source>,
+    strum: bool,
+}
+
+pub struct MidiPlayer {
+    channel: u8,
+    channels: std::collections::BTreeMap<u8, ChannelSettings>,
+    channel_offsets: std::collections::BTreeMap<u8, f64>,
     pub clock: TransportClock,
     engine: Engine,
     origin_us: Option<i64>,
@@ -43,12 +75,10 @@ pub struct MidiPlayer {
     input_tick: i64,
     ordinal: u32,
     scheduled: Option<ScheduledMidi>,
-    expression_sources: std::collections::BTreeMap<Lane, Source>,
     expression: std::collections::BTreeMap<u8, Vec<u8>>,
     envelfo_expression: std::collections::BTreeMap<Lane, arpeg_core::Beat>,
-    sounding: Option<(u64, u8)>,
+    sounding: std::collections::BTreeMap<(u8, u64), NoteEvent>,
     next_occurrence: u64,
-    output_note: Option<NoteEvent>,
     notes: Vec<NoteEvent>,
     notes_exhausted: bool,
     suppressed_note: bool,
@@ -61,37 +91,35 @@ impl MidiPlayer {
         bpm: u32,
         timeout_us: i64,
     ) -> Result<Self, &'static str> {
-        let bend_range = match &profile {
-            Profile::Classic(p) => p.bend_range,
-            Profile::Captured(p) => p.bend_range,
-        };
-        let expression_sources = match &profile {
-            Profile::Classic(p) => p.expression_sources.clone(),
-            Profile::Captured(p) => p.expression_sources.clone(),
+        let mut channels = std::collections::BTreeMap::new();
+        let channel = match &profile {
+            Profile::Classic(p) => {
+                for lane in std::iter::once(p).chain(&p.lanes) {
+                    channels.insert(
+                        lane.channel,
+                        ChannelSettings {
+                            bend_range: lane.bend_range,
+                            sources: lane.expression_sources.clone(),
+                            strum: lane.strum_spacing.is_some(),
+                        },
+                    );
+                }
+                p.channel
+            }
+            Profile::Captured(p) => {
+                channels.insert(
+                    p.channel,
+                    ChannelSettings {
+                        bend_range: p.bend_range,
+                        sources: p.expression_sources.clone(),
+                        strum: false,
+                    },
+                );
+                p.channel
+            }
         };
         let engine = match profile {
-            Profile::Classic(p) => {
-                let mut engine = LiveArpeggiator::musical(
-                    p.bank,
-                    p.selection,
-                    p.rhythm,
-                    p.gate,
-                    p.retrigger,
-                    p.chance,
-                )?;
-                engine.patterns = p.patterns.unwrap_or_default();
-                engine.ports.transposition = p.transposition;
-                engine.ports.pitch_boundary = p.pitch_boundary;
-                engine.ports.register_limits = p.register_limits;
-                engine.ports.scale = p.scale;
-                engine.ports.tuning = p.tuning;
-                engine.ports.selection_offset = p.selection_offset;
-                engine.ports.offset_rest_outside = p.offset_rest_outside;
-                engine.ports.octaves = p.octaves;
-                engine.ports.inversion = p.inversion;
-                engine.ports.voicing = p.voicing;
-                Engine::Held(Box::new(engine))
-            }
+            Profile::Classic(p) => Engine::Held(Box::new(prepare_lane(p)?)),
             Profile::Captured(p) => {
                 let mut engine = HistoryArpeggiator::new(
                     p.mode,
@@ -118,8 +146,9 @@ impl MidiPlayer {
             }
         };
         Ok(Self {
-            bend_range,
-            tuning_offset: 0.0,
+            channel,
+            channels,
+            channel_offsets: std::collections::BTreeMap::new(),
             clock: TransportClock::new(mode, bpm, timeout_us)?,
             engine,
             origin_us: None,
@@ -127,12 +156,10 @@ impl MidiPlayer {
             input_tick: -1,
             ordinal: 0,
             scheduled: None,
-            expression_sources,
             expression: std::collections::BTreeMap::new(),
             envelfo_expression: std::collections::BTreeMap::new(),
-            sounding: None,
+            sounding: std::collections::BTreeMap::new(),
             next_occurrence: 0,
-            output_note: None,
             notes: Vec::new(),
             notes_exhausted: false,
             suppressed_note: false,
@@ -197,16 +224,8 @@ impl MidiPlayer {
                     let events = e.before(at)?;
                     output.extend(self.note_messages(events)?);
                     self.expression.insert(data[0], data.to_vec());
-                    let lane = expression::lane(data).expect("expressive MIDI message");
-                    if self.expression_sources[&lane] == Source::Current
-                        && self.clock.active()
-                        && self.sounding.is_some()
-                    {
-                        output.push(expression::tuning_message(
-                            data.to_vec(),
-                            self.tuning_offset,
-                            self.bend_range,
-                        )?);
+                    if self.clock.active() {
+                        output.extend(self.expression_messages(data, Source::Current, &[])?);
                     }
                     return Ok(output);
                 }
@@ -242,16 +261,8 @@ impl MidiPlayer {
                 output.extend(self.history_messages(events)?);
                 if expressive {
                     self.expression.insert(data[0], data.to_vec());
-                    let lane = expression::lane(data).expect("expressive MIDI message");
-                    if self.expression_sources[&lane] == Source::Current
-                        && self.clock.active()
-                        && self.sounding.is_some()
-                    {
-                        output.push(expression::tuning_message(
-                            data.to_vec(),
-                            self.tuning_offset,
-                            self.bend_range,
-                        )?);
+                    if self.clock.active() {
+                        output.extend(self.expression_messages(data, Source::Current, &[])?);
                     }
                 }
             }
@@ -349,14 +360,14 @@ impl MidiPlayer {
         if scheduled.release {
             self.release_output(&mut output);
         }
-        if !samples.is_empty() && attacks.is_empty() && scheduled.active && self.sounding.is_some()
-        {
+        if !samples.is_empty() && scheduled.active {
+            let attacked: Vec<_> = output
+                .iter()
+                .filter(|m| m[0] & 0xf0 == 0x90 && m[2] > 0)
+                .map(|m| m[0] & 0xf)
+                .collect();
             for (_, _, data) in samples {
-                output.push(expression::tuning_message(
-                    data,
-                    self.tuning_offset,
-                    self.bend_range,
-                )?);
+                output.extend(self.expression_messages(&data, Source::Envelfo, &attacked)?);
             }
         }
         Ok(output)
@@ -442,7 +453,12 @@ impl MidiPlayer {
             Some((lane, data))
         } else {
             match &self.engine {
-                Engine::Held(e) => PerformancePorts::check_control(port, value, e.chance.seed)?,
+                Engine::Held(e) => {
+                    PerformancePorts::check_control(port, value, e.chance.seed)?;
+                    for lane in &e.lanes {
+                        PerformancePorts::check_control(port, value, lane.chance.seed)?;
+                    }
+                }
                 Engine::History(e) => PerformancePorts::check_control(port, value, e.chance.seed)?,
             }
             None
@@ -470,12 +486,8 @@ impl MidiPlayer {
                 }
             }
             self.envelfo_expression.insert(lane, value);
-            if self.clock.active() && self.sounding.is_some() {
-                output.push(expression::tuning_message(
-                    data,
-                    self.tuning_offset,
-                    self.bend_range,
-                )?);
+            if self.clock.active() {
+                output.extend(self.expression_messages(&data, Source::Envelfo, &[])?);
             }
             return Ok(output);
         }
@@ -494,8 +506,29 @@ impl MidiPlayer {
 
     pub fn take_events(&mut self) -> PortBatch {
         let mut batch = match &mut self.engine {
-            Engine::Held(e) => e.ports.take_events(),
-            Engine::History(e) => e.ports.take_events(),
+            Engine::Held(e) => {
+                let mut batch = e.ports.take_events();
+                for event in &mut batch.events {
+                    event.channel = e.ports.channel + 1;
+                }
+                for lane in &mut e.lanes {
+                    let mut child = lane.ports.take_events();
+                    for event in &mut child.events {
+                        event.channel = lane.ports.channel + 1;
+                    }
+                    batch.events.extend(child.events);
+                    batch.exhausted |= child.exhausted;
+                }
+                batch.events.sort_by_key(|e| e.at);
+                batch
+            }
+            Engine::History(e) => {
+                let mut batch = e.ports.take_events();
+                for event in &mut batch.events {
+                    event.channel = self.channel + 1;
+                }
+                batch
+            }
         };
         batch.notes = std::mem::take(&mut self.notes);
         batch.exhausted |= std::mem::take(&mut self.notes_exhausted);
@@ -538,9 +571,13 @@ impl MidiPlayer {
     }
 
     fn release_output(&mut self, output: &mut Vec<Vec<u8>>) {
-        if let Some((_, key)) = self.sounding.take() {
-            output.push(vec![0x80, key, 0]);
-            self.end_note(self.clock.beat, 0);
+        let order = self.channel_order();
+        let mut owners = self.sounding.keys().copied().collect::<Vec<_>>();
+        owners.sort_by_key(|(channel, id)| (order.iter().position(|c| c == channel).unwrap(), *id));
+        for (channel, id) in owners {
+            let note = &self.sounding[&(channel, id)];
+            output.push(vec![0x80 + channel, note.key, 0]);
+            self.end_note(self.clock.beat, 0, channel, id);
         }
     }
 
@@ -558,15 +595,57 @@ impl MidiPlayer {
     ) -> Result<(Lane, arpeg_core::Beat, Vec<u8>), &'static str> {
         let lane =
             expression::control_lane(port).ok_or("realization accepts only expression controls")?;
-        if self.expression_sources[&lane] != Source::Envelfo {
+        if !self
+            .channels
+            .values()
+            .any(|c| c.sources[&lane] == Source::Envelfo)
+        {
             return Err("expression lane is not owned by Envelfo");
         }
         Ok((lane, value, expression::envelfo_message(lane, value)?))
     }
 
+    fn expression_messages(
+        &self,
+        data: &[u8],
+        source: Source,
+        exclude: &[u8],
+    ) -> Result<Vec<Vec<u8>>, &'static str> {
+        let lane = expression::lane(data).expect("expressive MIDI message");
+        let mut output = Vec::new();
+        for channel in self.channel_order() {
+            let settings = &self.channels[&channel];
+            if exclude.contains(&channel)
+                || settings.sources[&lane] != source
+                || !self.sounding.keys().any(|(c, _)| *c == channel)
+            {
+                continue;
+            }
+            let mut wire = expression::tuning_message(
+                data.to_vec(),
+                self.channel_offsets.get(&channel).copied().unwrap_or(0.0),
+                settings.bend_range,
+            )?;
+            wire[0] += channel;
+            output.push(wire);
+        }
+        Ok(output)
+    }
+
+    fn channel_order(&self) -> Vec<u8> {
+        match &self.engine {
+            Engine::Held(engine) => std::iter::once(self.channel)
+                .chain(engine.lanes.iter().map(|l| l.ports.channel))
+                .collect(),
+            Engine::History(_) => vec![self.channel],
+        }
+    }
+
     fn note_messages(&mut self, events: Vec<OutputEvent>) -> Result<Vec<Vec<u8>>, &'static str> {
         let mut output = Vec::new();
         for event in events {
+            let channel = event.channel;
+            let settings = self.channels[&channel].clone();
             match event.kind {
                 OutputKind::NoteOn {
                     id,
@@ -575,36 +654,59 @@ impl MidiPlayer {
                     velocity,
                     tuning_semitones,
                 } => {
-                    if let Some((_, key)) = self.sounding.take() {
-                        output.push(vec![0x80, key, 0]);
-                        self.end_note(event.at, 0);
+                    let replaced: Vec<_> = self
+                        .sounding
+                        .iter()
+                        .filter(|((c, _), n)| *c == channel && (!settings.strum || n.key == key))
+                        .map(|(k, _)| *k)
+                        .collect();
+                    for (c, i) in replaced {
+                        output.push(vec![0x80 + channel, self.sounding[&(c, i)].key, 0]);
+                        self.end_note(event.at, 0, c, i);
                     }
-                    if !self.start_note(event.at, format!("input:{source_id}"), key, velocity) {
+                    if self.sounding.keys().any(|(c, _)| *c == channel)
+                        && self.channel_offsets.get(&channel).copied().unwrap_or(0.0)
+                            != tuning_semitones
+                    {
+                        return Err(
+                            "overlapping notes require the same pitch bend on their lane channel",
+                        );
+                    }
+                    if !self.start_note(
+                        event.at,
+                        format!("input:{source_id}"),
+                        key,
+                        velocity,
+                        channel,
+                        id,
+                    ) {
                         continue;
                     }
-                    self.tuning_offset = tuning_semitones;
+                    self.channel_offsets.insert(channel, tuning_semitones);
                     let mut entry = expression::entry_messages(
-                        &self.expression_sources,
+                        &settings.sources,
                         &self.expression,
                         &self.envelfo_expression,
                     );
-                    if self.bend_range.is_some() && !entry.iter().any(|d| d[0] == 0xe0) {
+                    if settings.bend_range.is_some() && !entry.iter().any(|d| d[0] == 0xe0) {
                         entry.insert(0, vec![0xe0, 0, 64]);
                     }
                     for data in entry {
-                        output.push(expression::tuning_message(
+                        let mut wire = expression::tuning_message(
                             data,
-                            self.tuning_offset,
-                            self.bend_range,
-                        )?);
+                            tuning_semitones,
+                            settings.bend_range,
+                        )?;
+                        wire[0] += channel;
+                        output.push(wire);
                     }
-                    output.push(vec![0x90, key, velocity]);
-                    self.sounding = Some((id, key));
+                    output.push(vec![0x90 + channel, key, velocity]);
                 }
-                OutputKind::NoteOff { id, key, .. } if self.sounding.is_some_and(|s| s.0 == id) => {
-                    output.push(vec![0x80, key, 0]);
-                    self.end_note(event.at, 0);
-                    self.sounding = None;
+                OutputKind::NoteOff { id, key, .. }
+                    if self.sounding.contains_key(&(channel, id)) =>
+                {
+                    output.push(vec![0x80 + channel, key, 0]);
+                    self.end_note(event.at, 0, channel, id);
                 }
                 _ => {}
             }
@@ -617,6 +719,8 @@ impl MidiPlayer {
         events: Vec<RealizedEvent>,
     ) -> Result<Vec<Vec<u8>>, &'static str> {
         let mut output = Vec::new();
+        let channel = self.channel;
+        let settings = self.channels[&channel].clone();
         let attacks = events
             .iter()
             .filter(|e| e.data[0] == 0x90 && e.data[2] > 0)
@@ -636,58 +740,74 @@ impl MidiPlayer {
                 && !(kind == 0x80 || kind == 0x90 && event.data[2] == 0)
             {
                 let (key, velocity, tuning_semitones) = attacks[&group];
-                self.start_note(event.at, event.source_note.clone(), key, velocity);
+                self.start_note(
+                    event.at,
+                    event.source_note.clone(),
+                    key,
+                    velocity,
+                    channel,
+                    0,
+                );
                 initialized.insert(group);
                 if self.suppressed_note {
                     continue;
                 }
-                self.tuning_offset = tuning_semitones;
+                self.channel_offsets.insert(channel, tuning_semitones);
                 let mut entry = expression::entry_messages(
-                    &self.expression_sources,
+                    &settings.sources,
                     &self.expression,
                     &self.envelfo_expression,
                 );
-                if self.bend_range.is_some() && !entry.iter().any(|d| d[0] == 0xe0) {
+                if settings.bend_range.is_some() && !entry.iter().any(|d| d[0] == 0xe0) {
                     entry.insert(0, vec![0xe0, 0, 64]);
                 }
                 for data in entry {
-                    output.push(expression::tuning_message(
-                        data,
-                        self.tuning_offset,
-                        self.bend_range,
-                    )?);
+                    let mut wire =
+                        expression::tuning_message(data, tuning_semitones, settings.bend_range)?;
+                    wire[0] += channel;
+                    output.push(wire);
                 }
             }
             if self.suppressed_note {
                 continue;
             }
             if let Some(lane) = expression::lane(&event.data) {
-                if self.expression_sources[&lane] != Source::Recorded {
+                if settings.sources[&lane] != Source::Recorded {
                     continue;
                 }
             }
-            if kind == 0x90 && event.data[2] > 0 {
-                self.sounding = Some((0, event.data[1]));
-            } else if kind == 0x80 || kind == 0x90 && event.data[2] == 0 {
-                self.end_note(event.at, event.data[2]);
-                self.sounding = None;
+            if kind == 0x80 || kind == 0x90 && event.data[2] == 0 {
+                self.end_note(event.at, event.data[2], channel, 0);
             }
-            output.push(expression::tuning_message(
+            let mut wire = expression::tuning_message(
                 event.data,
-                self.tuning_offset,
-                self.bend_range,
-            )?);
+                self.channel_offsets.get(&channel).copied().unwrap_or(0.0),
+                settings.bend_range,
+            )?;
+            if wire[0] < 0xf0 {
+                wire[0] = (wire[0] & 0xf0) | channel;
+            }
+            output.push(wire);
         }
         Ok(output)
     }
 
-    fn start_note(&mut self, at: arpeg_core::Beat, source: String, key: u8, velocity: u8) -> bool {
-        if self.notes.len() > 4094 {
+    fn start_note(
+        &mut self,
+        at: arpeg_core::Beat,
+        source: String,
+        key: u8,
+        velocity: u8,
+        channel: u8,
+        id: u64,
+    ) -> bool {
+        if self.notes.len() + self.sounding.len() + 2 > 4096 {
             self.notes_exhausted = true;
             self.suppressed_note = true;
             return false;
         }
         let note = NoteEvent {
+            channel: channel + 1,
             at,
             port: NotePort::NoteStart,
             occurrence: self.next_occurrence,
@@ -696,14 +816,14 @@ impl MidiPlayer {
             velocity,
         };
         self.next_occurrence += 1;
-        self.output_note = Some(note.clone());
+        self.sounding.insert((channel, id), note.clone());
         self.notes.push(note);
         self.suppressed_note = false;
         true
     }
 
-    fn end_note(&mut self, at: arpeg_core::Beat, velocity: u8) {
-        if let Some(mut note) = self.output_note.take() {
+    fn end_note(&mut self, at: arpeg_core::Beat, velocity: u8, channel: u8, id: u64) {
+        if let Some(mut note) = self.sounding.remove(&(channel, id)) {
             note.at = at;
             note.port = NotePort::NoteEnd;
             note.velocity = velocity;
