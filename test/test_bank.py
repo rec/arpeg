@@ -1,9 +1,92 @@
+from fractions import Fraction
+
+import pytest
 from ufor.events import MidiEvent
 from ufor.time import Timebase
 
 from arpeg.bank import BankNote, CaptureBank
 from arpeg.capture import MidiCaptureProfile
 from arpeg.gesture import MidiGestureRenderer, MidiPlacement
+from arpeg.history import LiveHistoryArpeggiator
+
+
+@pytest.mark.parametrize(
+    "selection, after_edit",
+    [
+        (
+            {
+                "kind": "transition",
+                "weights": [[0, 1, 0], [0, 0, 1], [1, 0, 0]],
+                "missing_weight": 0,
+            },
+            "low",
+        ),
+        ({"kind": "interval_envelope", "ranges": [{"min": 1, "max": 1}]}, "g"),
+        (
+            {
+                "kind": "grammar",
+                "axiom": ["A", "B", "C"],
+                "terminals": {"A": 0, "B": 1, "C": 2},
+            },
+            "e",
+        ),
+    ],
+)
+@pytest.mark.parametrize("retrigger", [False, True])
+def test_captured_selectors_preserve_identity_or_retrigger_on_edits(
+    selection: dict[str, object], after_edit: str, retrigger: bool
+) -> None:
+    bank = CaptureBank.model_validate(
+        {"mode": "phrase", "selection": selection, "retrigger_on_edit": retrigger}
+    )
+    bank.record("chord", _timebase(), MidiCaptureProfile())
+    for i, key in enumerate([60, 64, 67]):
+        _note(bank, key, i * 100, ["c", "e", "g"][i])
+    bank.commit(300)
+    assert bank.select_step(0, 42).note_id == "c"
+    assert bank.select_step(1, 42).note_id == "e"
+    bank.record("added", _timebase(), MidiCaptureProfile())
+    _note(bank, 48, 0, "low")
+    bank.commit(60, "overdub")
+    assert bank.select_step(2, 42).note_id == ("low" if retrigger else after_edit)
+    bank.undo_last_capture()
+    assert bank.select_step(3, 42).note_id == "c"
+    bank.clear()
+    assert bank.select_step(4, 42) is None
+    bank.record("new", _timebase(), MidiCaptureProfile())
+    _note(bank, 72, 0, "new")
+    bank.commit(60)
+    assert bank.select_step(5, 42).note_id == "new"
+
+
+@pytest.mark.parametrize(
+    "selection",
+    [
+        {"kind": "transition", "weights": [[0, 1], [1, 0]], "missing_weight": 0},
+        {"kind": "interval_envelope", "ranges": [{"min": 1, "max": 1}]},
+        {"kind": "grammar", "axiom": ["A", "B"], "terminals": {"A": 0, "B": 1}},
+    ],
+)
+def test_pause_preserves_captured_selection_and_seek_restarts_it(
+    selection: dict[str, object],
+) -> None:
+    bank = CaptureBank.model_validate({"mode": "phrase", "selection": selection})
+    bank.record("chord", _timebase(), MidiCaptureProfile())
+    _note(bank, 60, 0, "c")
+    _note(bank, 64, 100, "e")
+    bank.commit(200)
+    engine = LiveHistoryArpeggiator(bank=bank, step=Fraction(1, 4), seed=42)
+    assert [
+        e.data[1] for e in engine.advance(Fraction(0), 200_000) if e.data[0] == 144
+    ] == [60]
+    engine.pause(Fraction(1, 8), 250_000)
+    assert [
+        e.data[1] for e in engine.advance(Fraction(1, 4), 300_000) if e.data[0] == 144
+    ] == [64]
+    engine.relocate(Fraction(0), 350_000)
+    assert [
+        e.data[1] for e in engine.advance(Fraction(0), 350_000) if e.data[0] == 144
+    ] == [60]
 
 
 def _timebase() -> Timebase:

@@ -526,7 +526,8 @@ transitions. Existing probability-before-selection and realization order remain.
 Snapshots and seeded traces preserve previous identity and draw position.
 Shared traces cover weighted paths, missing entries, blocked/uniform behavior,
 random openings, octave ranks, repeats, and polling. Captured history/phrase
-selection, sample-region selection, and file rendering remain unsupported.
+selection is also implemented with the existing grid and fitted gestures.
+Sample-region selection and file rendering remain unsupported.
 
 Interval envelopes are implemented for held/latched and generic item banks in
 Python, Rust, and the WebAssembly profile API. `kind = "interval_envelope"`
@@ -543,7 +544,8 @@ sizes fitting u64 permit bounded sampling without enumerating moves. Shared
 traces cover seeded wrapping, clipped and blocked ranges, extreme arithmetic,
 Euclidean/custom rests, and repeats. Additional checks cover zero accents,
 chance, snapshots, edits, transport, and generic payloads. Captured history/phrase
-selection, sample-region selection, and file rendering remain unsupported.
+selection is also implemented, retaining absolute range phase through silence.
+Sample-region selection and file rendering remain unsupported.
 
 Finite deterministic grammar expansion is implemented in uFor/Python and Rust,
 including the WebAssembly profile API. `kind = "grammar"` specifies an `axiom`
@@ -558,8 +560,15 @@ there is no separate grammar runtime. It inherits expanded ranks, wrap/rest,
 looping, admitted-hit advancement, repeats, bank edits, and snapshot behavior.
 Shared traces cover rounds, unchanged symbols, boundary policies, rests/repeats,
 and Python snapshots; tests also cover Unicode payloads and exact preparation
-limits. Random production alternatives, recursive branch expansion, captured
-history/phrase selection, region selection, and file rendering remain deferred.
+limits. Captured history/phrase banks also consume the prepared index pattern,
+preserving its position across ordinary edits and restarting on bank-edit
+retrigger, empty publication, clear, and transport relocation. Shared
+`conformance/captured-selectors.toml` traces cover both capture modes, exact
+onsets, resting selections, octave ranks, and retained breath and release
+velocity; Python checks also restore snapshots while polling. Transition and
+interval rank decisions share their implementation with held/latched playback.
+Random production alternatives, recursive branch expansion, region selection,
+and file rendering remain deferred.
 
 Deriving a new pitch retains a source gesture reference or explicitly chooses
 a synthetic gesture. No hidden pitch generation from an empty bank.

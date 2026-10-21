@@ -631,67 +631,30 @@ impl<P: Processor> Arpeggiator<P> {
             let previous = ordered
                 .iter()
                 .position(|n| self.previous_key.is_some_and(|(_, _, _, _, id)| id == n.id));
-            if previous.is_none() && !transition.start_random {
-                ordered[0]
-            } else {
-                let row = previous.and_then(|i| transition.weights.get(i));
-                let mut candidates: Vec<_> = ordered
-                    .iter()
-                    .enumerate()
-                    .map(|(i, n)| {
-                        let weight = if previous.is_none() {
-                            1
-                        } else {
-                            row.and_then(|r| r.get(i))
-                                .copied()
-                                .unwrap_or(transition.missing_weight)
-                        };
-                        (*n, u64::from(weight))
-                    })
-                    .collect();
-                if candidates.iter().all(|(_, w)| *w == 0) {
-                    if !transition.uniform_when_blocked {
-                        return Ok(false);
-                    }
-                    for (_, weight) in &mut candidates {
-                        *weight = 1;
-                    }
-                }
-                weighted_note(
-                    candidates,
-                    &self.chance,
-                    self.bank_revision,
-                    &mut self.choice_count,
-                    "transition",
-                )
-            }
+            let Some(rank) = self.chance.transition_rank(
+                transition,
+                ordered.len(),
+                previous,
+                self.bank_revision,
+                &mut self.choice_count,
+            ) else {
+                return Ok(false);
+            };
+            ordered[rank]
         } else if let Selection::IntervalEnvelope(envelope) = selection {
             let previous = ordered
                 .iter()
                 .position(|n| self.previous_key.is_some_and(|(_, _, _, _, id)| id == n.id));
-            if let Some(previous) = previous {
-                let range = envelope.ranges[self.step_index as usize % envelope.ranges.len()];
-                let (mut low, mut high) = (i128::from(range.min), i128::from(range.max));
-                if envelope.rest_outside {
-                    low = low.max(-(previous as i128));
-                    high = high.min(ordered.len() as i128 - 1 - previous as i128);
-                    if low > high {
-                        return Ok(false);
-                    }
-                }
-                let movement = low
-                    + i128::from(draw_below(
-                        self.chance.seed.expect("validated envelope seed"),
-                        &self.chance.name,
-                        "interval_envelope",
-                        self.bank_revision,
-                        self.step_index as u64,
-                        (high - low + 1) as u64,
-                    ));
-                ordered[(previous as i128 + movement).rem_euclid(ordered.len() as i128) as usize]
-            } else {
-                ordered[0]
-            }
+            let Some(rank) = self.chance.interval_rank(
+                envelope,
+                ordered.len(),
+                previous,
+                self.bank_revision,
+                self.step_index,
+            ) else {
+                return Ok(false);
+            };
+            ordered[rank]
         } else if let Selection::Shuffle {
             once,
             no_repeat,

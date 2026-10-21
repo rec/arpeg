@@ -4,13 +4,20 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, Field
-from ufor.arpeggiator import Octaves
+from pydantic import BaseModel, Field, field_validator
+from ufor.arpeggiator import (
+    Grammar,
+    IndexPattern,
+    IntervalEnvelope,
+    Octaves,
+    Transition,
+)
 from ufor.arpeggiator_capture import CapturedPhrase
 from ufor.events import MidiEvent
 from ufor.time import Timebase
 
 from .capture import MidiCapture, MidiCaptureProfile
+from .chance import interval_rank, transition_rank
 from .octaves import expanded_indices
 
 
@@ -26,7 +33,13 @@ class CaptureBank(BaseModel):
     mode: Literal["history", "phrase"]
     octaves: Octaves = Octaves()
     history_size: int = Field(default=8, ge=1)
-    selection: Literal["ascending", "descending", "played"] = "ascending"
+    selection: (
+        Literal["ascending", "descending", "played"]
+        | IndexPattern
+        | Grammar
+        | Transition
+        | IntervalEnvelope
+    ) = "ascending"
     direction: Literal["forward", "reverse"] = "forward"
     retrigger_on_edit: bool = True
     recording: MidiCapture | None = None
@@ -37,6 +50,15 @@ class CaptureBank(BaseModel):
     last_selected: BankNote | None = None
     selected_revision: int = -1
     history_floor: int = 0
+    pattern_position: int = 0
+    choice_count: int = 0
+
+    @field_validator("selection")
+    @classmethod
+    def prepare_grammar(
+        cls, selection: str | IndexPattern | Grammar | Transition | IntervalEnvelope
+    ) -> str | IndexPattern | Transition | IntervalEnvelope:
+        return selection.expand() if isinstance(selection, Grammar) else selection
 
     def record(
         self, capture_id: str, timebase: Timebase, profile: MidiCaptureProfile
@@ -102,6 +124,7 @@ class CaptureBank(BaseModel):
             self.revision += 1
         self.published.clear()
         self.last_selected = None
+        self.pattern_position = 0
 
     def clear_history(self) -> None:
         """Forget selected history while preserving the live controller capture."""
@@ -111,6 +134,7 @@ class CaptureBank(BaseModel):
         self.history_floor = len(self.recording.segments)
         self.published.clear()
         self.last_selected = None
+        self.pattern_position = 0
         self.revision += 1
 
     def publish_step(self) -> list[BankNote]:
@@ -137,21 +161,53 @@ class CaptureBank(BaseModel):
             self.revision += 1
         return self.published.copy()
 
-    def select_step(self) -> BankNote | None:
+    def select_step(
+        self, step: int = 0, seed: int | None = None, name: str = ""
+    ) -> BankNote | None:
         """Publish changes and choose one identified note for this step."""
         bank = self.publish_step()
         if not bank:
             self.last_selected = None
+            self.pattern_position = 0
             return None
         if self.selected_revision != self.revision:
             if self.retrigger_on_edit:
                 self.last_selected = None
+                self.pattern_position = 0
             self.selected_revision = self.revision
-        ordered = self.ordered_notes(self.selection)
-        if self.last_selected in ordered:
-            index = ordered.index(self.last_selected) + 1
+        selection = self.selection
+        ordered = self.ordered_notes(
+            selection if isinstance(selection, str) else "ascending"
+        )
+        previous = (
+            ordered.index(self.last_selected) if self.last_selected in ordered else None
+        )
+        if isinstance(selection, IndexPattern):
+            index = selection.indices[self.pattern_position]
+            self.pattern_position = (self.pattern_position + 1) % len(selection.indices)
+            if selection.boundary == "rest" and index >= len(ordered):
+                return None
+        elif isinstance(selection, (Transition, IntervalEnvelope)):
+            if seed is None:
+                raise ValueError("random selection requires an explicit seed")
+            if isinstance(selection, Transition):
+                index, self.choice_count = transition_rank(
+                    selection,
+                    len(ordered),
+                    previous,
+                    seed,
+                    name,
+                    self.revision,
+                    self.choice_count,
+                )
+            else:
+                index = interval_rank(
+                    selection, len(ordered), previous, seed, name, self.revision, step
+                )
+            if index is None:
+                return None
         else:
-            index = 0
+            index = 0 if previous is None else previous + 1
         self.last_selected = ordered[index % len(ordered)]
         return self.last_selected
 

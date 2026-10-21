@@ -177,6 +177,7 @@ class LiveHistoryArpeggiator(BaseModel):
         assert self.ports is not None
         self.ports.pending.clear()
         self.bank.last_selected = None
+        self.bank.pattern_position = 0
         self.inclusive = False
         return output
 
@@ -251,6 +252,7 @@ class LiveHistoryArpeggiator(BaseModel):
             return []
         if not self.bank.published:
             self.bank.last_selected = None
+            self.bank.pattern_position = 0
             self.ports.outcome(False)
             return []
         accent = self.patterns.accents[self.step_index % len(self.patterns.accents)]
@@ -277,8 +279,9 @@ class LiveHistoryArpeggiator(BaseModel):
         if not allowed:
             self.ports.outcome(False)
             return []
-        selected = self.bank.select_step()
+        selected = self.bank.select_step(self.step_index, self.seed, self.name)
         if selected is None:
+            self.ports.outcome(False)
             return []
         if self.ports.selection_offset.ranks:
             ranked = self.bank.ordered_notes("ascending")

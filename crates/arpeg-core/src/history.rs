@@ -216,6 +216,7 @@ impl HistoryArpeggiator {
             crate::rhythm::grid_position(self.step, self.swing, at, self.groove.as_deref());
         self.ports.cancel_pending();
         self.bank.last_selected = None;
+        self.bank.pattern_position = 0;
         self.inclusive = false;
         output
     }
@@ -305,6 +306,7 @@ impl HistoryArpeggiator {
         }
         if self.bank.published.is_empty() {
             self.bank.last_selected = None;
+            self.bank.pattern_position = 0;
             self.ports.outcome(false);
             return Ok(());
         }
@@ -322,7 +324,8 @@ impl HistoryArpeggiator {
             self.ports.outcome(false);
             return Ok(());
         }
-        let Some(note) = self.bank.select_step()? else {
+        let Some(note) = self.bank.select_step(&self.chance, self.step_index)? else {
+            self.ports.outcome(false);
             return Ok(());
         };
         let note = if self.ports.selection_offset != 0 {

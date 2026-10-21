@@ -111,7 +111,8 @@ the opening rule. Bank-edit retrigger overrides preservation.
 A blocked row defaults to `blocked = "rest"`, retaining its state until a path
 becomes available or it is reset. `"uniform"` keeps playing by allowing every
 available entry, deliberately relaxing the table. Repeats reuse one choice.
-Held and latched banks are supported, including the WebAssembly profile API.
+Held, latched, history, and committed phrase banks are supported, including the
+WebAssembly profile API.
 
 Interval envelopes vary the distance between successive selections:
 
@@ -128,8 +129,9 @@ is the default; `"rest"` restricts moves to the bank and rests when none fit.
 Ranges keep their rhythmic phase through rests, chance rejection, and chord
 edits; repeats share a choice. Surviving entries use their current ranks;
 removing the previous entry restarts the opening. Distances address expanded
-entries and work for text as well as musical notes. Held/latched playback and
-the musical WebAssembly profile API are supported.
+entries and work for text as well as musical notes. Held, latched, history,
+and committed phrase playback and the musical WebAssembly profile API are
+supported.
 
 Finite grammars prepare longer patterns from small replacement rules:
 
@@ -144,8 +146,18 @@ Symbols without a rule remain unchanged; final symbols require terminal ranks.
 The prepared result uses existing index-pattern playback, including expanded
 bank ranks, repeats, and `boundary = "wrap"` or `"rest"`. Grammar rules need no
 seed. Preparation rejects empty/unmapped results, more than 32 rounds, or any
-expansion beyond 4,096 symbols. Held/latched playback, generic item banks, and
-the musical WebAssembly profile API are supported.
+expansion beyond 4,096 symbols. Held, latched, history, and committed phrase
+playback, generic item banks, and the musical WebAssembly profile API are
+supported.
+
+Captured banks use their existing grid rhythm and fitted recorded gestures.
+Ranks order source pitches and identities before octave expansion. Ordinary bank
+edits retain surviving transition/interval identities and grammar position;
+`retrigger = "bank_edit"` restarts selection on publication. Empty banks, clear,
+and transport relocation restart selection. Interval ranges retain absolute
+rhythm phase; transition draw counters survive resets. Blocked or out-of-bank
+selections report rests without cutting off an existing gesture. See
+[shared captured-selector traces](conformance/captured-selectors.toml).
 
 Custom rhythm hits can play only on selected passes through their pattern:
 
@@ -490,9 +502,10 @@ Ordinary chord edits preserve the pattern position; bank-edit retrigger, an empt
 bank, clear, and stop reset it. Repeats reuse one selection. Rhythm rests, ties,
 masked steps, and chance-rejected hits leave the position unchanged. Python
 snapshots retain it, including after a missing-index rest. Both engines support
-live held and latched banks; file rendering, history, and marked samples reject
-this selection. [Shared traces](conformance/index-pattern.json) check the order
-and both boundary policies under irregular polling.
+live held, latched, history, and committed phrase banks; file rendering and
+marked samples reject this selection.
+[Shared traces](conformance/index-pattern.json) check the order and both
+boundary policies under irregular polling.
 
 [Shuffle selection](conformance/shuffle.toml) visits every note once per cycle.
 `selection = { kind = "shuffle" }` shuffles again each cycle; `mode = "once"`
