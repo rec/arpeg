@@ -398,8 +398,17 @@ class MidiPlayer(BaseModel):
                 raise ValueError(
                     "captured playback requires unrepeated pitch selection"
                 )
-        elif not isinstance(selection, arpeggiator.Played):
-            raise ValueError("captured playback requires classic selection")
+        elif not isinstance(
+            selection,
+            (
+                arpeggiator.Played,
+                arpeggiator.IndexPattern,
+                arpeggiator.Grammar,
+                arpeggiator.Transition,
+                arpeggiator.IntervalEnvelope,
+            ),
+        ):
+            raise ValueError("unsupported captured note selection")
         if body.expression.source not in ("recorded", "current") or (
             body.expression.timing != "fit" or body.expression.gaps != "carry"
         ):
@@ -430,7 +439,12 @@ class MidiPlayer(BaseModel):
                 history_size=body.bank.notes
                 if isinstance(body.bank, arpeggiator.HistoryBank)
                 else 8,
-                selection=selection.kind,
+                selection=selection.kind
+                if isinstance(
+                    selection,
+                    (arpeggiator.Ascending, arpeggiator.Descending, arpeggiator.Played),
+                )
+                else selection,
                 direction=selection.direction
                 if isinstance(selection, arpeggiator.Played)
                 else "forward",

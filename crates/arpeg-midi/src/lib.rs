@@ -935,24 +935,11 @@ pub fn parse_profile(text: &str, path: Option<&Path>) -> Result<Profile, String>
             if inversion != 0 {
                 return Err("inversion requires a held or latched bank".into());
             }
-            if matches!(selection, Selection::IntervalEnvelope(_)) {
-                return Err("interval envelope currently requires a held or latched bank".into());
-            }
-            if matches!(selection, Selection::Transition(_)) {
-                return Err(
-                    "transition selection currently requires a held or latched bank".into(),
-                );
-            }
             if matches!(selection, Selection::Choice { .. }) {
                 return Err("choice selection currently requires a held or latched bank".into());
             }
             if matches!(selection, Selection::Shuffle { .. }) {
                 return Err("shuffle selection currently requires a held or latched bank".into());
-            }
-            if matches!(selection, Selection::IndexPattern { .. }) {
-                return Err(
-                    "index pattern selection currently requires a held or latched bank".into(),
-                );
             }
             if matches!(selection, Selection::InsideOut | Selection::OutsideIn) {
                 return Err(

@@ -1,5 +1,6 @@
 //! Step-published history and explicitly committed phrase takes.
 
+use crate::chance::Chance;
 use crate::octaves::Octaves;
 use crate::{
     Selection,
@@ -32,6 +33,8 @@ pub struct CaptureBank {
     live_snapshot: Option<CapturedPhrase>,
     takes: Vec<Take>,
     history_floor: usize,
+    pub pattern_position: usize,
+    choice_count: u64,
 }
 
 impl CaptureBank {
@@ -50,8 +53,24 @@ impl CaptureBank {
                 | Selection::Descending
                 | Selection::Played
                 | Selection::ReversePlayed
+                | Selection::IndexPattern { .. }
+                | Selection::Transition(_)
+                | Selection::IntervalEnvelope(_)
         ) {
-            return Err("capture playback requires classic selection");
+            return Err("unsupported captured note selection");
+        }
+        if let Selection::IndexPattern { indices, .. } = &selection {
+            if indices.is_empty() {
+                return Err("index pattern requires at least one index");
+            }
+        }
+        if let Selection::Transition(transition) = &selection {
+            if transition.weights.is_empty() {
+                return Err("transition requires a nonempty weight table");
+            }
+        }
+        if let Selection::IntervalEnvelope(envelope) = &selection {
+            envelope.validate()?;
         }
         let mut bank = Self {
             octaves: Octaves::default(),
@@ -66,6 +85,8 @@ impl CaptureBank {
             live_snapshot: None,
             takes: Vec::new(),
             history_floor: 0,
+            pattern_position: 0,
+            choice_count: 0,
         };
         if matches!(mode, CaptureMode::History(_)) {
             bank.record("live", profile)?;
@@ -143,6 +164,7 @@ impl CaptureBank {
         }
         self.published.clear();
         self.last_selected = None;
+        self.pattern_position = 0;
     }
 
     pub fn clear_history(&mut self) -> Result<(), &'static str> {
@@ -157,6 +179,7 @@ impl CaptureBank {
         self.takes.clear();
         self.published.clear();
         self.last_selected = None;
+        self.pattern_position = 0;
         self.revision += 1;
         Ok(())
     }
@@ -206,24 +229,74 @@ impl CaptureBank {
         }
     }
 
-    pub fn select_step(&mut self) -> Result<Option<BankNote>, &'static str> {
+    pub fn select_step(
+        &mut self,
+        chance: &Chance,
+        step: i64,
+    ) -> Result<Option<BankNote>, &'static str> {
         self.publish_step();
         if self.published.is_empty() {
             self.last_selected = None;
+            self.pattern_position = 0;
             return Ok(None);
         }
         if self.selected_revision != self.revision {
             if self.retrigger {
                 self.last_selected = None;
+                self.pattern_position = 0;
             }
             self.selected_revision = self.revision;
         }
-        let ordered = self.ordered_notes(&self.selection)?;
+        let ordered = self.ordered_notes(match self.selection {
+            Selection::Transition(_)
+            | Selection::IntervalEnvelope(_)
+            | Selection::IndexPattern { .. } => &Selection::Ascending,
+            _ => &self.selection,
+        })?;
         let position = self
             .last_selected
             .as_ref()
             .and_then(|r| ordered.iter().position(|n| n == r));
-        let selected = ordered[position.map_or(0, |i| (i + 1) % ordered.len())].clone();
+        let rank = match &self.selection {
+            Selection::IndexPattern {
+                indices,
+                rest_outside,
+            } => {
+                let index = indices[self.pattern_position];
+                self.pattern_position = (self.pattern_position + 1) % indices.len();
+                if *rest_outside && index >= ordered.len() as u64 {
+                    return Ok(None);
+                }
+                Some((index % ordered.len() as u64) as usize)
+            }
+            Selection::Transition(selection) => {
+                if chance.seed.is_none() {
+                    return Err("transition requires an explicit seed");
+                }
+                chance.transition_rank(
+                    selection,
+                    ordered.len(),
+                    position,
+                    self.revision as u64,
+                    &mut self.choice_count,
+                )
+            }
+            Selection::IntervalEnvelope(selection) => {
+                if chance.seed.is_none() {
+                    return Err("interval envelope requires an explicit seed");
+                }
+                chance.interval_rank(
+                    selection,
+                    ordered.len(),
+                    position,
+                    self.revision as u64,
+                    step,
+                )
+            }
+            _ => Some(position.map_or(0, |i| (i + 1) % ordered.len())),
+        };
+        let Some(rank) = rank else { return Ok(None) };
+        let selected = ordered[rank].clone();
         self.last_selected = Some(selected.clone());
         Ok(Some(selected))
     }

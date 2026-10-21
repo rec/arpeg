@@ -32,7 +32,7 @@ from ufor.arpeggiator import (
     Walk,
 )
 
-from .chance import draw_below
+from .chance import draw_below, interval_rank, transition_rank
 from .rhythm import RhythmDecision, decide_step, grid_position, starts_cycle
 from .timing_ports import TimingPorts
 
@@ -504,12 +504,40 @@ class Arpeggiator(BaseModel, Generic[Payload, Event]):
                 or n.id != self.previous_note.id
             ]
             note = self._weighted_note(candidates, "choice")
-        elif isinstance(selection, Transition):
-            if (note := self._transition_note(ordered, selection)) is None:
+        elif isinstance(selection, (Transition, IntervalEnvelope)):
+            previous = next(
+                (
+                    i
+                    for i, n in enumerate(ordered)
+                    if self.previous_note is not None and n.id == self.previous_note.id
+                ),
+                None,
+            )
+            seed = self.settings.seed
+            assert seed is not None
+            if isinstance(selection, Transition):
+                rank, self.choice_count = transition_rank(
+                    selection,
+                    len(ordered),
+                    previous,
+                    seed,
+                    self.settings.name,
+                    self.bank_revision,
+                    self.choice_count,
+                )
+            else:
+                rank = interval_rank(
+                    selection,
+                    len(ordered),
+                    previous,
+                    seed,
+                    self.settings.name,
+                    self.bank_revision,
+                    self.step_index,
+                )
+            if rank is None:
                 return False
-        elif isinstance(selection, IntervalEnvelope):
-            if (note := self._interval_note(ordered, selection)) is None:
-                return False
+            note = ordered[rank]
         elif isinstance(selection, Shuffle):
             note = self._shuffle_note(ordered, selection)
         elif isinstance(selection, (InsideOut, OutsideIn)):
@@ -671,66 +699,6 @@ class Arpeggiator(BaseModel, Generic[Payload, Event]):
             chosen -= candidates[index][1]
             index += 1
         return candidates[index][0]
-
-    def _transition_note(
-        self, ordered: list[Item[Payload]], selection: Transition
-    ) -> Item[Payload] | None:
-        previous = next(
-            (
-                i
-                for i, n in enumerate(ordered)
-                if self.previous_note is not None and n.id == self.previous_note.id
-            ),
-            None,
-        )
-        if previous is None:
-            if selection.start == "lowest":
-                return ordered[0]
-            candidates = [(n, 1) for n in ordered]
-        else:
-            row = (
-                selection.weights[previous] if previous < len(selection.weights) else []
-            )
-            candidates = [
-                (n, row[i] if i < len(row) else selection.missing_weight)
-                for i, n in enumerate(ordered)
-            ]
-            if not any(w for _, w in candidates):
-                if selection.blocked == "rest":
-                    return None
-                candidates = [(n, 1) for n in ordered]
-        return self._weighted_note(candidates, "transition")
-
-    def _interval_note(
-        self, ordered: list[Item[Payload]], selection: IntervalEnvelope
-    ) -> Item[Payload] | None:
-        previous = next(
-            (
-                i
-                for i, n in enumerate(ordered)
-                if self.previous_note is not None and n.id == self.previous_note.id
-            ),
-            None,
-        )
-        if previous is None:
-            return ordered[0]
-        interval = selection.ranges[self.step_index % len(selection.ranges)]
-        low, high = interval.min, interval.max
-        if selection.boundary == "rest":
-            low, high = max(low, -previous), min(high, len(ordered) - 1 - previous)
-            if low > high:
-                return None
-        seed = self.settings.seed
-        assert seed is not None
-        move = low + draw_below(
-            seed,
-            self.settings.name,
-            "interval_envelope",
-            self.bank_revision,
-            self.step_index,
-            high - low + 1,
-        )
-        return ordered[(previous + move) % len(ordered)]
 
     def _shuffle_note(
         self, ordered: list[Item[Payload]], selection: Shuffle
