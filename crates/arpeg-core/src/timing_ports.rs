@@ -23,6 +23,7 @@ pub enum OutputPort {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct PortEvent {
+    pub channel: u8,
     pub at: Beat,
     pub port: OutputPort,
     pub index: i64,
@@ -138,6 +139,7 @@ impl TimingPorts {
         }
         if capture_ready {
             self.events.push(PortEvent {
+                channel: 1,
                 at,
                 port: OutputPort::CaptureReady,
                 index,
@@ -146,6 +148,7 @@ impl TimingPorts {
         }
         if cycle {
             self.events.push(PortEvent {
+                channel: 1,
                 at,
                 port: OutputPort::Cycle,
                 index,
@@ -153,6 +156,7 @@ impl TimingPorts {
             });
         }
         self.events.push(PortEvent {
+            channel: 1,
             at,
             port: OutputPort::Step,
             index,

@@ -27,6 +27,7 @@ from ufor.arpeggiator import (
     Played,
     Shuffle,
     StepPatterns,
+    Strum,
     TieStep,
     Transition,
     Walk,
@@ -64,6 +65,7 @@ class EngineSettings(BaseModel, frozen=True):
     probability: Fraction = Fraction(1)
     seed: int | None = None
     retrigger: Literal["on_empty", "bank_edit"] = "on_empty"
+    strum: Strum | None = None
 
     @field_validator("selection")
     @classmethod
@@ -72,6 +74,10 @@ class EngineSettings(BaseModel, frozen=True):
 
     @model_validator(mode="after")
     def valid_settings(self) -> Self:
+        if self.strum is not None and not isinstance(
+            self.selection, (Ascending, Descending, Played)
+        ):
+            raise ValueError("strums require classic selection")
         if self.gate < 0 or not 0 <= self.probability <= 1:
             raise ValueError(
                 "gate must be nonnegative and probability must be between zero and one"
@@ -297,7 +303,7 @@ class Arpeggiator(BaseModel, Generic[Payload, Event]):
         self._check_time(at)
         assert self.ports is not None
         self.ports.check_control(control, self.settings.seed)
-        events = self.before(at)
+        events = Arpeggiator.before(self, at)
         self.ports.pending[control.port] = control.value
         return events
 
@@ -402,7 +408,9 @@ class Arpeggiator(BaseModel, Generic[Payload, Event]):
 
     def _process_until(self, through: Fraction, *, inclusive: bool) -> list[Event]:
         events: list[Event] = []
-        while (at := self.next_deadline()) < through or (inclusive and at == through):
+        while (at := Arpeggiator.next_deadline(self)) < through or (
+            inclusive and at == through
+        ):
             events.extend(self._release_due(at))
             if self.next_step == at:
                 rhythm = self.settings.rhythm
@@ -483,6 +491,39 @@ class Arpeggiator(BaseModel, Generic[Payload, Event]):
             ):
                 return False
         ordered = sorted(active, key=self._selection_key)
+        if body.strum is not None:
+            spacing = Fraction(body.strum.spacing.removesuffix(" beat"))
+            if len(self.pending) + len(ordered) * decision.repeats > 4096:
+                raise ValueError("strum exceeds the 4096 pending-attack limit")
+            interval = decision.duration / decision.repeats
+            attacks = []
+            ranked = sorted(
+                active, key=lambda n: self._entry_key(n, Fraction(n.rank), False)
+            )
+            for i, note in enumerate(ordered):
+                if self.ports.selection_offset.ranks:
+                    if (
+                        rank := self.ports.offset_rank(ranked.index(note), len(ranked))
+                    ) is None:
+                        continue
+                    note = ranked[rank]
+                if (value := self._realize(note, decision.accent, 0)) is None:
+                    continue
+                attacks.extend(
+                    _Attack[Payload](
+                        at=at + j * interval + i * spacing,
+                        note=note,
+                        value=value,
+                        accent=decision.accent,
+                        gate=decision.final_gate
+                        if j == decision.repeats - 1
+                        else decision.gate,
+                    )
+                    for j in range(decision.repeats)
+                )
+            self.pending.extend(attacks)
+            self.pending.sort(key=lambda a: a.at)
+            return bool(attacks)
         pitch_interval = 0
         if isinstance(selection := self.selection, IndexPattern):
             index = selection.indices[self.pattern_position]

@@ -1,0 +1,14 @@
+name = "strummed-lanes"
+title = "Strummed chord and triplet bass"
+
+[body]
+bank = {kind = "held"}
+rhythm = {kind = "grid", step = "1/2 beat"}
+gate = "1/2"
+strum = {spacing = "1/8 beat"}
+
+[body.lanes.bass]
+channel = 2
+rhythm = {kind = "grid", step = "1/3 beat"}
+gate = "1/2"
+transposition = {semitones = -12}

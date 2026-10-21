@@ -1,0 +1,73 @@
+[[cases]]
+name = "ascending-strum"
+body = {rhythm = {kind = "grid", step = "1 beat"}, gate = "1/2", strum = {spacing = "1/8 beat"}}
+notes = [[60, 90], [64, 80], [67, 70]]
+through = "7/8"
+events = [
+  ["0", "on", 1, 60, 90], ["1/8", "on", 1, 64, 80], ["1/4", "on", 1, 67, 70],
+  ["1/2", "off", 1, 60, 0], ["5/8", "off", 1, 64, 0], ["3/4", "off", 1, 67, 0],
+]
+
+[[cases]]
+name = "descending-strum-on-channel-four"
+body = {channel = 4, selection = {kind = "descending"}, rhythm = {kind = "grid", step = "1 beat"}, gate = "1/2", strum = {spacing = "1/8 beat"}}
+notes = [[60, 90], [64, 80], [67, 70]]
+through = "7/8"
+events = [
+  ["0", "on", 4, 67, 70], ["1/8", "on", 4, 64, 80], ["1/4", "on", 4, 60, 90],
+  ["1/2", "off", 4, 67, 0], ["5/8", "off", 4, 64, 0], ["3/4", "off", 4, 60, 0],
+]
+
+[[cases]]
+name = "played-order-strum"
+body = {selection = {kind = "played"}, rhythm = {kind = "grid", step = "1 beat"}, gate = "1/2", strum = {spacing = "1/8 beat"}}
+notes = [[64, 80], [60, 90], [67, 70]]
+through = "7/8"
+events = [
+  ["0", "on", 1, 64, 80], ["1/8", "on", 1, 60, 90], ["1/4", "on", 1, 67, 70],
+  ["1/2", "off", 1, 64, 0], ["5/8", "off", 1, 60, 0], ["3/4", "off", 1, 67, 0],
+]
+
+[[cases]]
+name = "strum-selection-offset-rests-retain-slot-timing"
+body = {rhythm = {kind = "grid", step = "1 beat"}, gate = "1/2", strum = {spacing = "1/8 beat"}, selection_offset = {ranks = 1, boundary = "rest"}}
+notes = [[60, 90], [64, 80], [67, 70]]
+through = "7/8"
+events = [
+  ["0", "on", 1, 64, 80], ["1/8", "on", 1, 67, 70],
+  ["1/2", "off", 1, 64, 0], ["5/8", "off", 1, 67, 0],
+]
+
+[[cases]]
+name = "lane-name-order-is-independent-of-channel-and-document-order"
+body = {channel = 4, rhythm = {kind = "grid", step = "1 beat"}, gate = "1/2", lanes = {z = {channel = 2, rhythm = {kind = "grid", step = "1 beat"}, gate = "1/2", transposition = {semitones = -12}}, a = {channel = 3, rhythm = {kind = "grid", step = "1 beat"}, gate = "1/2", transposition = {semitones = -24}}}}
+notes = [[60, 90]]
+through = "7/8"
+events = [
+  ["0", "on", 4, 60, 90], ["0", "on", 3, 36, 90], ["0", "on", 2, 48, 90],
+  ["1/2", "off", 4, 60, 0], ["1/2", "off", 3, 36, 0], ["1/2", "off", 2, 48, 0],
+]
+
+[[cases]]
+name = "strum-with-independent-triplet-bass"
+notes = [[60, 90], [64, 80], [67, 70]]
+through = "7/8"
+events = [
+  ["0", "on", 1, 60, 90], ["0", "on", 2, 48, 90],
+  ["1/8", "on", 1, 64, 80], ["1/6", "off", 2, 48, 0],
+  ["1/4", "off", 1, 60, 0], ["1/4", "on", 1, 67, 70],
+  ["1/3", "on", 2, 52, 80], ["3/8", "off", 1, 64, 0],
+  ["1/2", "off", 1, 67, 0], ["1/2", "on", 1, 60, 90], ["1/2", "off", 2, 52, 0],
+  ["5/8", "on", 1, 64, 80], ["2/3", "on", 2, 55, 70],
+  ["3/4", "off", 1, 60, 0], ["3/4", "on", 1, 67, 70],
+  ["5/6", "off", 2, 55, 0], ["7/8", "off", 1, 64, 0],
+]
+[cases.body]
+rhythm = {kind = "grid", step = "1/2 beat"}
+gate = "1/2"
+strum = {spacing = "1/8 beat"}
+[cases.body.lanes.bass]
+channel = 2
+rhythm = {kind = "grid", step = "1/3 beat"}
+gate = "1/2"
+transposition = {semitones = -12}

@@ -31,7 +31,8 @@ Extract the archive and open a terminal in its directory. On Mac/Linux:
 
 On Windows PowerShell, use `./arpeg.exe` instead of `./arpeg`. Replace `0` and
 `1` with the source and destination indices from `list-ports`. The last number
-is BPM. Source/destination MIDI uses channel 1; configure the synth accordingly.
+is BPM. Input MIDI uses channel 1; output uses each preset lane's configured
+channel, defaulting to 1. Configure the synth's receiving channels accordingly.
 
 `up.toml` plays held keys in ascending order. `live-latch.toml` keeps the chord
 after key release. `history-wind.toml` replays completed notes with recorded

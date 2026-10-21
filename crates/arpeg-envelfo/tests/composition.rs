@@ -222,6 +222,7 @@ fn host_tempo_maps_each_child_without_a_second_clock() {
 
 fn hit(index: i64) -> PortEvent {
     PortEvent {
+        channel: 1,
         at: 0.into(),
         port: OutputPort::Hit,
         index,

@@ -2,7 +2,7 @@
 
 from contextlib import ExitStack
 from fractions import Fraction
-from functools import partial
+from functools import cached_property, partial
 from pathlib import Path
 from queue import Empty
 from sys import exit, stderr, stdin
@@ -56,7 +56,7 @@ class ListPorts(BaseModel, frozen=True):
 
 
 class Play(BaseModel, frozen=True):
-    """Play a profile through MIDI ports on channel 1."""
+    """Play a profile through MIDI ports on its configured lane channels."""
 
     profile: Path
     source: int = Field(ge=0)
@@ -357,16 +357,22 @@ class MidiPlayer(BaseModel):
     envelfo_expression: dict[arpeggiator.ExpressionLane, Fraction] = Field(
         default_factory=dict
     )
-    output_id: int | None = None
-    output_key: int | None = None
-    tuning_offset: float = 0
+    output_notes: dict[str, arpeggiator_ports.ArpeggiatorNoteEvent] = Field(
+        default_factory=dict
+    )
+    channel_offsets: dict[int, float] = Field(default_factory=dict)
     next_occurrence: int = 0
-    output_note: arpeggiator_ports.ArpeggiatorNoteEvent | None = None
     notes: list[arpeggiator_ports.ArpeggiatorNoteEvent] = Field(
         default_factory=list, max_length=4096
     )
     notes_exhausted: bool = False
     suppressed_note: bool = False
+
+    @cached_property
+    def channel_profiles(self) -> dict[int, arpeggiator.Arpeggiator]:
+        return {self.profile.body.channel: self.profile.body} | {
+            b.channel: b for _, b in sorted((self.profile.body.lanes or {}).items())
+        }
 
     @model_validator(mode="after")
     def supported_profile(self) -> Self:
@@ -499,19 +505,8 @@ class MidiPlayer(BaseModel):
                 self.expression[data[0]] = data
                 lane = expression_lane(data)
                 assert lane is not None
-                policy = self.profile.body.expression
-                if (
-                    policy.lanes.get(lane, policy.source) == "current"
-                    and self.clock.active
-                    and self.output_key is not None
-                ):
-                    output.append(
-                        decode_message(
-                            tuning_message(
-                                data, self.tuning_offset, self.profile.body.bend_range
-                            )
-                        )
-                    )
+                if self.clock.active:
+                    output.extend(self._expression_messages(data, "current"))
                 return output
             events = (
                 engine.note_on(at, data[1], data[2])
@@ -535,21 +530,8 @@ class MidiPlayer(BaseModel):
             self.expression[data[0]] = data
             lane = expression_lane(data)
             assert lane is not None
-            if (
-                self.profile.body.expression.lanes.get(
-                    lane, self.profile.body.expression.source
-                )
-                == "current"
-                and self.clock.active
-                and self.output_key is not None
-            ):
-                output.append(
-                    decode_message(
-                        tuning_message(
-                            data, self.tuning_offset, self.profile.body.bend_range
-                        )
-                    )
-                )
+            if self.clock.active:
+                output.extend(self._expression_messages(data, "current"))
         return output
 
     def advance(self, at_ns: int) -> list[Message]:
@@ -618,13 +600,14 @@ class MidiPlayer(BaseModel):
         )
         if scheduled.release:
             output.extend(self._release_output())
-        if samples and not attacks and scheduled.active and self.output_key is not None:
-            output.extend(
-                decode_message(
-                    tuning_message(d, self.tuning_offset, self.profile.body.bend_range)
-                )
-                for _, _, d in samples
-            )
+        if samples and scheduled.active:
+            attacked = {
+                (d[0] & 15) + 1
+                for m in output
+                if (d := codecs.encode(m))[0] & 240 == 144 and d[2] > 0
+            }
+            for _, _, data in samples:
+                output.extend(self._expression_messages(data, "envelfo", attacked))
         self.scheduled = None
         return output
 
@@ -697,6 +680,10 @@ class MidiPlayer(BaseModel):
             _, _, data = self._expression_sample(control)
         else:
             self.engine.ports.check_control(control, self.profile.body.seed)
+            if isinstance(self.engine, LiveArpeggiator):
+                for child in self.engine.lanes.values():
+                    assert child.ports is not None
+                    child.ports.check_control(control, child.profile.body.seed)
         tick = self._elapsed(at_ns)
         was_active = self.clock.active
         at = self.clock.advance(tick)
@@ -712,16 +699,8 @@ class MidiPlayer(BaseModel):
                         )
                     )
             self.envelfo_expression[lane] = control.value
-            if self.clock.active and self.output_key is not None:
-                output.append(
-                    decode_message(
-                        tuning_message(
-                            data,
-                            self.tuning_offset,
-                            self.profile.body.bend_range,
-                        )
-                    )
-                )
+            if self.clock.active:
+                output.extend(self._expression_messages(data, "envelfo"))
             return output
         if isinstance(self.engine, LiveArpeggiator):
             output.extend(self._note_messages(self.engine.control(at, control)))
@@ -736,22 +715,46 @@ class MidiPlayer(BaseModel):
     def take_events(self) -> arpeggiator_ports.ArpeggiatorPortBatch:
         assert self.engine is not None and self.engine.ports is not None
         batch = self.engine.ports.take_events()
+        decision_events = [
+            e.model_copy(update={"channel": self.profile.body.channel})
+            for e in batch.events
+        ]
+        exhausted = batch.exhausted
+        if isinstance(self.engine, LiveArpeggiator):
+            for lane in self.engine.lanes.values():
+                assert lane.ports is not None
+                child = lane.ports.take_events()
+                decision_events.extend(
+                    e.model_copy(update={"channel": lane.profile.body.channel})
+                    for e in child.events
+                )
+                exhausted |= child.exhausted
         batch = batch.model_copy(
             update={
                 "notes": self.notes,
-                "exhausted": batch.exhausted or self.notes_exhausted,
+                "events": sorted(decision_events, key=lambda e: e.at),
+                "exhausted": exhausted or self.notes_exhausted,
             }
         )
         self.notes = []
         self.notes_exhausted = False
         return batch
 
-    def _start_note(self, at: Fraction, source: str, key: int, velocity: int) -> bool:
-        if len(self.notes) > 4094:
+    def _start_note(
+        self,
+        at: Fraction,
+        source: str,
+        key: int,
+        velocity: int,
+        owner: str,
+        channel: int,
+    ) -> bool:
+        if len(self.notes) + len(self.output_notes) + 2 > 4096:
             self.notes_exhausted = True
             self.suppressed_note = True
             return False
         note = arpeggiator_ports.ArpeggiatorNoteEvent(
+            channel=channel,
             at=at,
             port="note_start",
             occurrence=self.next_occurrence,
@@ -760,15 +763,15 @@ class MidiPlayer(BaseModel):
             velocity=velocity,
         )
         self.next_occurrence += 1
-        self.output_note = note
+        self.output_notes[owner] = note
         self.notes.append(note)
         self.suppressed_note = False
         return True
 
-    def _end_note(self, at: Fraction, velocity: int) -> None:
-        if self.output_note is not None:
+    def _end_note(self, at: Fraction, velocity: int, owner: str) -> None:
+        if (note := self.output_notes.pop(owner, None)) is not None:
             self.notes.append(
-                self.output_note.model_copy(
+                note.model_copy(
                     update={
                         "at": at,
                         "port": arpeggiator_ports.ArpeggiatorNotePort.note_end,
@@ -776,7 +779,6 @@ class MidiPlayer(BaseModel):
                     }
                 )
             )
-            self.output_note = None
 
     def _pause(self, tick: int) -> list[Message]:
         assert self.engine is not None
@@ -792,11 +794,13 @@ class MidiPlayer(BaseModel):
 
     def _release_output(self) -> list[Message]:
         output: list[Message] = []
-        if self.output_key is not None:
-            output.append(decode_message([128, self.output_key, 0]))
-            self._end_note(self.clock.beat, 0)
-            self.output_key = None
-            self.output_id = None
+        order = {c: i for i, c in enumerate(self.channel_profiles)}
+        for owner, note in sorted(
+            self.output_notes.items(),
+            key=lambda n: (order[n[1].channel], n[1].occurrence),
+        ):
+            output.append(decode_message([127 + note.channel, note.key, 0]))
+            self._end_note(self.clock.beat, 0, owner)
         return output
 
     def _check_ready(self) -> None:
@@ -809,54 +813,91 @@ class MidiPlayer(BaseModel):
         if control.port.value not in ("breath", "bend", "pressure"):
             raise ValueError("realization accepts only expression controls")
         lane = arpeggiator.ExpressionLane(control.port.value)
-        policy = self.profile.body.expression
-        if policy.lanes.get(lane, policy.source) != "envelfo":
+        profiles = self.channel_profiles.values()
+        if not any(
+            b.expression.lanes.get(lane, b.expression.source) == "envelfo"
+            for b in profiles
+        ):
             raise ValueError(f"{lane} is not owned by Envelfo")
         return lane, control.value, envelfo_message(lane, control.value)
 
+    def _expression_messages(
+        self,
+        data: list[int],
+        source: Literal["current", "envelfo"],
+        exclude: set[int] | None = None,
+    ) -> list[Message]:
+        output = []
+        lane = expression_lane(data)
+        for body in self.channel_profiles.values():
+            if body.channel in (exclude or ()) or not any(
+                n.channel == body.channel for n in self.output_notes.values()
+            ):
+                continue
+            if body.expression.lanes.get(lane, body.expression.source) != source:
+                continue
+            wire = tuning_message(
+                data, self.channel_offsets.get(body.channel, 0), body.bend_range
+            )
+            output.append(decode_message([wire[0] + body.channel - 1, *wire[1:]]))
+        return output
+
     def _note_messages(self, events: list[LiveEvent]) -> list[Message]:
         output: list[Message] = []
+        profiles = self.channel_profiles
         for event in events:
+            channel = event.channel
+            body = profiles[channel]
+            owner = f"{channel}:{event.id}"
             if event.kind == "on":
-                if self.output_key is not None:
-                    output.append(decode_message([0x80, self.output_key, 0]))
-                    self._end_note(event.at, 0)
-                    self.output_id = None
-                    self.output_key = None
+                for previous, note in list(self.output_notes.items()):
+                    if note.channel == channel and (
+                        body.strum is None or note.key == event.key
+                    ):
+                        output.append(decode_message([127 + channel, note.key, 0]))
+                        self._end_note(event.at, 0, previous)
+                if (
+                    any(n.channel == channel for n in self.output_notes.values())
+                    and self.channel_offsets.get(channel, 0) != event.tuning_semitones
+                ):
+                    raise ValueError(
+                        "overlapping notes require the same pitch bend "
+                        "on their lane channel"
+                    )
                 if not self._start_note(
-                    event.at, f"input:{event.source_id}", event.key, event.velocity
+                    event.at,
+                    f"input:{event.source_id}",
+                    event.key,
+                    event.velocity,
+                    owner,
+                    channel,
                 ):
                     continue
-                self.tuning_offset = event.tuning_semitones
+                self.channel_offsets[channel] = event.tuning_semitones
                 entry = entry_messages(
-                    self.profile.body.expression,
+                    body.expression,
                     self.expression,
                     self.envelfo_expression,
                 )
-                if self.profile.body.tuning is not None and not any(
-                    d[0] == 0xE0 for d in entry
-                ):
+                if body.tuning is not None and not any(d[0] == 0xE0 for d in entry):
                     entry.insert(0, [0xE0, 0, 64])
-                output.extend(
-                    decode_message(
-                        tuning_message(
-                            d, self.tuning_offset, self.profile.body.bend_range
-                        )
-                    )
-                    for d in entry
+                for data in entry:
+                    wire = tuning_message(data, event.tuning_semitones, body.bend_range)
+                    output.append(decode_message([wire[0] + channel - 1, *wire[1:]]))
+                output.append(
+                    decode_message([143 + channel, event.key, event.velocity])
                 )
-                output.append(decode_message([0x90, event.key, event.velocity]))
-                self.output_id = event.id
-                self.output_key = event.key
-            elif event.id == self.output_id:
-                output.append(decode_message([0x80, event.key, event.velocity]))
-                self._end_note(event.at, event.velocity)
-                self.output_id = None
-                self.output_key = None
+            elif owner in self.output_notes:
+                output.append(
+                    decode_message([127 + channel, event.key, event.velocity])
+                )
+                self._end_note(event.at, event.velocity, owner)
         return output
 
     def _history_messages(self, events: list[RealizedMidiEvent]) -> list[Message]:
         output: list[Message] = []
+        channel = self.profile.body.channel
+        owner = f"{channel}:history"
         initialized: set[tuple[Fraction, str | None]] = set()
         attacks = {
             (e.at, e.source_note): e
@@ -874,12 +915,17 @@ class MidiPlayer(BaseModel):
                 attack = attacks[group]
                 assert attack.source_note is not None
                 self._start_note(
-                    attack.at, attack.source_note, attack.data[1], attack.data[2]
+                    attack.at,
+                    attack.source_note,
+                    attack.data[1],
+                    attack.data[2],
+                    owner,
+                    channel,
                 )
                 initialized.add(group)
                 if self.suppressed_note:
                     continue
-                self.tuning_offset = attack.tuning_semitones
+                self.channel_offsets[channel] = attack.tuning_semitones
                 entry = entry_messages(
                     self.profile.body.expression,
                     self.expression,
@@ -889,31 +935,30 @@ class MidiPlayer(BaseModel):
                     d[0] == 0xE0 for d in entry
                 ):
                     entry.insert(0, [0xE0, 0, 64])
-                output.extend(
-                    decode_message(
-                        tuning_message(
-                            d, self.tuning_offset, self.profile.body.bend_range
-                        )
+                for data in entry:
+                    wire = tuning_message(
+                        data,
+                        self.channel_offsets.get(channel, 0),
+                        self.profile.body.bend_range,
                     )
-                    for d in entry
-                )
+                    output.append(decode_message([wire[0] + channel - 1, *wire[1:]]))
             if self.suppressed_note:
                 continue
             if (lane := expression_lane(event.data)) is not None:
                 policy = self.profile.body.expression
                 if policy.lanes.get(lane, policy.source) != "recorded":
                     continue
-            if kind == 0x90 and event.data[2] > 0:
-                self.output_key = event.data[1]
-            elif kind == 0x80 or kind == 0x90 and event.data[2] == 0:
-                self._end_note(event.at, event.data[2])
-                self.output_key = None
+            if kind == 0x80 or kind == 0x90 and event.data[2] == 0:
+                self._end_note(event.at, event.data[2], owner)
+            wire = tuning_message(
+                event.data,
+                self.channel_offsets.get(channel, 0),
+                self.profile.body.bend_range,
+            )
             output.append(
-                decode_message(
-                    tuning_message(
-                        event.data, self.tuning_offset, self.profile.body.bend_range
-                    )
-                )
+                decode_message([(wire[0] & 240) + channel - 1, *wire[1:]])
+                if wire[0] < 240
+                else decode_message(wire)
             )
         return output
 

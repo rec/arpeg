@@ -29,6 +29,8 @@ def render_held(
 ) -> list[Occurrence]:
     """Render supported held and latched selections before ``through``."""
     body = profile.body
+    if body.strum is not None or body.lanes is not None or body.channel != 1:
+        raise ValueError("strums and channel lanes require live playback")
     if not isinstance(body.bank, (HeldBank, LatchedBank)):
         raise ValueError("held rendering requires a held or latched bank")
     selection = body.selection

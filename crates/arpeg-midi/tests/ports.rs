@@ -152,6 +152,7 @@ fn envelfo_ports_match_shared_exact_traces() {
                     .map(|e| {
                         let a = e.as_array().unwrap();
                         PortEvent {
+                            channel: 1,
                             at: a[0].as_str().unwrap().parse().unwrap(),
                             port: match a[1].as_str().unwrap() {
                                 "step" => OutputPort::Step,

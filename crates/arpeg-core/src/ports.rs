@@ -107,6 +107,7 @@ pub enum NotePort {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct NoteEvent {
+    pub channel: u8,
     pub at: Beat,
     pub port: NotePort,
     pub occurrence: u64,
@@ -116,6 +117,8 @@ pub struct NoteEvent {
 }
 
 pub struct PerformancePorts {
+    pub channel: u8,
+    pub strum_spacing: Option<Beat>,
     pub timing: TimingPorts,
     pub inversion: i64,
     pub voicing: Vec<i64>,
@@ -143,6 +146,8 @@ impl std::ops::DerefMut for PerformancePorts {
 impl PerformancePorts {
     pub fn new(gate: Beat, density: Beat) -> Self {
         Self {
+            channel: 0,
+            strum_spacing: None,
             timing: TimingPorts::new(gate, density),
             inversion: 0,
             voicing: Vec::new(),

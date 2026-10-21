@@ -107,6 +107,7 @@ impl MidiPlayer {
             };
             for (key, value) in [
                 ("at", JsValue::from_str(&event.at.to_string())),
+                ("channel", JsValue::from(event.channel)),
                 ("port", JsValue::from_str(port)),
                 ("index", BigInt::from(event.index).into()),
                 ("revision", BigInt::from(event.revision).into()),
@@ -126,6 +127,7 @@ impl MidiPlayer {
             };
             for (key, value) in [
                 ("at", JsValue::from_str(&note.at.to_string())),
+                ("channel", JsValue::from(note.channel)),
                 ("port", JsValue::from_str(port)),
                 ("occurrence", BigInt::from(note.occurrence).into()),
                 ("source", JsValue::from_str(&note.source)),

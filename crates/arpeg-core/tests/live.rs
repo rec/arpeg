@@ -30,6 +30,7 @@ fn live_notes_follow_input_and_release_when_bank_empties() {
     assert_eq!(
         arp.advance(beat(0, 1)).unwrap(),
         [OutputEvent {
+            channel: 0,
             at: beat(0, 1),
             kind: OutputKind::NoteOn {
                 tuning_semitones: 0.0,
@@ -45,6 +46,7 @@ fn live_notes_follow_input_and_release_when_bank_empties() {
         arp.advance(beat(1, 4)).unwrap(),
         [
             OutputEvent {
+                channel: 0,
                 at: beat(1, 5),
                 kind: OutputKind::NoteOff {
                     id: 0,
@@ -53,6 +55,7 @@ fn live_notes_follow_input_and_release_when_bank_empties() {
                 }
             },
             OutputEvent {
+                channel: 0,
                 at: beat(1, 4),
                 kind: OutputKind::NoteOn {
                     tuning_semitones: 0.0,
@@ -68,6 +71,7 @@ fn live_notes_follow_input_and_release_when_bank_empties() {
     assert_eq!(
         arp.note_off(beat(7, 20), 64).unwrap(),
         [OutputEvent {
+            channel: 0,
             at: beat(7, 20),
             kind: OutputKind::NoteOff {
                 id: 1,
@@ -141,6 +145,7 @@ fn simultaneous_note_ons_join_the_first_step() {
     assert_eq!(
         arp.advance(beat(0, 1)).unwrap(),
         [OutputEvent {
+            channel: 0,
             at: beat(0, 1),
             kind: OutputKind::NoteOn {
                 tuning_semitones: 0.0,
