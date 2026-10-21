@@ -10,6 +10,35 @@ use serde_json::{Value, json};
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 #[cfg_attr(not(target_arch = "wasm32"), test)]
+fn nonzero_pitch_intervals_require_a_musical_destination() {
+    let mut engine = Arpeggiator::new(
+        Bank::Held,
+        Selection::IndexPattern {
+            indices: vec![0],
+            rest_outside: false,
+            intervals: Some(vec![12]),
+        },
+        Rhythm::Grid {
+            step: Beat::new(1, 4),
+            swing: Beat::new(1, 2),
+            groove: None,
+        },
+        TokenPorts {
+            timing: TimingPorts::new(Beat::new(4, 5), Beat::from_integer(1)),
+        },
+        Retrigger::OnEmpty,
+        Chance::default(),
+    )
+    .unwrap();
+    engine.press(Beat::from_integer(0), 1, 1, 1).unwrap();
+    assert_eq!(
+        engine.advance(Beat::from_integer(0)).unwrap_err(),
+        "pitch intervals require a musical destination"
+    );
+}
+
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
 fn opaque_tokens_match_python_with_independent_overlapping_occurrences() {
     let fixture: Value =
         serde_json::from_str(include_str!("../../../conformance/tokens.json")).unwrap();

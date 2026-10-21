@@ -11,7 +11,11 @@ from arpeg.profile import parse_profile
 
 @pytest.mark.parametrize(
     "case",
-    loads(Path("conformance/captured-selectors.toml").read_text())["cases"],
+    [
+        c
+        for f in ("captured-selectors", "phrase-templates")
+        for c in loads(Path(f"conformance/{f}.toml").read_text())["cases"]
+    ],
     ids=lambda c: c["name"],
 )
 @pytest.mark.parametrize("bank", ["history", "phrase"])
@@ -61,9 +65,18 @@ def test_captured_selectors_preserve_gestures_and_match_shared_traces(
     assert [(n.occurrence, n.source) for n in starts] == [
         (n.occurrence, n.source) for n in ends
     ]
-    expected = {60: (90, 10, 11), 64: (80, 20, 22), 67: (70, 30, 33), 72: (90, 10, 11)}
-    assert [n.velocity for n in starts] == [expected[n.key][0] for n in starts]
-    assert [n.velocity for n in ends] == [expected[n.key][2] for n in starts]
+    expected = {"note-0": (90, 10, 11), "note-1": (80, 20, 22), "note-2": (70, 30, 33)}
+    assert [n.velocity for n in starts] == [
+        expected[n.source.rsplit(":", 1)[1]][0] for n in starts
+    ]
+    assert [n.velocity for n in ends] == [
+        expected[n.source.rsplit(":", 1)[1]][2] for n in starts
+    ]
+    occurrences = iter(starts)
     for i, message in enumerate(messages):
         if message[0] == 144:
-            assert messages[i - 1] == [176, 2, expected[message[1]][1]]
+            assert messages[i - 1] == [
+                176,
+                2,
+                expected[next(occurrences).source.rsplit(":", 1)[1]][1],
+            ]

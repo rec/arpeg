@@ -6,7 +6,7 @@ from typing import Annotated, Literal, Self
 
 from pydantic import BaseModel, Field, model_validator
 from ufor import arpeggiator_ports
-from ufor.arpeggiator import StepPatterns
+from ufor.arpeggiator import IndexPattern, StepPatterns
 from ufor.control import Rational
 from ufor.events import MidiEvent
 from ufor.time import Timebase
@@ -294,9 +294,18 @@ class LiveHistoryArpeggiator(BaseModel):
         phrase = self.bank.source(selected.capture_id)
         note = next(n for n in phrase.notes if n.note_id == selected.note_id)
         assert note.key is not None
+        selection = self.bank.selection
+        pitch_interval = (
+            selection.intervals[
+                (self.bank.pattern_position - 1) % len(selection.indices)
+            ]
+            if isinstance(selection, IndexPattern) and selection.intervals is not None
+            else 0
+        )
         if (
             key := self.ports.realize_pitch(
                 note.key
+                + pitch_interval
                 + (
                     self.ports.tuning.period
                     if self.ports.tuning is not None

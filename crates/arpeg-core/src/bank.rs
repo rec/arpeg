@@ -59,9 +59,15 @@ impl CaptureBank {
         ) {
             return Err("unsupported captured note selection");
         }
-        if let Selection::IndexPattern { indices, .. } = &selection {
+        if let Selection::IndexPattern {
+            indices, intervals, ..
+        } = &selection
+        {
             if indices.is_empty() {
                 return Err("index pattern requires at least one index");
+            }
+            if intervals.as_ref().is_some_and(|v| v.len() != indices.len()) {
+                return Err("intervals must have one value per index");
             }
         }
         if let Selection::Transition(transition) = &selection {
@@ -261,6 +267,7 @@ impl CaptureBank {
             Selection::IndexPattern {
                 indices,
                 rest_outside,
+                ..
             } => {
                 let index = indices[self.pattern_position];
                 self.pattern_position = (self.pattern_position + 1) % indices.len();
@@ -355,6 +362,18 @@ impl CaptureBank {
             .find(|t| t.phrase.capture_id == id)
             .map(|t| &t.phrase)
             .ok_or("source capture is not in the bank")
+    }
+
+    /// Pitch offset of the most recently consumed index-pattern slot.
+    pub fn selected_interval(&self) -> i64 {
+        match &self.selection {
+            Selection::IndexPattern {
+                indices,
+                intervals: Some(intervals),
+                ..
+            } => intervals[(self.pattern_position + indices.len() - 1) % indices.len()],
+            _ => 0,
+        }
     }
 }
 

@@ -253,6 +253,13 @@ fn live_classic_matches_shared_python_rust_traces() {
                         .map(|i| i.as_u64().unwrap())
                         .collect(),
                     rest_outside: s["boundary"] == "rest",
+                    intervals: s.get("intervals").map(|v| {
+                        v.as_array()
+                            .unwrap()
+                            .iter()
+                            .map(|n| n.as_i64().unwrap())
+                            .collect()
+                    }),
                 },
                 Some(s) if s["kind"] == "inside_out" => Selection::InsideOut,
                 Some(s) if s["kind"] == "outside_in" => Selection::OutsideIn,

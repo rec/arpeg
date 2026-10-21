@@ -483,8 +483,11 @@ class Arpeggiator(BaseModel, Generic[Payload, Event]):
             ):
                 return False
         ordered = sorted(active, key=self._selection_key)
+        pitch_interval = 0
         if isinstance(selection := self.selection, IndexPattern):
             index = selection.indices[self.pattern_position]
+            if selection.intervals is not None:
+                pitch_interval = selection.intervals[self.pattern_position]
             self.pattern_position = (self.pattern_position + 1) % len(selection.indices)
             if selection.boundary == "rest" and index >= len(ordered):
                 return False
@@ -663,7 +666,7 @@ class Arpeggiator(BaseModel, Generic[Payload, Event]):
             ) is None:
                 return False
             note = ranked[rank]
-        if (value := self._realize(note, decision.accent)) is None:
+        if (value := self._realize(note, decision.accent, pitch_interval)) is None:
             return False
         interval = decision.duration / decision.repeats
         self.pending.extend(
@@ -841,7 +844,11 @@ class Arpeggiator(BaseModel, Generic[Payload, Event]):
     def _expand(self, active: list[Item[Payload]]) -> list[Item[Payload]]:
         return active
 
-    def _realize(self, note: Item[Payload], accent: Fraction) -> Payload | None:
+    def _realize(
+        self, note: Item[Payload], accent: Fraction, pitch_interval: int
+    ) -> Payload | None:
+        if pitch_interval:
+            raise ValueError("pitch intervals require a musical destination")
         return note.value
 
     def _conflicts(self, left: Payload, right: Payload) -> bool:

@@ -17,7 +17,14 @@ use arpeg_midi::{
 fn captured_selectors_preserve_gestures_and_match_python_traces() {
     let fixture: toml::Value =
         toml::from_str(include_str!("../../../conformance/captured-selectors.toml")).unwrap();
-    for case in fixture["cases"].as_array().unwrap() {
+    let phrases: toml::Value =
+        toml::from_str(include_str!("../../../conformance/phrase-templates.toml")).unwrap();
+    for case in fixture["cases"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .chain(phrases["cases"].as_array().unwrap())
+    {
         for phrase in [false, true] {
             for polling in [false, true] {
                 let source = if phrase {
@@ -120,13 +127,17 @@ fn captured_selectors_preserve_gestures_and_match_python_traces() {
                         .collect::<Vec<_>>()
                 );
                 for (start, end) in starts.iter().zip(&ends) {
-                    let (attack, _, release) = gesture(start.key);
+                    let (attack, _, release) = gesture(&start.source);
                     assert_eq!(start.velocity, attack);
                     assert_eq!(end.velocity, release);
                 }
+                let mut occurrences = starts.iter();
                 for (i, message) in messages.iter().enumerate() {
                     if message[0] == 144 {
-                        assert_eq!(messages[i - 1], [176, 2, gesture(message[1]).1]);
+                        assert_eq!(
+                            messages[i - 1],
+                            [176, 2, gesture(&occurrences.next().unwrap().source).1]
+                        );
                     }
                 }
             }
@@ -235,6 +246,7 @@ fn selections() -> Vec<(Selection, u8)> {
             Selection::IndexPattern {
                 indices: vec![0, 1, 2],
                 rest_outside: false,
+                intervals: None,
             },
             64,
         ),
@@ -261,11 +273,11 @@ fn capture_notes(bank: &mut CaptureBank, id: &str, keys: &[u8], overdub: bool) {
     bank.commit(keys.len() as i64 * 100_000, overdub).unwrap();
 }
 
-fn gesture(key: u8) -> (u8, u8, u8) {
-    match key {
-        60 | 72 => (90, 10, 11),
-        64 => (80, 20, 22),
-        67 => (70, 30, 33),
-        _ => panic!("unexpected selected key {key}"),
+fn gesture(source: &str) -> (u8, u8, u8) {
+    match source.rsplit(':').next().unwrap() {
+        "note-0" => (90, 10, 11),
+        "note-1" => (80, 20, 22),
+        "note-2" => (70, 30, 33),
+        _ => panic!("unexpected selected source {source}"),
     }
 }

@@ -417,7 +417,7 @@ pub fn parse_profile(text: &str, path: Option<&Path>) -> Result<Profile, String>
             let table = selection.expect("selection table");
             if table
                 .keys()
-                .any(|key| !["kind", "indices", "boundary"].contains(&key.as_str()))
+                .any(|key| !["kind", "indices", "boundary", "intervals"].contains(&key.as_str()))
             {
                 return Err("unsupported index pattern option".into());
             }
@@ -436,6 +436,21 @@ pub fn parse_profile(text: &str, path: Option<&Path>) -> Result<Profile, String>
             if indices.is_empty() {
                 return Err("index pattern requires at least one index".into());
             }
+            let intervals = table
+                .get("intervals")
+                .map(|v| {
+                    let values = v
+                        .as_array()
+                        .ok_or("intervals must be an integer array")?
+                        .iter()
+                        .map(|v| v.as_integer().ok_or("intervals must be signed integers"))
+                        .collect::<Result<Vec<_>, _>>()?;
+                    if values.len() != indices.len() {
+                        return Err("intervals must have one value per index");
+                    }
+                    Ok(values)
+                })
+                .transpose()?;
             let rest_outside = match table.get("boundary") {
                 None => false,
                 Some(value) if value.as_str() == Some("wrap") => false,
@@ -445,6 +460,7 @@ pub fn parse_profile(text: &str, path: Option<&Path>) -> Result<Profile, String>
             Selection::IndexPattern {
                 indices,
                 rest_outside,
+                intervals,
             }
         }
         Some("choice") => {

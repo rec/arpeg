@@ -157,12 +157,14 @@ class LiveArpeggiator(Arpeggiator[MusicalValue, LiveEvent]):
         return active
 
     def _realize(
-        self, note: Item[MusicalValue], accent: Fraction
+        self, note: Item[MusicalValue], accent: Fraction, pitch_interval: int
     ) -> MusicalValue | None:
         assert self.ports is not None
         period = self.ports.tuning.period if self.ports.tuning is not None else 12
         pitch = (
-            note.rank + (period or 12) * self.profile.body.octaves.offsets[note.layer]
+            note.rank
+            + (period or 12) * self.profile.body.octaves.offsets[note.layer]
+            + pitch_interval
         )
         if (realized := self.ports.realize_pitch(pitch)) is None:
             return None

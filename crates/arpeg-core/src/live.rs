@@ -128,11 +128,13 @@ impl Processor for PerformancePorts {
         &self,
         selected: &Item<MusicalValue>,
         accent: Beat,
+        pitch_interval: i64,
     ) -> Result<Option<MusicalValue>, &'static str> {
         let period = self.tuning.as_ref().and_then(|t| t.period).unwrap_or(12) as i128;
         let pitch = selected
             .rank
             .checked_add(period * i128::from(self.octaves.offsets[selected.layer]))
+            .and_then(|p| p.checked_add(i128::from(pitch_interval)))
             .ok_or(crate::tuning::TUNING_ERROR)?;
         Ok(self.realize_pitch(pitch)?.map(|key| MusicalValue {
             key: key.key,
