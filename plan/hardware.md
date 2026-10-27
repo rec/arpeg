@@ -13,6 +13,10 @@ point is a Pi Zero 2 W, Type A MIDI sockets, external 5 V power, and a fixed
 profile with internal tempo. These choices remain proposals until the parts
 and intended instruments are confirmed.
 
+Status reviewed 2026-10-27: this appliance remains planned. Desktop MIDI hosts
+and external-clock support already exist; UART integration, Pi qualification,
+boot configuration, electronics and enclosure work remain unfinished.
+
 Additional work beyond the prompt: None.
 
 ## 1. What has to fit inside the box?
@@ -99,8 +103,7 @@ breadboard connections inside a device that will travel.
 
 ## 3. Software work needed before it can play on the Pi
 
-The Rust MIDI executable uses midir on Linux, Windows, and macOS; the Python
-reference host uses mido with RtMidi on the same platforms. Both offer `play`
+The Rust MIDI executable and Python host use meedee/libremidi. Both offer `play`
 and `list-ports`. Linux MIDI port access uses ALSA. A Pi needs its own Linux
 build, and a raw GPIO UART does not automatically appear as an ALSA MIDI port.
 
@@ -113,9 +116,10 @@ The host needs to:
 1. Open the UART at MIDI's **31,250 baud, 8 data bits, no parity, one stop bit**.
    Configure raw bytes with no terminal echo, newline conversion, or flow
    control. Confirm the actual baud rate on the selected Pi setup.
-2. Decode MIDI byte streams, including running status, velocity-zero releases,
-   and realtime bytes interleaved with other messages. Serial read boundaries
-   are not MIDI message boundaries.
+2. Feed UART reads through the existing MIDI framing/decoding behavior, preserving
+   running status, velocity-zero releases and interleaved realtime bytes. Serial
+   read boundaries are not MIDI message boundaries; do not create a second set
+   of musical decoding rules for the appliance.
 3. Timestamp input against a monotonic clock and feed existing live engines.
 4. Schedule output from the next engine deadline and handle partial serial
    writes without losing or duplicating bytes.
@@ -161,9 +165,10 @@ profiles and firmware are updated, because writes to a RAM overlay disappear
 on reboot. Keep a restorable SD-card image.
 [Raspberry Pi filesystem resilience guide](https://pip.raspberrypi.com/categories/685-whitepapers-app-notes-compliance-guides/documents/RP-003610-WP/Making-a-more-resilient-file-system.pdf)
 
-External MIDI clock is a separate software milestone. The current host uses
-an internal BPM clock. If this box must follow a drum machine, complete clock
-acquisition and Start/Continue/Stop behavior before declaring it ready.
+The current hosts implement internal BPM and external MIDI-clock acquisition,
+Start/Continue/Stop, song position, and clock-loss handling. Reuse those semantics
+in the UART host. If the box must follow a drum machine, qualify clock behavior
+on the Pi and actual serial interface before declaring it ready.
 
 ## 5. Power, sockets, and enclosure
 

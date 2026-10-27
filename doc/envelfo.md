@@ -19,6 +19,12 @@ Other arpeg events do nothing. Multiple same-time hits retain their input order
 and receive distinct Envelope command ordinals. The bridge does not route
 note-end to release automatically: a rhythmic hit Envelope is not a voice gate.
 
+An arp lane is distinct from an expression lane such as breath or bend. Player
+events carry a 1-based MIDI channel, but the bridge triggers on every supplied
+hit without filtering its channel. To trigger from one arp lane, filter events
+by `event.channel` before calling `receive`. Returned expression controls are
+broadcast to the configured owning arp lanes; they have no per-arp-lane target.
+
 For each scheduled timestamp:
 
 1. Deliver input and transport changes using arpeg's existing ordering. Supply
@@ -31,8 +37,9 @@ For each scheduled timestamp:
    next-delivery time for Threshold edges.
 5. Pass the returned expression controls to `player.realize`. Due releases and
    replacement note-offs precede the fresh entry controllers and note-ons.
-   A continuing note receives the new samples once; a released or muted note
-   receives no extra controllers. Deliver the returned MIDI in order.
+   Continuing notes on other channels receive the new samples once per channel;
+   released or muted notes receive no extra controllers. Deliver the returned
+   MIDI in order.
 
 All same-time hits are delivered before one observation, preserving the existing
 shared-channel expression policy. Each attack at that boundary uses that sample;
@@ -65,7 +72,10 @@ A host may wake irregularly, but must still process every scheduled boundary
 chronologically. Advancing the player far ahead and then feeding old hits back
 at the wake-up time loses their timing and cannot be repaired by this bridge.
 Merge arpeg deadlines, enveLFO event/next-delivery deadlines, external input,
-and the chosen expression-observation schedule. `realize` rejects fresh samples
+and the chosen expression-observation schedule. `LiveArpeggiator.next_deadline`
+includes every arp lane, queued strum attack and owned release. Strum attacks
+after the parent hit still need their own scheduling/observation boundaries.
+`realize` rejects fresh samples
 if its pending batch spans multiple attack boundaries. A single fractional
 boundary remains valid when the host wakes at the next representable clock tick;
 note and decision beat timestamps remain exact. An invalid ownership/range
@@ -187,8 +197,8 @@ alongside the bridge using its own existing continuation mechanism.
 
 The complete normalized Rust construction is in
 [the composition tests](../crates/arpeg-envelfo/tests/composition.rs).
-Run `cargo test -p arpeg-envelfo` without Python or MIDI devices. Run
-`uv run pytest test/test_envelfo.py` for Python. Both consume
+Run `cargo test -p arpeg-envelfo --locked` without Python or MIDI devices. Run
+`uv run --frozen pytest test/test_envelfo.py` for Python. Both consume
 [one shared trace](../conformance/envelfo-composition.toml), covering expressive
 controllers between notes, tempo changes, stop/start, seek, and final release.
 The independent [pre-note wire cases](../conformance/pre-note-expression.toml)
