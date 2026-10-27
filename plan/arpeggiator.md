@@ -13,14 +13,11 @@ project-creation handoff and completed implementation slices have been removed.
 Remaining items below are separate implementation choices, not authorization to
 start them all.
 
-## WebAssembly and browser verification
+## Browser timing verification
 
-Execute the WebAssembly and JavaScript binding tests for the recent musical
-features, including strums, channel metadata, independent lanes, and cleanup.
-Native Rust tests of the portable player do not establish execution inside
-WebAssembly. Use the instructions in
-[crates/arpeg-wasm/README.md](../crates/arpeg-wasm/README.md) and
-[web/README.md](../web/README.md).
+WebAssembly execution and generated JavaScript binding checks passed on
+2026-10-27, including strums, channel metadata, independent lanes, and cleanup.
+See [doc/performance.md](../doc/performance.md) for the verification evidence.
 
 Measure browser/audio timing separately from native event scheduling. Capture
 editing, sample playback, and external MIDI remain outside the browser front end.
