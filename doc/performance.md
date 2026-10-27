@@ -28,9 +28,10 @@ native platform and leaves their reports in the job logs.
 
 `batch_p99_us` measures player processing and event collection, excluding the
 poll sleep. Note lateness compares exact lifecycle beats with the wall time at
-the end of their processing batch. It includes wake-up jitter and batch work;
-Rust's real host sends individual messages during processing, so the batch
-measurement is conservative for that host. Byte rate counts MIDI message bytes,
+the end of their processing batch. It includes wake-up jitter and batch work.
+The current hosts generate complete batches before output-budget admission and
+delivery. These probes measure generation and collection, not port acceptance.
+Byte rate counts MIDI message bytes,
 including repeated controllers and entry bundles. It excludes transport framing.
 None of these numbers measures a MIDI driver, cable, synth, or audible latency.
 
@@ -54,13 +55,15 @@ after Stop and no event-buffer exhaustion. Rust's player batches were much
 shorter; Python's p99 processing batches exceeded the nominal 1 ms poll interval.
 Neither runtime can preserve delivery deadlines through the injected stall.
 
-The Python suite passes 226 tests. Native Rust tests and Clippy with `-D warnings`
-pass on the CI-pinned Rust 1.87 toolchain. Installed Clippy 1.99 reports an existing
-`collapsible_match` warning in `rhythm.rs`; that unrelated source was left unchanged.
+At that revision, the Python suite passed 226 tests. Native Rust tests and Clippy
+with `-D warnings` passed on the CI-pinned Rust 1.87 toolchain. Installed Clippy
+1.99 reported an existing `collapsible_match` warning in `rhythm.rs`.
+These timing observations predate the meedee migrations and strum/lane support;
+they are not measurements of the current transport or multiple-lane workloads.
 
 ## Correctness and capacity evidence
 
-The new Python/Rust dense-capture regression records 2,000 equal breath samples
+The Python/Rust dense-capture regression records 2,000 equal breath samples
 at 1 kHz. Fitting the phrase to a 100 ms gate retains the samples: its first
 50 ms emits 1,000 controllers. Stop emits one matching release and cancels the
 remaining stream. This also demonstrates how fitting can greatly increase
@@ -68,7 +71,9 @@ controller bandwidth; preserved data does not imply a receiver can keep up.
 
 Existing shared lifecycle tests cover stale releases, handoffs, zero gates,
 repeats, pause/clear/seek cleanup, event-buffer exhaustion, and recovery after
-draining. Both 4,096-event buffers preserve owned releases on exhaustion. Phrase
+draining. Decision output is bounded at 4,096 events per lane, with up to 16
+lanes merged by the player. The shared 4,096-event lifecycle buffer reserves
+every owned release; queued strum attacks also have a 4,096-entry limit. Phrase
 tests cover the 128-take limit and recovery through undo/clear. Captured input
 has a one-million-event admission limit.
 
@@ -108,7 +113,9 @@ within capacity, or end a session when its configured output budget is exceeded.
 Sustained input overload also ends the session.
 The input limits cover arpeg's retained payload, not MIDI-library or driver buffers.
 The output budget estimates capacity, without measuring driver queue occupancy.
-Python receives already assembled Mido messages. Automated checks do not
+Python receives raw MIDI 1 bytes through meedee and maintains independent bounded
+decoders for note/shared-clock and separate-clock inputs. Decoder diagnostics,
+receive drops and sequence gaps end playback. Automated checks do not
 establish a latency ceiling or prove device operation under a MIDI storm.
 
 Hardware verification is pending. When the devices are available:
@@ -167,9 +174,9 @@ A fourth case sets the native receive budget below a NoteOn packet's size and
 checks explicit transport-loss termination without producing output.
 Ordinary test runs do not create endpoints or contact the MIDI service.
 
-The agent-context attempt fails before creating endpoints, with CoreMIDI keeper
-initialization error 268435459. The owner's ordinary Terminal run passes all
-four cases, with the supervised result completing in 2.61 seconds. See
+An agent-context attempt during this migration failed before creating endpoints,
+with CoreMIDI keeper initialization error 268435459. The owner's ordinary Terminal
+run passed all four cases, with the supervised result completing in 2.61 seconds. See
 [the retained Terminal result](meedee-host-native-macos.txt). This establishes
 virtual-only production host behavior on this Mac, not physical interface
 latency, unplug/replug recovery or Linux/Windows qualification. Build dependencies
@@ -213,3 +220,33 @@ establish virtual-only operation on this Mac. They do not establish physical
 interface latency, unplug/replug behavior or Linux/Windows/Pi qualification.
 Isolation adds process and communication overhead; in-process native operations
 can block on drivers. Release-only CI triggers are unchanged.
+
+## Device-free musical features, 2026-10-21
+
+The delivery ending at `8c5200c` added strums and dedicated-channel arp lanes,
+following captured-bank selectors and authored phrase templates. The arpeg
+Python suite passed 612 tests; the related uFor schema work passed 1,305 tests.
+Rust workspace tests passed with default features disabled, including the
+shared strum/lane cases. Ruff, Python formatting, type checks, pyupgrade,
+Rust formatting, device-free Clippy with `-D warnings`, and `git diff --check`
+passed.
+
+Native Rust binaries and tests also compiled with `--no-run`. A first attempt
+encountered a CMake cache containing a different Cargo checkout path; compilation
+succeeded with a fresh target directory. No existing build artifacts were deleted.
+The verification commands included:
+
+```sh
+uv run --frozen pytest -q test
+cargo test --workspace --no-default-features --locked
+CARGO_TARGET_DIR=/private/tmp/arpeg-strums-native-check cargo test --workspace --locked --no-run
+```
+
+Use the explicit `test` path for local Python collection: an unrestricted run
+also collected dependency checkouts under `target`, causing duplicate-module
+collection errors.
+
+No MIDI devices or virtual endpoints were opened for this delivery. Actual
+WebAssembly/JavaScript execution and physical MIDI checks were not performed;
+native compilation does not establish either. No release workflow was triggered.
+The documentation review on 2026-10-27 does not constitute a new test run.
