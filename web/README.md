@@ -7,7 +7,7 @@ arpeggiator and no backend or JavaScript package dependency.
 
 ## Build and play
 
-Install Node.js, Rust 1.87 or newer, the `wasm32-unknown-unknown` target, and
+Install Node.js, rustup (using the checked-in Rust toolchain and target), and
 `wasm-bindgen-cli` **0.2.129**, matching the pinned Rust dependency. See the
 [WebAssembly build instructions](../crates/arpeg-wasm/README.md).
 

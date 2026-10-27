@@ -7,10 +7,15 @@ remains the reference implementation. There is no JavaScript arpeggiator.
 
 ## Build
 
-From the repository root, with Rust 1.87 or newer:
+Install Rust through rustup and put its tools on your shell's PATH (for a
+POSIX shell, `. "$HOME/.cargo/env"`). The checked-in `rust-toolchain.toml`
+selects Rust 1.87.0, matching CI, and installs the WebAssembly target. The
+toolchain and binding tools are installed persistently and reused across
+restarts; Cargo reuses compiled dependencies between builds.
+
+From the repository root:
 
 ```sh
-rustup target add wasm32-unknown-unknown
 cargo install wasm-bindgen-cli --version 0.2.129 --locked
 cargo build -p arpeg-wasm --no-default-features --target wasm32-unknown-unknown --release --locked
 wasm-bindgen --target web --out-dir dist/wasm target/wasm32-unknown-unknown/release/arpeg_wasm.wasm

@@ -250,3 +250,35 @@ No MIDI devices or virtual endpoints were opened for this delivery. Actual
 WebAssembly/JavaScript execution and physical MIDI checks were not performed;
 native compilation does not establish either. No release workflow was triggered.
 The documentation review on 2026-10-27 does not constitute a new test run.
+
+## WebAssembly and JavaScript verification, 2026-10-27
+
+On this macOS ARM64 machine, Rust 1.87.0 with the
+`wasm32-unknown-unknown` target, wasm-bindgen 0.2.129, and Node.js 23.11.0
+completed these checks:
+
+```sh
+cargo test --workspace --no-default-features --target wasm32-unknown-unknown --tests --locked
+node web/build.mjs
+node --test crates/arpeg-wasm/tests/browser.mjs web/test/*.mjs
+```
+
+The Rust suite executed 139 tests inside WebAssembly through Node, with no
+failures. All 11 strum/lane tests passed, including irregular polling, channel
+expression, capacity reservations, and cancellation of unsent strums during
+cleanup. Native-only tests did not run on this target.
+
+The release module and static browser instrument built successfully. All 31
+JavaScript tests passed against the generated bindings and browser host helpers,
+including lane-channel metadata, Stop releases, queued-attack cancellation,
+irregular polling, tempo changes, and bend ordering.
+
+The checked-in `rust-toolchain.toml` declares the CI-matching compiler, required
+components, and WebAssembly target. Local tools are installed persistently in
+`~/.cargo/bin` and `~/.rustup`; the shell must put `~/.cargo/bin` first on PATH.
+No project dependency versions or lockfiles changed.
+
+These checks establish WebAssembly execution and JavaScript integration under
+Node. They do not measure a live browser audio device, input latency, or physical
+MIDI delivery. No MIDI endpoints, application server, or live audio session were
+opened, and no release workflow was triggered.
