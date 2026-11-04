@@ -1,0 +1,17 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.10s
+     Running tests/native_host.rs (target/debug/deps/native_host-f294d9ca02039a8d)
+
+running 1 test
+
+running 1 test
+native arpeg note delivery and quit cleanup passed: clock=None
+native arpeg note delivery and quit cleanup passed: clock=Some(1)
+native arpeg note delivery and quit cleanup passed: clock=Some(2)
+native arpeg transport-loss termination passed
+test executable_delivers_notes_cleans_up_and_reports_transport_loss ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.58s
+
+test executable_delivers_notes_cleans_up_and_reports_transport_loss ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.61s

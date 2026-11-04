@@ -1,0 +1,2258 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="🧬 An expressive arpeggiator 🧬">
+      
+      
+      
+        <link rel="canonical" href="https://rec.github.io/arpeg/reference/arpeg/tuning/">
+      
+      
+      
+        <link rel="prev" href="../timing_ports/">
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../../assets/images/favicon.png">
+      <meta name="generator" content="zensical-0.0.73">
+    
+    
+      
+        <title>tuning - arpeg</title>
+      
+    
+    
+      
+        
+      
+      <link rel="stylesheet" href="../../../assets/stylesheets/modern/main.4ab2de0c.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Inter:300,300i,400,400i,500,500i,700,700i%7CJetBrains+Mono:400,400i,700,700i&amp;display=fallback">
+        <style>:root{--md-text-font:"Inter";--md-code-font:"JetBrains Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../../..",location),__md_scope.pathname.endsWith("/")||(__md_scope=new URL(__md_scope.pathname+"/",location)),__md_hash=e=>[...e].reduce(((e,t)=>(e<<5)-e+t.charCodeAt(0)),0),__md_get=(e,t=localStorage,_=__md_scope)=>JSON.parse(t.getItem(_.pathname+"."+e)),__md_set=(e,t,_=localStorage,a=__md_scope)=>{try{_.setItem(a.pathname+"."+e,JSON.stringify(t))}catch(e){}},document.documentElement.setAttribute("data-platform",navigator.platform)</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    <body dir="ltr">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer" aria-hidden="true"></label>
+    <div data-md-component="skip">
+      <a href="#__skip" class="md-skip">
+        Skip to content
+      </a>
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../.." title="arpeg" class="md-header__button md-logo" aria-label="arpeg" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-menu" viewBox="0 0 24 24"><path d="M4 5h16M4 12h16M4 19h16"/></svg>
+      <span class="md-visually-hidden">Navigation</span>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            arpeg
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              tuning
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-search" viewBox="0 0 24 24"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>
+          <span class="md-visually-hidden">Search</span>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog" aria-label="Search">
+  <button type="button" class="md-search__button">
+    Search
+  </button>
+</div>
+      
+    
+    <div class="md-header__source">
+      
+    </div>
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../.." title="arpeg" class="md-nav__button md-logo" aria-label="arpeg" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
+
+    </a>
+    arpeg
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  arpeg
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../envelfo/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Connecting arpeg and enveLFO
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../performance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Native delivery and performance verification
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+      
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  API Reference
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
+            <label class="md-nav__title" for="__nav_4">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  API Reference
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_1" checked>
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>arpeg
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_4_1" id="__nav_4_1_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        
+          <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_1_label" aria-expanded="true">
+            <label class="md-nav__title" for="__nav_4_1">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>arpeg
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../bank/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  bank
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../capture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  capture
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../chance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  chance
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../clock/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  clock
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../engine/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  engine
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../envelfo/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  envelfo
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../expression/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  expression
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gesture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  gesture
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../held/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  held
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../history/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  history
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../inbox/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  inbox
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../inversion/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  inversion
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../live/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  live
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../marked_sample/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  marked_sample
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../midi/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  midi
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../octaves/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  octaves
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../output/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  output
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ports/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  ports
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../profile/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  profile
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../rhythm/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  rhythm
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../timing_ports/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  timing_ports
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  tuning
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="././" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  tuning
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#arpeg.tuning.PreparedTuning" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        PreparedTuning
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="PreparedTuning">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#arpeg.tuning.PreparedTuning.computed_limit" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        computed_limit
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#arpeg.tuning.PreparedTuning.computed_ratio" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        computed_ratio
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#arpeg.tuning.PreparedTuning.pitches" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        pitches
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#arpeg.tuning.PreparedTuning.first_note" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        first_note
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#arpeg.tuning.PreparedTuning.period" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        period
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#arpeg.tuning.PreparedTuning.period_semitones" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        period_semitones
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#arpeg.tuning.PreparedTuning.prepare" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        prepare
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#arpeg.tuning.PreparedTuning.pitch" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        pitch
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#arpeg.tuning.RealizedPitch" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        RealizedPitch
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="RealizedPitch">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#arpeg.tuning.RealizedPitch.key" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        key
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#arpeg.tuning.RealizedPitch.tuning_semitones" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        tuning_semitones
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#arpeg.tuning.pitch_logarithm" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        pitch_logarithm
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  
+                    
+                    
+                    
+                      
+                    
+                    
+                      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+                      <div class="md-sidebar-button__wrapper">
+                        <label class="md-sidebar-button" for="__toc"></label>
+                      </div>
+                    
+                  
+                  <div class="md-sidebar__inner">
+                    
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#arpeg.tuning.PreparedTuning" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        PreparedTuning
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="PreparedTuning">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#arpeg.tuning.PreparedTuning.computed_limit" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        computed_limit
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#arpeg.tuning.PreparedTuning.computed_ratio" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        computed_ratio
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#arpeg.tuning.PreparedTuning.pitches" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        pitches
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#arpeg.tuning.PreparedTuning.first_note" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        first_note
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#arpeg.tuning.PreparedTuning.period" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        period
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#arpeg.tuning.PreparedTuning.period_semitones" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        period_semitones
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#arpeg.tuning.PreparedTuning.prepare" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        prepare
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#arpeg.tuning.PreparedTuning.pitch" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        pitch
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#arpeg.tuning.RealizedPitch" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        RealizedPitch
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="RealizedPitch">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#arpeg.tuning.RealizedPitch.key" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        key
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#arpeg.tuning.RealizedPitch.tuning_semitones" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        tuning_semitones
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#arpeg.tuning.pitch_logarithm" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        pitch_logarithm
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                <a id="__skip" tabindex="-1"></a>
+                
+                  
+
+
+<div class="doc doc-object doc-module">
+
+
+
+<h1 id="arpeg.tuning" class="doc doc-heading">
+            <code>arpeg.tuning</code>
+
+
+<a href="#arpeg.tuning" class="headerlink" title="Permanent link">&para;</a></h1>
+
+    <div class="doc doc-contents first">
+
+        <p>Prepare shared uFor tuning definitions as unrounded MIDI pitch coordinates.</p>
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="arpeg.tuning.PreparedTuning" class="doc doc-heading">
+            <code>PreparedTuning</code>
+
+
+<a href="#arpeg.tuning.PreparedTuning" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents ">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="pydantic.BaseModel">BaseModel</span></code></p>
+
+
+
+
+
+
+
+
+
+
+              <details class="mkdocstrings-source">
+                <summary>Source code in <code>arpeg/tuning.py</code></summary>
+                <div class="language-python highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#arpeg.tuning.PreparedTuning--source--__codelineno-0-13"> 13</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning--source--__codelineno-0-14"> 14</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning--source--__codelineno-0-15"> 15</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning--source--__codelineno-0-16"> 16</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning--source--__codelineno-0-17"> 17</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning--source--__codelineno-0-18"> 18</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning--source--__codelineno-0-19"> 19</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning--source--__codelineno-0-20"> 20</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning--source--__codelineno-0-21"> 21</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning--source--__codelineno-0-22"> 22</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning--source--__codelineno-0-23"> 23</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning--source--__codelineno-0-24"> 24</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning--source--__codelineno-0-25"> 25</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning--source--__codelineno-0-26"> 26</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning--source--__codelineno-0-27"> 27</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning--source--__codelineno-0-28"> 28</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning--source--__codelineno-0-29"> 29</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning--source--__codelineno-0-30"> 30</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning--source--__codelineno-0-31"> 31</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning--source--__codelineno-0-32"> 32</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning--source--__codelineno-0-33"> 33</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning--source--__codelineno-0-34"> 34</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning--source--__codelineno-0-35"> 35</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning--source--__codelineno-0-36"> 36</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning--source--__codelineno-0-37"> 37</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning--source--__codelineno-0-38"> 38</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning--source--__codelineno-0-39"> 39</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning--source--__codelineno-0-40"> 40</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning--source--__codelineno-0-41"> 41</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning--source--__codelineno-0-42"> 42</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning--source--__codelineno-0-43"> 43</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning--source--__codelineno-0-44"> 44</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning--source--__codelineno-0-45"> 45</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning--source--__codelineno-0-46"> 46</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning--source--__codelineno-0-47"> 47</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning--source--__codelineno-0-48"> 48</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning--source--__codelineno-0-49"> 49</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning--source--__codelineno-0-50"> 50</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning--source--__codelineno-0-51"> 51</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning--source--__codelineno-0-52"> 52</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning--source--__codelineno-0-53"> 53</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning--source--__codelineno-0-54"> 54</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning--source--__codelineno-0-55"> 55</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning--source--__codelineno-0-56"> 56</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning--source--__codelineno-0-57"> 57</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning--source--__codelineno-0-58"> 58</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning--source--__codelineno-0-59"> 59</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning--source--__codelineno-0-60"> 60</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning--source--__codelineno-0-61"> 61</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning--source--__codelineno-0-62"> 62</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning--source--__codelineno-0-63"> 63</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning--source--__codelineno-0-64"> 64</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning--source--__codelineno-0-65"> 65</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning--source--__codelineno-0-66"> 66</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning--source--__codelineno-0-67"> 67</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning--source--__codelineno-0-68"> 68</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning--source--__codelineno-0-69"> 69</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning--source--__codelineno-0-70"> 70</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning--source--__codelineno-0-71"> 71</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning--source--__codelineno-0-72"> 72</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning--source--__codelineno-0-73"> 73</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning--source--__codelineno-0-74"> 74</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning--source--__codelineno-0-75"> 75</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning--source--__codelineno-0-76"> 76</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning--source--__codelineno-0-77"> 77</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning--source--__codelineno-0-78"> 78</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning--source--__codelineno-0-79"> 79</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning--source--__codelineno-0-80"> 80</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning--source--__codelineno-0-81"> 81</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning--source--__codelineno-0-82"> 82</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning--source--__codelineno-0-83"> 83</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning--source--__codelineno-0-84"> 84</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning--source--__codelineno-0-85"> 85</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning--source--__codelineno-0-86"> 86</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning--source--__codelineno-0-87"> 87</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning--source--__codelineno-0-88"> 88</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning--source--__codelineno-0-89"> 89</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning--source--__codelineno-0-90"> 90</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning--source--__codelineno-0-91"> 91</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning--source--__codelineno-0-92"> 92</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning--source--__codelineno-0-93"> 93</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning--source--__codelineno-0-94"> 94</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning--source--__codelineno-0-95"> 95</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning--source--__codelineno-0-96"> 96</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning--source--__codelineno-0-97"> 97</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning--source--__codelineno-0-98"> 98</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning--source--__codelineno-0-99"> 99</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning--source--__codelineno-0-100">100</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning--source--__codelineno-0-101">101</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning--source--__codelineno-0-102">102</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning--source--__codelineno-0-103">103</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning--source--__codelineno-0-104">104</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning--source--__codelineno-0-105">105</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning--source--__codelineno-0-106">106</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning--source--__codelineno-0-107">107</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning--source--__codelineno-0-108">108</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning--source--__codelineno-0-109">109</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning--source--__codelineno-0-110">110</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="arpeg.tuning.PreparedTuning--source--__span-0-13"><a id="arpeg.tuning.PreparedTuning--source--__codelineno-0-13" name="arpeg.tuning.PreparedTuning--source--__codelineno-0-13"></a><span class="k">class</span><span class="w"> </span><span class="nc">PreparedTuning</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">,</span> <span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+</span><span id="arpeg.tuning.PreparedTuning--source--__span-0-14"><a id="arpeg.tuning.PreparedTuning--source--__codelineno-0-14" name="arpeg.tuning.PreparedTuning--source--__codelineno-0-14"></a>    <span class="n">computed_limit</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</span><span id="arpeg.tuning.PreparedTuning--source--__span-0-15"><a id="arpeg.tuning.PreparedTuning--source--__codelineno-0-15" name="arpeg.tuning.PreparedTuning--source--__codelineno-0-15"></a>    <span class="n">computed_ratio</span><span class="p">:</span> <span class="n">Fraction</span> <span class="o">|</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">Fraction</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+</span><span id="arpeg.tuning.PreparedTuning--source--__span-0-16"><a id="arpeg.tuning.PreparedTuning--source--__codelineno-0-16" name="arpeg.tuning.PreparedTuning--source--__codelineno-0-16"></a>    <span class="n">pitches</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span>
+</span><span id="arpeg.tuning.PreparedTuning--source--__span-0-17"><a id="arpeg.tuning.PreparedTuning--source--__codelineno-0-17" name="arpeg.tuning.PreparedTuning--source--__codelineno-0-17"></a>    <span class="n">first_note</span><span class="p">:</span> <span class="nb">int</span>
+</span><span id="arpeg.tuning.PreparedTuning--source--__span-0-18"><a id="arpeg.tuning.PreparedTuning--source--__codelineno-0-18" name="arpeg.tuning.PreparedTuning--source--__codelineno-0-18"></a>    <span class="n">period</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span>
+</span><span id="arpeg.tuning.PreparedTuning--source--__span-0-19"><a id="arpeg.tuning.PreparedTuning--source--__codelineno-0-19" name="arpeg.tuning.PreparedTuning--source--__codelineno-0-19"></a>    <span class="n">period_semitones</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">0</span>
+</span><span id="arpeg.tuning.PreparedTuning--source--__span-0-20"><a id="arpeg.tuning.PreparedTuning--source--__codelineno-0-20" name="arpeg.tuning.PreparedTuning--source--__codelineno-0-20"></a>
+</span><span id="arpeg.tuning.PreparedTuning--source--__span-0-21"><a id="arpeg.tuning.PreparedTuning--source--__codelineno-0-21" name="arpeg.tuning.PreparedTuning--source--__codelineno-0-21"></a>    <span class="nd">@classmethod</span>
+</span><span id="arpeg.tuning.PreparedTuning--source--__span-0-22"><a id="arpeg.tuning.PreparedTuning--source--__codelineno-0-22" name="arpeg.tuning.PreparedTuning--source--__codelineno-0-22"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">prepare</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">body</span><span class="p">:</span> <span class="n">Arpeggiator</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Self</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="arpeg.tuning.PreparedTuning--source--__span-0-23"><a id="arpeg.tuning.PreparedTuning--source--__codelineno-0-23" name="arpeg.tuning.PreparedTuning--source--__codelineno-0-23"></a>        <span class="k">if</span> <span class="p">(</span><span class="n">tuning</span> <span class="o">:=</span> <span class="n">body</span><span class="o">.</span><span class="n">tuning</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="arpeg.tuning.PreparedTuning--source--__span-0-24"><a id="arpeg.tuning.PreparedTuning--source--__codelineno-0-24" name="arpeg.tuning.PreparedTuning--source--__codelineno-0-24"></a>            <span class="k">return</span> <span class="kc">None</span>
+</span><span id="arpeg.tuning.PreparedTuning--source--__span-0-25"><a id="arpeg.tuning.PreparedTuning--source--__codelineno-0-25" name="arpeg.tuning.PreparedTuning--source--__codelineno-0-25"></a>        <span class="n">source</span> <span class="o">=</span> <span class="n">tuning</span><span class="o">.</span><span class="n">source</span>
+</span><span id="arpeg.tuning.PreparedTuning--source--__span-0-26"><a id="arpeg.tuning.PreparedTuning--source--__codelineno-0-26" name="arpeg.tuning.PreparedTuning--source--__codelineno-0-26"></a>        <span class="n">first</span> <span class="o">=</span> <span class="n">tuning</span><span class="o">.</span><span class="n">root_note</span>
+</span><span id="arpeg.tuning.PreparedTuning--source--__span-0-27"><a id="arpeg.tuning.PreparedTuning--source--__codelineno-0-27" name="arpeg.tuning.PreparedTuning--source--__codelineno-0-27"></a>        <span class="n">period</span> <span class="o">=</span> <span class="kc">None</span>
+</span><span id="arpeg.tuning.PreparedTuning--source--__span-0-28"><a id="arpeg.tuning.PreparedTuning--source--__codelineno-0-28" name="arpeg.tuning.PreparedTuning--source--__codelineno-0-28"></a>        <span class="n">span</span> <span class="o">=</span> <span class="mf">0.0</span>
+</span><span id="arpeg.tuning.PreparedTuning--source--__span-0-29"><a id="arpeg.tuning.PreparedTuning--source--__codelineno-0-29" name="arpeg.tuning.PreparedTuning--source--__codelineno-0-29"></a>        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="n">FrequencyTable</span><span class="p">):</span>
+</span><span id="arpeg.tuning.PreparedTuning--source--__span-0-30"><a id="arpeg.tuning.PreparedTuning--source--__codelineno-0-30" name="arpeg.tuning.PreparedTuning--source--__codelineno-0-30"></a>            <span class="n">first</span> <span class="o">=</span> <span class="n">source</span><span class="o">.</span><span class="n">first_note</span>
+</span><span id="arpeg.tuning.PreparedTuning--source--__span-0-31"><a id="arpeg.tuning.PreparedTuning--source--__codelineno-0-31" name="arpeg.tuning.PreparedTuning--source--__codelineno-0-31"></a>            <span class="n">pitches</span> <span class="o">=</span> <span class="p">[</span>
+</span><span id="arpeg.tuning.PreparedTuning--source--__span-0-32"><a id="arpeg.tuning.PreparedTuning--source--__codelineno-0-32" name="arpeg.tuning.PreparedTuning--source--__codelineno-0-32"></a>                <span class="mi">69</span> <span class="o">+</span> <span class="mi">12</span> <span class="o">*</span> <span class="p">(</span><span class="n">pitch_logarithm</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="o">-</span> <span class="n">log2</span><span class="p">(</span><span class="mi">440</span><span class="p">))</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">source</span><span class="o">.</span><span class="n">values</span>
+</span><span id="arpeg.tuning.PreparedTuning--source--__span-0-33"><a id="arpeg.tuning.PreparedTuning--source--__codelineno-0-33" name="arpeg.tuning.PreparedTuning--source--__codelineno-0-33"></a>            <span class="p">]</span>
+</span><span id="arpeg.tuning.PreparedTuning--source--__span-0-34"><a id="arpeg.tuning.PreparedTuning--source--__codelineno-0-34" name="arpeg.tuning.PreparedTuning--source--__codelineno-0-34"></a>        <span class="k">else</span><span class="p">:</span>
+</span><span id="arpeg.tuning.PreparedTuning--source--__span-0-35"><a id="arpeg.tuning.PreparedTuning--source--__codelineno-0-35" name="arpeg.tuning.PreparedTuning--source--__codelineno-0-35"></a>            <span class="n">root</span> <span class="o">=</span> <span class="mi">69</span> <span class="o">+</span> <span class="mi">12</span> <span class="o">*</span> <span class="p">(</span><span class="n">pitch_logarithm</span><span class="p">(</span><span class="n">tuning</span><span class="o">.</span><span class="n">root_frequency</span><span class="p">)</span> <span class="o">-</span> <span class="n">log2</span><span class="p">(</span><span class="mi">440</span><span class="p">))</span>
+</span><span id="arpeg.tuning.PreparedTuning--source--__span-0-36"><a id="arpeg.tuning.PreparedTuning--source--__codelineno-0-36" name="arpeg.tuning.PreparedTuning--source--__codelineno-0-36"></a>            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="n">Computed</span><span class="p">):</span>
+</span><span id="arpeg.tuning.PreparedTuning--source--__span-0-37"><a id="arpeg.tuning.PreparedTuning--source--__codelineno-0-37" name="arpeg.tuning.PreparedTuning--source--__codelineno-0-37"></a>                <span class="n">period</span> <span class="o">=</span> <span class="n">source</span><span class="o">.</span><span class="n">notes_per_octave</span>
+</span><span id="arpeg.tuning.PreparedTuning--source--__span-0-38"><a id="arpeg.tuning.PreparedTuning--source--__codelineno-0-38" name="arpeg.tuning.PreparedTuning--source--__codelineno-0-38"></a>                <span class="n">span</span> <span class="o">=</span> <span class="mi">12</span> <span class="o">*</span> <span class="n">pitch_logarithm</span><span class="p">(</span><span class="n">source</span><span class="o">.</span><span class="n">octave_ratio</span><span class="p">)</span>
+</span><span id="arpeg.tuning.PreparedTuning--source--__span-0-39"><a id="arpeg.tuning.PreparedTuning--source--__codelineno-0-39" name="arpeg.tuning.PreparedTuning--source--__codelineno-0-39"></a>                <span class="n">pitches</span> <span class="o">=</span> <span class="p">[</span><span class="n">root</span><span class="p">]</span>
+</span><span id="arpeg.tuning.PreparedTuning--source--__span-0-40"><a id="arpeg.tuning.PreparedTuning--source--__codelineno-0-40" name="arpeg.tuning.PreparedTuning--source--__codelineno-0-40"></a>            <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="n">RatioTable</span><span class="p">):</span>
+</span><span id="arpeg.tuning.PreparedTuning--source--__span-0-41"><a id="arpeg.tuning.PreparedTuning--source--__codelineno-0-41" name="arpeg.tuning.PreparedTuning--source--__codelineno-0-41"></a>                <span class="n">pitches</span> <span class="o">=</span> <span class="p">[</span><span class="n">root</span> <span class="o">+</span> <span class="mi">12</span> <span class="o">*</span> <span class="n">pitch_logarithm</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">source</span><span class="o">.</span><span class="n">values</span><span class="p">]</span>
+</span><span id="arpeg.tuning.PreparedTuning--source--__span-0-42"><a id="arpeg.tuning.PreparedTuning--source--__codelineno-0-42" name="arpeg.tuning.PreparedTuning--source--__codelineno-0-42"></a>                <span class="k">if</span> <span class="n">source</span><span class="o">.</span><span class="n">repeat_ratio</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="arpeg.tuning.PreparedTuning--source--__span-0-43"><a id="arpeg.tuning.PreparedTuning--source--__codelineno-0-43" name="arpeg.tuning.PreparedTuning--source--__codelineno-0-43"></a>                    <span class="n">period</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">pitches</span><span class="p">)</span>
+</span><span id="arpeg.tuning.PreparedTuning--source--__span-0-44"><a id="arpeg.tuning.PreparedTuning--source--__codelineno-0-44" name="arpeg.tuning.PreparedTuning--source--__codelineno-0-44"></a>                    <span class="n">span</span> <span class="o">=</span> <span class="mi">12</span> <span class="o">*</span> <span class="n">pitch_logarithm</span><span class="p">(</span><span class="n">source</span><span class="o">.</span><span class="n">repeat_ratio</span><span class="p">)</span>
+</span><span id="arpeg.tuning.PreparedTuning--source--__span-0-45"><a id="arpeg.tuning.PreparedTuning--source--__codelineno-0-45" name="arpeg.tuning.PreparedTuning--source--__codelineno-0-45"></a>            <span class="k">else</span><span class="p">:</span>
+</span><span id="arpeg.tuning.PreparedTuning--source--__span-0-46"><a id="arpeg.tuning.PreparedTuning--source--__codelineno-0-46" name="arpeg.tuning.PreparedTuning--source--__codelineno-0-46"></a>                <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="n">IntervalPattern</span><span class="p">)</span>
+</span><span id="arpeg.tuning.PreparedTuning--source--__span-0-47"><a id="arpeg.tuning.PreparedTuning--source--__codelineno-0-47" name="arpeg.tuning.PreparedTuning--source--__codelineno-0-47"></a>                <span class="n">pitches</span> <span class="o">=</span> <span class="p">[</span><span class="n">root</span><span class="p">]</span>
+</span><span id="arpeg.tuning.PreparedTuning--source--__span-0-48"><a id="arpeg.tuning.PreparedTuning--source--__codelineno-0-48" name="arpeg.tuning.PreparedTuning--source--__codelineno-0-48"></a>                <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">source</span><span class="o">.</span><span class="n">intervals</span><span class="p">:</span>
+</span><span id="arpeg.tuning.PreparedTuning--source--__span-0-49"><a id="arpeg.tuning.PreparedTuning--source--__codelineno-0-49" name="arpeg.tuning.PreparedTuning--source--__codelineno-0-49"></a>                    <span class="n">pitches</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">pitches</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="mi">12</span> <span class="o">*</span> <span class="n">pitch_logarithm</span><span class="p">(</span><span class="n">v</span><span class="p">))</span>
+</span><span id="arpeg.tuning.PreparedTuning--source--__span-0-50"><a id="arpeg.tuning.PreparedTuning--source--__codelineno-0-50" name="arpeg.tuning.PreparedTuning--source--__codelineno-0-50"></a>                <span class="k">if</span> <span class="n">source</span><span class="o">.</span><span class="n">repeat</span><span class="p">:</span>
+</span><span id="arpeg.tuning.PreparedTuning--source--__span-0-51"><a id="arpeg.tuning.PreparedTuning--source--__codelineno-0-51" name="arpeg.tuning.PreparedTuning--source--__codelineno-0-51"></a>                    <span class="n">period</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">source</span><span class="o">.</span><span class="n">intervals</span><span class="p">)</span>
+</span><span id="arpeg.tuning.PreparedTuning--source--__span-0-52"><a id="arpeg.tuning.PreparedTuning--source--__codelineno-0-52" name="arpeg.tuning.PreparedTuning--source--__codelineno-0-52"></a>                    <span class="n">span</span> <span class="o">=</span> <span class="n">pitches</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span> <span class="o">-</span> <span class="n">root</span>
+</span><span id="arpeg.tuning.PreparedTuning--source--__span-0-53"><a id="arpeg.tuning.PreparedTuning--source--__codelineno-0-53" name="arpeg.tuning.PreparedTuning--source--__codelineno-0-53"></a>            <span class="n">pitches</span> <span class="o">=</span> <span class="p">[</span><span class="n">p</span> <span class="o">+</span> <span class="n">tuning</span><span class="o">.</span><span class="n">detune_cents</span> <span class="o">/</span> <span class="mi">100</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">pitches</span><span class="p">]</span>
+</span><span id="arpeg.tuning.PreparedTuning--source--__span-0-54"><a id="arpeg.tuning.PreparedTuning--source--__codelineno-0-54" name="arpeg.tuning.PreparedTuning--source--__codelineno-0-54"></a>        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="n">FrequencyTable</span><span class="p">):</span>
+</span><span id="arpeg.tuning.PreparedTuning--source--__span-0-55"><a id="arpeg.tuning.PreparedTuning--source--__codelineno-0-55" name="arpeg.tuning.PreparedTuning--source--__codelineno-0-55"></a>            <span class="n">pitches</span> <span class="o">=</span> <span class="p">[</span><span class="n">p</span> <span class="o">+</span> <span class="n">tuning</span><span class="o">.</span><span class="n">detune_cents</span> <span class="o">/</span> <span class="mi">100</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">pitches</span><span class="p">]</span>
+</span><span id="arpeg.tuning.PreparedTuning--source--__span-0-56"><a id="arpeg.tuning.PreparedTuning--source--__codelineno-0-56" name="arpeg.tuning.PreparedTuning--source--__codelineno-0-56"></a>        <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span>
+</span><span id="arpeg.tuning.PreparedTuning--source--__span-0-57"><a id="arpeg.tuning.PreparedTuning--source--__codelineno-0-57" name="arpeg.tuning.PreparedTuning--source--__codelineno-0-57"></a>            <span class="n">pitches</span><span class="o">=</span><span class="n">pitches</span><span class="p">,</span>
+</span><span id="arpeg.tuning.PreparedTuning--source--__span-0-58"><a id="arpeg.tuning.PreparedTuning--source--__codelineno-0-58" name="arpeg.tuning.PreparedTuning--source--__codelineno-0-58"></a>            <span class="n">first_note</span><span class="o">=</span><span class="n">first</span><span class="p">,</span>
+</span><span id="arpeg.tuning.PreparedTuning--source--__span-0-59"><a id="arpeg.tuning.PreparedTuning--source--__codelineno-0-59" name="arpeg.tuning.PreparedTuning--source--__codelineno-0-59"></a>            <span class="n">period</span><span class="o">=</span><span class="n">period</span><span class="p">,</span>
+</span><span id="arpeg.tuning.PreparedTuning--source--__span-0-60"><a id="arpeg.tuning.PreparedTuning--source--__codelineno-0-60" name="arpeg.tuning.PreparedTuning--source--__codelineno-0-60"></a>            <span class="n">period_semitones</span><span class="o">=</span><span class="n">span</span><span class="p">,</span>
+</span><span id="arpeg.tuning.PreparedTuning--source--__span-0-61"><a id="arpeg.tuning.PreparedTuning--source--__codelineno-0-61" name="arpeg.tuning.PreparedTuning--source--__codelineno-0-61"></a>            <span class="n">computed_limit</span><span class="o">=</span><span class="n">source</span><span class="o">.</span><span class="n">denominator_limit</span>
+</span><span id="arpeg.tuning.PreparedTuning--source--__span-0-62"><a id="arpeg.tuning.PreparedTuning--source--__codelineno-0-62" name="arpeg.tuning.PreparedTuning--source--__codelineno-0-62"></a>            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="n">Computed</span><span class="p">)</span>
+</span><span id="arpeg.tuning.PreparedTuning--source--__span-0-63"><a id="arpeg.tuning.PreparedTuning--source--__codelineno-0-63" name="arpeg.tuning.PreparedTuning--source--__codelineno-0-63"></a>            <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="arpeg.tuning.PreparedTuning--source--__span-0-64"><a id="arpeg.tuning.PreparedTuning--source--__codelineno-0-64" name="arpeg.tuning.PreparedTuning--source--__codelineno-0-64"></a>            <span class="n">computed_ratio</span><span class="o">=</span><span class="n">evaluate</span><span class="p">(</span><span class="n">source</span><span class="o">.</span><span class="n">octave_ratio</span><span class="p">)</span>
+</span><span id="arpeg.tuning.PreparedTuning--source--__span-0-65"><a id="arpeg.tuning.PreparedTuning--source--__codelineno-0-65" name="arpeg.tuning.PreparedTuning--source--__codelineno-0-65"></a>            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="n">Computed</span><span class="p">)</span>
+</span><span id="arpeg.tuning.PreparedTuning--source--__span-0-66"><a id="arpeg.tuning.PreparedTuning--source--__codelineno-0-66" name="arpeg.tuning.PreparedTuning--source--__codelineno-0-66"></a>            <span class="k">else</span> <span class="n">Fraction</span><span class="p">(</span><span class="mi">1</span><span class="p">),</span>
+</span><span id="arpeg.tuning.PreparedTuning--source--__span-0-67"><a id="arpeg.tuning.PreparedTuning--source--__codelineno-0-67" name="arpeg.tuning.PreparedTuning--source--__codelineno-0-67"></a>        <span class="p">)</span>
+</span><span id="arpeg.tuning.PreparedTuning--source--__span-0-68"><a id="arpeg.tuning.PreparedTuning--source--__codelineno-0-68" name="arpeg.tuning.PreparedTuning--source--__codelineno-0-68"></a>
+</span><span id="arpeg.tuning.PreparedTuning--source--__span-0-69"><a id="arpeg.tuning.PreparedTuning--source--__codelineno-0-69" name="arpeg.tuning.PreparedTuning--source--__codelineno-0-69"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">pitch</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">index</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+</span><span id="arpeg.tuning.PreparedTuning--source--__span-0-70"><a id="arpeg.tuning.PreparedTuning--source--__codelineno-0-70" name="arpeg.tuning.PreparedTuning--source--__codelineno-0-70"></a>        <span class="n">index</span> <span class="o">-=</span> <span class="bp">self</span><span class="o">.</span><span class="n">first_note</span>
+</span><span id="arpeg.tuning.PreparedTuning--source--__span-0-71"><a id="arpeg.tuning.PreparedTuning--source--__codelineno-0-71" name="arpeg.tuning.PreparedTuning--source--__codelineno-0-71"></a>        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">computed_limit</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="arpeg.tuning.PreparedTuning--source--__span-0-72"><a id="arpeg.tuning.PreparedTuning--source--__codelineno-0-72" name="arpeg.tuning.PreparedTuning--source--__codelineno-0-72"></a>            <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">computed_limit</span><span class="p">:</span>
+</span><span id="arpeg.tuning.PreparedTuning--source--__span-0-73"><a id="arpeg.tuning.PreparedTuning--source--__codelineno-0-73" name="arpeg.tuning.PreparedTuning--source--__codelineno-0-73"></a>                <span class="k">assert</span> <span class="bp">self</span><span class="o">.</span><span class="n">period</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+</span><span id="arpeg.tuning.PreparedTuning--source--__span-0-74"><a id="arpeg.tuning.PreparedTuning--source--__codelineno-0-74" name="arpeg.tuning.PreparedTuning--source--__codelineno-0-74"></a>                <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">pitches</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="n">index</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">period_semitones</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">period</span>
+</span><span id="arpeg.tuning.PreparedTuning--source--__span-0-75"><a id="arpeg.tuning.PreparedTuning--source--__codelineno-0-75" name="arpeg.tuning.PreparedTuning--source--__codelineno-0-75"></a>            <span class="k">try</span><span class="p">:</span>
+</span><span id="arpeg.tuning.PreparedTuning--source--__span-0-76"><a id="arpeg.tuning.PreparedTuning--source--__codelineno-0-76" name="arpeg.tuning.PreparedTuning--source--__codelineno-0-76"></a>                <span class="k">assert</span> <span class="bp">self</span><span class="o">.</span><span class="n">period</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+</span><span id="arpeg.tuning.PreparedTuning--source--__span-0-77"><a id="arpeg.tuning.PreparedTuning--source--__codelineno-0-77" name="arpeg.tuning.PreparedTuning--source--__codelineno-0-77"></a>                <span class="n">exponent</span> <span class="o">=</span> <span class="n">Fraction</span><span class="p">(</span><span class="n">index</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">period</span><span class="p">)</span>
+</span><span id="arpeg.tuning.PreparedTuning--source--__span-0-78"><a id="arpeg.tuning.PreparedTuning--source--__codelineno-0-78" name="arpeg.tuning.PreparedTuning--source--__codelineno-0-78"></a>                <span class="n">estimate</span> <span class="o">=</span> <span class="n">exp2</span><span class="p">(</span><span class="n">index</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">period_semitones</span> <span class="o">/</span> <span class="p">(</span><span class="mi">12</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">period</span><span class="p">))</span>
+</span><span id="arpeg.tuning.PreparedTuning--source--__span-0-79"><a id="arpeg.tuning.PreparedTuning--source--__codelineno-0-79" name="arpeg.tuning.PreparedTuning--source--__codelineno-0-79"></a>                <span class="k">if</span> <span class="ow">not</span> <span class="n">isfinite</span><span class="p">(</span><span class="n">estimate</span><span class="p">)</span> <span class="ow">or</span> <span class="n">estimate</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
+</span><span id="arpeg.tuning.PreparedTuning--source--__span-0-80"><a id="arpeg.tuning.PreparedTuning--source--__codelineno-0-80" name="arpeg.tuning.PreparedTuning--source--__codelineno-0-80"></a>                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"computed ratio is outside numerical limits"</span><span class="p">)</span>
+</span><span id="arpeg.tuning.PreparedTuning--source--__span-0-81"><a id="arpeg.tuning.PreparedTuning--source--__codelineno-0-81" name="arpeg.tuning.PreparedTuning--source--__codelineno-0-81"></a>                <span class="k">if</span> <span class="p">(</span>
+</span><span id="arpeg.tuning.PreparedTuning--source--__span-0-82"><a id="arpeg.tuning.PreparedTuning--source--__codelineno-0-82" name="arpeg.tuning.PreparedTuning--source--__codelineno-0-82"></a>                    <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">computed_ratio</span><span class="p">,</span> <span class="n">Fraction</span><span class="p">)</span>
+</span><span id="arpeg.tuning.PreparedTuning--source--__span-0-83"><a id="arpeg.tuning.PreparedTuning--source--__codelineno-0-83" name="arpeg.tuning.PreparedTuning--source--__codelineno-0-83"></a>                    <span class="ow">and</span> <span class="n">exponent</span><span class="o">.</span><span class="n">denominator</span> <span class="o">==</span> <span class="mi">1</span>
+</span><span id="arpeg.tuning.PreparedTuning--source--__span-0-84"><a id="arpeg.tuning.PreparedTuning--source--__codelineno-0-84" name="arpeg.tuning.PreparedTuning--source--__codelineno-0-84"></a>                    <span class="ow">and</span> <span class="nb">max</span><span class="p">(</span>
+</span><span id="arpeg.tuning.PreparedTuning--source--__span-0-85"><a id="arpeg.tuning.PreparedTuning--source--__codelineno-0-85" name="arpeg.tuning.PreparedTuning--source--__codelineno-0-85"></a>                        <span class="bp">self</span><span class="o">.</span><span class="n">computed_ratio</span><span class="o">.</span><span class="n">numerator</span><span class="o">.</span><span class="n">bit_length</span><span class="p">(),</span>
+</span><span id="arpeg.tuning.PreparedTuning--source--__span-0-86"><a id="arpeg.tuning.PreparedTuning--source--__codelineno-0-86" name="arpeg.tuning.PreparedTuning--source--__codelineno-0-86"></a>                        <span class="bp">self</span><span class="o">.</span><span class="n">computed_ratio</span><span class="o">.</span><span class="n">denominator</span><span class="o">.</span><span class="n">bit_length</span><span class="p">(),</span>
+</span><span id="arpeg.tuning.PreparedTuning--source--__span-0-87"><a id="arpeg.tuning.PreparedTuning--source--__codelineno-0-87" name="arpeg.tuning.PreparedTuning--source--__codelineno-0-87"></a>                    <span class="p">)</span>
+</span><span id="arpeg.tuning.PreparedTuning--source--__span-0-88"><a id="arpeg.tuning.PreparedTuning--source--__codelineno-0-88" name="arpeg.tuning.PreparedTuning--source--__codelineno-0-88"></a>                    <span class="o">*</span> <span class="nb">abs</span><span class="p">(</span><span class="n">exponent</span><span class="o">.</span><span class="n">numerator</span><span class="p">)</span>
+</span><span id="arpeg.tuning.PreparedTuning--source--__span-0-89"><a id="arpeg.tuning.PreparedTuning--source--__codelineno-0-89" name="arpeg.tuning.PreparedTuning--source--__codelineno-0-89"></a>                    <span class="o">&gt;</span> <span class="n">MAX_FRACTION_BITS</span>
+</span><span id="arpeg.tuning.PreparedTuning--source--__span-0-90"><a id="arpeg.tuning.PreparedTuning--source--__codelineno-0-90" name="arpeg.tuning.PreparedTuning--source--__codelineno-0-90"></a>                <span class="p">):</span>
+</span><span id="arpeg.tuning.PreparedTuning--source--__span-0-91"><a id="arpeg.tuning.PreparedTuning--source--__codelineno-0-91" name="arpeg.tuning.PreparedTuning--source--__codelineno-0-91"></a>                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"computed ratio exceeds exact-number limit"</span><span class="p">)</span>
+</span><span id="arpeg.tuning.PreparedTuning--source--__span-0-92"><a id="arpeg.tuning.PreparedTuning--source--__codelineno-0-92" name="arpeg.tuning.PreparedTuning--source--__codelineno-0-92"></a>                <span class="n">ratio</span> <span class="o">=</span> <span class="n">Fraction</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">computed_ratio</span><span class="o">**</span><span class="n">exponent</span><span class="p">)</span><span class="o">.</span><span class="n">limit_denominator</span><span class="p">(</span>
+</span><span id="arpeg.tuning.PreparedTuning--source--__span-0-93"><a id="arpeg.tuning.PreparedTuning--source--__codelineno-0-93" name="arpeg.tuning.PreparedTuning--source--__codelineno-0-93"></a>                    <span class="bp">self</span><span class="o">.</span><span class="n">computed_limit</span>
+</span><span id="arpeg.tuning.PreparedTuning--source--__span-0-94"><a id="arpeg.tuning.PreparedTuning--source--__codelineno-0-94" name="arpeg.tuning.PreparedTuning--source--__codelineno-0-94"></a>                <span class="p">)</span>
+</span><span id="arpeg.tuning.PreparedTuning--source--__span-0-95"><a id="arpeg.tuning.PreparedTuning--source--__codelineno-0-95" name="arpeg.tuning.PreparedTuning--source--__codelineno-0-95"></a>                <span class="n">logarithm</span> <span class="o">=</span> <span class="p">(</span>
+</span><span id="arpeg.tuning.PreparedTuning--source--__span-0-96"><a id="arpeg.tuning.PreparedTuning--source--__codelineno-0-96" name="arpeg.tuning.PreparedTuning--source--__codelineno-0-96"></a>                    <span class="n">log2</span><span class="p">(</span><span class="n">ratio</span><span class="o">.</span><span class="n">numerator</span><span class="p">)</span> <span class="o">-</span> <span class="n">log2</span><span class="p">(</span><span class="n">ratio</span><span class="o">.</span><span class="n">denominator</span><span class="p">)</span>
+</span><span id="arpeg.tuning.PreparedTuning--source--__span-0-97"><a id="arpeg.tuning.PreparedTuning--source--__codelineno-0-97" name="arpeg.tuning.PreparedTuning--source--__codelineno-0-97"></a>                    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">ratio</span><span class="p">,</span> <span class="n">Fraction</span><span class="p">)</span>
+</span><span id="arpeg.tuning.PreparedTuning--source--__span-0-98"><a id="arpeg.tuning.PreparedTuning--source--__codelineno-0-98" name="arpeg.tuning.PreparedTuning--source--__codelineno-0-98"></a>                    <span class="k">else</span> <span class="n">log2</span><span class="p">(</span><span class="n">ratio</span><span class="p">)</span>
+</span><span id="arpeg.tuning.PreparedTuning--source--__span-0-99"><a id="arpeg.tuning.PreparedTuning--source--__codelineno-0-99" name="arpeg.tuning.PreparedTuning--source--__codelineno-0-99"></a>                <span class="p">)</span>
+</span><span id="arpeg.tuning.PreparedTuning--source--__span-0-100"><a id="arpeg.tuning.PreparedTuning--source--__codelineno-0-100" name="arpeg.tuning.PreparedTuning--source--__codelineno-0-100"></a>            <span class="k">except</span> <span class="p">(</span><span class="ne">ValueError</span><span class="p">,</span> <span class="ne">OverflowError</span><span class="p">)</span> <span class="k">as</span> <span class="n">error</span><span class="p">:</span>
+</span><span id="arpeg.tuning.PreparedTuning--source--__span-0-101"><a id="arpeg.tuning.PreparedTuning--source--__codelineno-0-101" name="arpeg.tuning.PreparedTuning--source--__codelineno-0-101"></a>                <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span>
+</span><span id="arpeg.tuning.PreparedTuning--source--__span-0-102"><a id="arpeg.tuning.PreparedTuning--source--__codelineno-0-102" name="arpeg.tuning.PreparedTuning--source--__codelineno-0-102"></a>                    <span class="s2">"computed tuning cannot realize this note"</span>
+</span><span id="arpeg.tuning.PreparedTuning--source--__span-0-103"><a id="arpeg.tuning.PreparedTuning--source--__codelineno-0-103" name="arpeg.tuning.PreparedTuning--source--__codelineno-0-103"></a>                <span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">error</span>
+</span><span id="arpeg.tuning.PreparedTuning--source--__span-0-104"><a id="arpeg.tuning.PreparedTuning--source--__codelineno-0-104" name="arpeg.tuning.PreparedTuning--source--__codelineno-0-104"></a>            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">pitches</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="mi">12</span> <span class="o">*</span> <span class="n">logarithm</span>
+</span><span id="arpeg.tuning.PreparedTuning--source--__span-0-105"><a id="arpeg.tuning.PreparedTuning--source--__codelineno-0-105" name="arpeg.tuning.PreparedTuning--source--__codelineno-0-105"></a>        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">period</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="arpeg.tuning.PreparedTuning--source--__span-0-106"><a id="arpeg.tuning.PreparedTuning--source--__codelineno-0-106" name="arpeg.tuning.PreparedTuning--source--__codelineno-0-106"></a>            <span class="k">if</span> <span class="ow">not</span> <span class="mi">0</span> <span class="o">&lt;=</span> <span class="n">index</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">pitches</span><span class="p">):</span>
+</span><span id="arpeg.tuning.PreparedTuning--source--__span-0-107"><a id="arpeg.tuning.PreparedTuning--source--__codelineno-0-107" name="arpeg.tuning.PreparedTuning--source--__codelineno-0-107"></a>                <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">"note is outside the finite tuning"</span><span class="p">)</span>
+</span><span id="arpeg.tuning.PreparedTuning--source--__span-0-108"><a id="arpeg.tuning.PreparedTuning--source--__codelineno-0-108" name="arpeg.tuning.PreparedTuning--source--__codelineno-0-108"></a>            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">pitches</span><span class="p">[</span><span class="n">index</span><span class="p">]</span>
+</span><span id="arpeg.tuning.PreparedTuning--source--__span-0-109"><a id="arpeg.tuning.PreparedTuning--source--__codelineno-0-109" name="arpeg.tuning.PreparedTuning--source--__codelineno-0-109"></a>        <span class="n">cycle</span><span class="p">,</span> <span class="n">rank</span> <span class="o">=</span> <span class="nb">divmod</span><span class="p">(</span><span class="n">index</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">period</span><span class="p">)</span>
+</span><span id="arpeg.tuning.PreparedTuning--source--__span-0-110"><a id="arpeg.tuning.PreparedTuning--source--__codelineno-0-110" name="arpeg.tuning.PreparedTuning--source--__codelineno-0-110"></a>        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">pitches</span><span class="p">[</span><span class="n">rank</span><span class="p">]</span> <span class="o">+</span> <span class="n">cycle</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">period_semitones</span>
+</span></code></pre></div></td></tr></table></div>
+              </details>
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="arpeg.tuning.PreparedTuning.computed_limit" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">computed_limit</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#arpeg.tuning.PreparedTuning.computed_limit" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="arpeg.tuning.PreparedTuning.computed_ratio" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">computed_ratio</span><span class="p">:</span> <span class="n">Fraction</span> <span class="o">|</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">Fraction</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#arpeg.tuning.PreparedTuning.computed_ratio" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="arpeg.tuning.PreparedTuning.pitches" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">pitches</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#arpeg.tuning.PreparedTuning.pitches" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="arpeg.tuning.PreparedTuning.first_note" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">first_note</span><span class="p">:</span> <span class="nb">int</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#arpeg.tuning.PreparedTuning.first_note" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="arpeg.tuning.PreparedTuning.period" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">period</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#arpeg.tuning.PreparedTuning.period" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="arpeg.tuning.PreparedTuning.period_semitones" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">period_semitones</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">0</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#arpeg.tuning.PreparedTuning.period_semitones" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="arpeg.tuning.PreparedTuning.prepare" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">prepare</span><span class="p">(</span><span class="n">body</span><span class="p">:</span> <span class="n">Arpeggiator</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Self</span> <span class="o">|</span> <span class="kc">None</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-classmethod"><code>classmethod</code></small>
+  </span>
+
+<a href="#arpeg.tuning.PreparedTuning.prepare" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+
+            <details class="mkdocstrings-source">
+              <summary>Source code in <code>arpeg/tuning.py</code></summary>
+              <div class="language-python highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-21">21</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-22">22</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-23">23</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-24">24</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-25">25</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-26">26</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-27">27</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-28">28</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-29">29</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-30">30</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-31">31</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-32">32</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-33">33</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-34">34</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-35">35</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-36">36</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-37">37</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-38">38</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-39">39</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-40">40</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-41">41</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-42">42</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-43">43</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-44">44</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-45">45</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-46">46</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-47">47</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-48">48</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-49">49</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-50">50</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-51">51</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-52">52</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-53">53</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-54">54</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-55">55</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-56">56</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-57">57</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-58">58</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-59">59</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-60">60</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-61">61</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-62">62</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-63">63</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-64">64</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-65">65</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-66">66</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-67">67</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="arpeg.tuning.PreparedTuning.prepare--source--__span-0-21"><a id="arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-21" name="arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-21"></a><span class="nd">@classmethod</span>
+</span><span id="arpeg.tuning.PreparedTuning.prepare--source--__span-0-22"><a id="arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-22" name="arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-22"></a><span class="k">def</span><span class="w"> </span><span class="nf">prepare</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">body</span><span class="p">:</span> <span class="n">Arpeggiator</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Self</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="arpeg.tuning.PreparedTuning.prepare--source--__span-0-23"><a id="arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-23" name="arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-23"></a>    <span class="k">if</span> <span class="p">(</span><span class="n">tuning</span> <span class="o">:=</span> <span class="n">body</span><span class="o">.</span><span class="n">tuning</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="arpeg.tuning.PreparedTuning.prepare--source--__span-0-24"><a id="arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-24" name="arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-24"></a>        <span class="k">return</span> <span class="kc">None</span>
+</span><span id="arpeg.tuning.PreparedTuning.prepare--source--__span-0-25"><a id="arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-25" name="arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-25"></a>    <span class="n">source</span> <span class="o">=</span> <span class="n">tuning</span><span class="o">.</span><span class="n">source</span>
+</span><span id="arpeg.tuning.PreparedTuning.prepare--source--__span-0-26"><a id="arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-26" name="arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-26"></a>    <span class="n">first</span> <span class="o">=</span> <span class="n">tuning</span><span class="o">.</span><span class="n">root_note</span>
+</span><span id="arpeg.tuning.PreparedTuning.prepare--source--__span-0-27"><a id="arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-27" name="arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-27"></a>    <span class="n">period</span> <span class="o">=</span> <span class="kc">None</span>
+</span><span id="arpeg.tuning.PreparedTuning.prepare--source--__span-0-28"><a id="arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-28" name="arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-28"></a>    <span class="n">span</span> <span class="o">=</span> <span class="mf">0.0</span>
+</span><span id="arpeg.tuning.PreparedTuning.prepare--source--__span-0-29"><a id="arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-29" name="arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-29"></a>    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="n">FrequencyTable</span><span class="p">):</span>
+</span><span id="arpeg.tuning.PreparedTuning.prepare--source--__span-0-30"><a id="arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-30" name="arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-30"></a>        <span class="n">first</span> <span class="o">=</span> <span class="n">source</span><span class="o">.</span><span class="n">first_note</span>
+</span><span id="arpeg.tuning.PreparedTuning.prepare--source--__span-0-31"><a id="arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-31" name="arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-31"></a>        <span class="n">pitches</span> <span class="o">=</span> <span class="p">[</span>
+</span><span id="arpeg.tuning.PreparedTuning.prepare--source--__span-0-32"><a id="arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-32" name="arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-32"></a>            <span class="mi">69</span> <span class="o">+</span> <span class="mi">12</span> <span class="o">*</span> <span class="p">(</span><span class="n">pitch_logarithm</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="o">-</span> <span class="n">log2</span><span class="p">(</span><span class="mi">440</span><span class="p">))</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">source</span><span class="o">.</span><span class="n">values</span>
+</span><span id="arpeg.tuning.PreparedTuning.prepare--source--__span-0-33"><a id="arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-33" name="arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-33"></a>        <span class="p">]</span>
+</span><span id="arpeg.tuning.PreparedTuning.prepare--source--__span-0-34"><a id="arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-34" name="arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-34"></a>    <span class="k">else</span><span class="p">:</span>
+</span><span id="arpeg.tuning.PreparedTuning.prepare--source--__span-0-35"><a id="arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-35" name="arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-35"></a>        <span class="n">root</span> <span class="o">=</span> <span class="mi">69</span> <span class="o">+</span> <span class="mi">12</span> <span class="o">*</span> <span class="p">(</span><span class="n">pitch_logarithm</span><span class="p">(</span><span class="n">tuning</span><span class="o">.</span><span class="n">root_frequency</span><span class="p">)</span> <span class="o">-</span> <span class="n">log2</span><span class="p">(</span><span class="mi">440</span><span class="p">))</span>
+</span><span id="arpeg.tuning.PreparedTuning.prepare--source--__span-0-36"><a id="arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-36" name="arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-36"></a>        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="n">Computed</span><span class="p">):</span>
+</span><span id="arpeg.tuning.PreparedTuning.prepare--source--__span-0-37"><a id="arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-37" name="arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-37"></a>            <span class="n">period</span> <span class="o">=</span> <span class="n">source</span><span class="o">.</span><span class="n">notes_per_octave</span>
+</span><span id="arpeg.tuning.PreparedTuning.prepare--source--__span-0-38"><a id="arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-38" name="arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-38"></a>            <span class="n">span</span> <span class="o">=</span> <span class="mi">12</span> <span class="o">*</span> <span class="n">pitch_logarithm</span><span class="p">(</span><span class="n">source</span><span class="o">.</span><span class="n">octave_ratio</span><span class="p">)</span>
+</span><span id="arpeg.tuning.PreparedTuning.prepare--source--__span-0-39"><a id="arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-39" name="arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-39"></a>            <span class="n">pitches</span> <span class="o">=</span> <span class="p">[</span><span class="n">root</span><span class="p">]</span>
+</span><span id="arpeg.tuning.PreparedTuning.prepare--source--__span-0-40"><a id="arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-40" name="arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-40"></a>        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="n">RatioTable</span><span class="p">):</span>
+</span><span id="arpeg.tuning.PreparedTuning.prepare--source--__span-0-41"><a id="arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-41" name="arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-41"></a>            <span class="n">pitches</span> <span class="o">=</span> <span class="p">[</span><span class="n">root</span> <span class="o">+</span> <span class="mi">12</span> <span class="o">*</span> <span class="n">pitch_logarithm</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">source</span><span class="o">.</span><span class="n">values</span><span class="p">]</span>
+</span><span id="arpeg.tuning.PreparedTuning.prepare--source--__span-0-42"><a id="arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-42" name="arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-42"></a>            <span class="k">if</span> <span class="n">source</span><span class="o">.</span><span class="n">repeat_ratio</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="arpeg.tuning.PreparedTuning.prepare--source--__span-0-43"><a id="arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-43" name="arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-43"></a>                <span class="n">period</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">pitches</span><span class="p">)</span>
+</span><span id="arpeg.tuning.PreparedTuning.prepare--source--__span-0-44"><a id="arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-44" name="arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-44"></a>                <span class="n">span</span> <span class="o">=</span> <span class="mi">12</span> <span class="o">*</span> <span class="n">pitch_logarithm</span><span class="p">(</span><span class="n">source</span><span class="o">.</span><span class="n">repeat_ratio</span><span class="p">)</span>
+</span><span id="arpeg.tuning.PreparedTuning.prepare--source--__span-0-45"><a id="arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-45" name="arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-45"></a>        <span class="k">else</span><span class="p">:</span>
+</span><span id="arpeg.tuning.PreparedTuning.prepare--source--__span-0-46"><a id="arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-46" name="arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-46"></a>            <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="n">IntervalPattern</span><span class="p">)</span>
+</span><span id="arpeg.tuning.PreparedTuning.prepare--source--__span-0-47"><a id="arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-47" name="arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-47"></a>            <span class="n">pitches</span> <span class="o">=</span> <span class="p">[</span><span class="n">root</span><span class="p">]</span>
+</span><span id="arpeg.tuning.PreparedTuning.prepare--source--__span-0-48"><a id="arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-48" name="arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-48"></a>            <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">source</span><span class="o">.</span><span class="n">intervals</span><span class="p">:</span>
+</span><span id="arpeg.tuning.PreparedTuning.prepare--source--__span-0-49"><a id="arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-49" name="arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-49"></a>                <span class="n">pitches</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">pitches</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="mi">12</span> <span class="o">*</span> <span class="n">pitch_logarithm</span><span class="p">(</span><span class="n">v</span><span class="p">))</span>
+</span><span id="arpeg.tuning.PreparedTuning.prepare--source--__span-0-50"><a id="arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-50" name="arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-50"></a>            <span class="k">if</span> <span class="n">source</span><span class="o">.</span><span class="n">repeat</span><span class="p">:</span>
+</span><span id="arpeg.tuning.PreparedTuning.prepare--source--__span-0-51"><a id="arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-51" name="arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-51"></a>                <span class="n">period</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">source</span><span class="o">.</span><span class="n">intervals</span><span class="p">)</span>
+</span><span id="arpeg.tuning.PreparedTuning.prepare--source--__span-0-52"><a id="arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-52" name="arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-52"></a>                <span class="n">span</span> <span class="o">=</span> <span class="n">pitches</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span> <span class="o">-</span> <span class="n">root</span>
+</span><span id="arpeg.tuning.PreparedTuning.prepare--source--__span-0-53"><a id="arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-53" name="arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-53"></a>        <span class="n">pitches</span> <span class="o">=</span> <span class="p">[</span><span class="n">p</span> <span class="o">+</span> <span class="n">tuning</span><span class="o">.</span><span class="n">detune_cents</span> <span class="o">/</span> <span class="mi">100</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">pitches</span><span class="p">]</span>
+</span><span id="arpeg.tuning.PreparedTuning.prepare--source--__span-0-54"><a id="arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-54" name="arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-54"></a>    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="n">FrequencyTable</span><span class="p">):</span>
+</span><span id="arpeg.tuning.PreparedTuning.prepare--source--__span-0-55"><a id="arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-55" name="arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-55"></a>        <span class="n">pitches</span> <span class="o">=</span> <span class="p">[</span><span class="n">p</span> <span class="o">+</span> <span class="n">tuning</span><span class="o">.</span><span class="n">detune_cents</span> <span class="o">/</span> <span class="mi">100</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">pitches</span><span class="p">]</span>
+</span><span id="arpeg.tuning.PreparedTuning.prepare--source--__span-0-56"><a id="arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-56" name="arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-56"></a>    <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span>
+</span><span id="arpeg.tuning.PreparedTuning.prepare--source--__span-0-57"><a id="arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-57" name="arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-57"></a>        <span class="n">pitches</span><span class="o">=</span><span class="n">pitches</span><span class="p">,</span>
+</span><span id="arpeg.tuning.PreparedTuning.prepare--source--__span-0-58"><a id="arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-58" name="arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-58"></a>        <span class="n">first_note</span><span class="o">=</span><span class="n">first</span><span class="p">,</span>
+</span><span id="arpeg.tuning.PreparedTuning.prepare--source--__span-0-59"><a id="arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-59" name="arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-59"></a>        <span class="n">period</span><span class="o">=</span><span class="n">period</span><span class="p">,</span>
+</span><span id="arpeg.tuning.PreparedTuning.prepare--source--__span-0-60"><a id="arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-60" name="arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-60"></a>        <span class="n">period_semitones</span><span class="o">=</span><span class="n">span</span><span class="p">,</span>
+</span><span id="arpeg.tuning.PreparedTuning.prepare--source--__span-0-61"><a id="arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-61" name="arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-61"></a>        <span class="n">computed_limit</span><span class="o">=</span><span class="n">source</span><span class="o">.</span><span class="n">denominator_limit</span>
+</span><span id="arpeg.tuning.PreparedTuning.prepare--source--__span-0-62"><a id="arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-62" name="arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-62"></a>        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="n">Computed</span><span class="p">)</span>
+</span><span id="arpeg.tuning.PreparedTuning.prepare--source--__span-0-63"><a id="arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-63" name="arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-63"></a>        <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="arpeg.tuning.PreparedTuning.prepare--source--__span-0-64"><a id="arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-64" name="arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-64"></a>        <span class="n">computed_ratio</span><span class="o">=</span><span class="n">evaluate</span><span class="p">(</span><span class="n">source</span><span class="o">.</span><span class="n">octave_ratio</span><span class="p">)</span>
+</span><span id="arpeg.tuning.PreparedTuning.prepare--source--__span-0-65"><a id="arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-65" name="arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-65"></a>        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="n">Computed</span><span class="p">)</span>
+</span><span id="arpeg.tuning.PreparedTuning.prepare--source--__span-0-66"><a id="arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-66" name="arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-66"></a>        <span class="k">else</span> <span class="n">Fraction</span><span class="p">(</span><span class="mi">1</span><span class="p">),</span>
+</span><span id="arpeg.tuning.PreparedTuning.prepare--source--__span-0-67"><a id="arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-67" name="arpeg.tuning.PreparedTuning.prepare--source--__codelineno-0-67"></a>    <span class="p">)</span>
+</span></code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="arpeg.tuning.PreparedTuning.pitch" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">pitch</span><span class="p">(</span><span class="n">index</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span></code>
+
+<a href="#arpeg.tuning.PreparedTuning.pitch" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+
+            <details class="mkdocstrings-source">
+              <summary>Source code in <code>arpeg/tuning.py</code></summary>
+              <div class="language-python highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-69"> 69</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-70"> 70</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-71"> 71</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-72"> 72</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-73"> 73</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-74"> 74</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-75"> 75</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-76"> 76</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-77"> 77</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-78"> 78</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-79"> 79</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-80"> 80</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-81"> 81</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-82"> 82</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-83"> 83</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-84"> 84</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-85"> 85</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-86"> 86</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-87"> 87</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-88"> 88</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-89"> 89</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-90"> 90</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-91"> 91</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-92"> 92</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-93"> 93</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-94"> 94</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-95"> 95</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-96"> 96</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-97"> 97</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-98"> 98</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-99"> 99</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-100">100</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-101">101</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-102">102</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-103">103</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-104">104</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-105">105</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-106">106</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-107">107</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-108">108</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-109">109</a></span>
+<span class="normal"><a href="#arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-110">110</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="arpeg.tuning.PreparedTuning.pitch--source--__span-0-69"><a id="arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-69" name="arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-69"></a><span class="k">def</span><span class="w"> </span><span class="nf">pitch</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">index</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+</span><span id="arpeg.tuning.PreparedTuning.pitch--source--__span-0-70"><a id="arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-70" name="arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-70"></a>    <span class="n">index</span> <span class="o">-=</span> <span class="bp">self</span><span class="o">.</span><span class="n">first_note</span>
+</span><span id="arpeg.tuning.PreparedTuning.pitch--source--__span-0-71"><a id="arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-71" name="arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-71"></a>    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">computed_limit</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="arpeg.tuning.PreparedTuning.pitch--source--__span-0-72"><a id="arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-72" name="arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-72"></a>        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">computed_limit</span><span class="p">:</span>
+</span><span id="arpeg.tuning.PreparedTuning.pitch--source--__span-0-73"><a id="arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-73" name="arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-73"></a>            <span class="k">assert</span> <span class="bp">self</span><span class="o">.</span><span class="n">period</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+</span><span id="arpeg.tuning.PreparedTuning.pitch--source--__span-0-74"><a id="arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-74" name="arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-74"></a>            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">pitches</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="n">index</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">period_semitones</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">period</span>
+</span><span id="arpeg.tuning.PreparedTuning.pitch--source--__span-0-75"><a id="arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-75" name="arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-75"></a>        <span class="k">try</span><span class="p">:</span>
+</span><span id="arpeg.tuning.PreparedTuning.pitch--source--__span-0-76"><a id="arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-76" name="arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-76"></a>            <span class="k">assert</span> <span class="bp">self</span><span class="o">.</span><span class="n">period</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+</span><span id="arpeg.tuning.PreparedTuning.pitch--source--__span-0-77"><a id="arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-77" name="arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-77"></a>            <span class="n">exponent</span> <span class="o">=</span> <span class="n">Fraction</span><span class="p">(</span><span class="n">index</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">period</span><span class="p">)</span>
+</span><span id="arpeg.tuning.PreparedTuning.pitch--source--__span-0-78"><a id="arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-78" name="arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-78"></a>            <span class="n">estimate</span> <span class="o">=</span> <span class="n">exp2</span><span class="p">(</span><span class="n">index</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">period_semitones</span> <span class="o">/</span> <span class="p">(</span><span class="mi">12</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">period</span><span class="p">))</span>
+</span><span id="arpeg.tuning.PreparedTuning.pitch--source--__span-0-79"><a id="arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-79" name="arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-79"></a>            <span class="k">if</span> <span class="ow">not</span> <span class="n">isfinite</span><span class="p">(</span><span class="n">estimate</span><span class="p">)</span> <span class="ow">or</span> <span class="n">estimate</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
+</span><span id="arpeg.tuning.PreparedTuning.pitch--source--__span-0-80"><a id="arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-80" name="arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-80"></a>                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"computed ratio is outside numerical limits"</span><span class="p">)</span>
+</span><span id="arpeg.tuning.PreparedTuning.pitch--source--__span-0-81"><a id="arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-81" name="arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-81"></a>            <span class="k">if</span> <span class="p">(</span>
+</span><span id="arpeg.tuning.PreparedTuning.pitch--source--__span-0-82"><a id="arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-82" name="arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-82"></a>                <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">computed_ratio</span><span class="p">,</span> <span class="n">Fraction</span><span class="p">)</span>
+</span><span id="arpeg.tuning.PreparedTuning.pitch--source--__span-0-83"><a id="arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-83" name="arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-83"></a>                <span class="ow">and</span> <span class="n">exponent</span><span class="o">.</span><span class="n">denominator</span> <span class="o">==</span> <span class="mi">1</span>
+</span><span id="arpeg.tuning.PreparedTuning.pitch--source--__span-0-84"><a id="arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-84" name="arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-84"></a>                <span class="ow">and</span> <span class="nb">max</span><span class="p">(</span>
+</span><span id="arpeg.tuning.PreparedTuning.pitch--source--__span-0-85"><a id="arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-85" name="arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-85"></a>                    <span class="bp">self</span><span class="o">.</span><span class="n">computed_ratio</span><span class="o">.</span><span class="n">numerator</span><span class="o">.</span><span class="n">bit_length</span><span class="p">(),</span>
+</span><span id="arpeg.tuning.PreparedTuning.pitch--source--__span-0-86"><a id="arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-86" name="arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-86"></a>                    <span class="bp">self</span><span class="o">.</span><span class="n">computed_ratio</span><span class="o">.</span><span class="n">denominator</span><span class="o">.</span><span class="n">bit_length</span><span class="p">(),</span>
+</span><span id="arpeg.tuning.PreparedTuning.pitch--source--__span-0-87"><a id="arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-87" name="arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-87"></a>                <span class="p">)</span>
+</span><span id="arpeg.tuning.PreparedTuning.pitch--source--__span-0-88"><a id="arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-88" name="arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-88"></a>                <span class="o">*</span> <span class="nb">abs</span><span class="p">(</span><span class="n">exponent</span><span class="o">.</span><span class="n">numerator</span><span class="p">)</span>
+</span><span id="arpeg.tuning.PreparedTuning.pitch--source--__span-0-89"><a id="arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-89" name="arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-89"></a>                <span class="o">&gt;</span> <span class="n">MAX_FRACTION_BITS</span>
+</span><span id="arpeg.tuning.PreparedTuning.pitch--source--__span-0-90"><a id="arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-90" name="arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-90"></a>            <span class="p">):</span>
+</span><span id="arpeg.tuning.PreparedTuning.pitch--source--__span-0-91"><a id="arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-91" name="arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-91"></a>                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"computed ratio exceeds exact-number limit"</span><span class="p">)</span>
+</span><span id="arpeg.tuning.PreparedTuning.pitch--source--__span-0-92"><a id="arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-92" name="arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-92"></a>            <span class="n">ratio</span> <span class="o">=</span> <span class="n">Fraction</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">computed_ratio</span><span class="o">**</span><span class="n">exponent</span><span class="p">)</span><span class="o">.</span><span class="n">limit_denominator</span><span class="p">(</span>
+</span><span id="arpeg.tuning.PreparedTuning.pitch--source--__span-0-93"><a id="arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-93" name="arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-93"></a>                <span class="bp">self</span><span class="o">.</span><span class="n">computed_limit</span>
+</span><span id="arpeg.tuning.PreparedTuning.pitch--source--__span-0-94"><a id="arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-94" name="arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-94"></a>            <span class="p">)</span>
+</span><span id="arpeg.tuning.PreparedTuning.pitch--source--__span-0-95"><a id="arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-95" name="arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-95"></a>            <span class="n">logarithm</span> <span class="o">=</span> <span class="p">(</span>
+</span><span id="arpeg.tuning.PreparedTuning.pitch--source--__span-0-96"><a id="arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-96" name="arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-96"></a>                <span class="n">log2</span><span class="p">(</span><span class="n">ratio</span><span class="o">.</span><span class="n">numerator</span><span class="p">)</span> <span class="o">-</span> <span class="n">log2</span><span class="p">(</span><span class="n">ratio</span><span class="o">.</span><span class="n">denominator</span><span class="p">)</span>
+</span><span id="arpeg.tuning.PreparedTuning.pitch--source--__span-0-97"><a id="arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-97" name="arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-97"></a>                <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">ratio</span><span class="p">,</span> <span class="n">Fraction</span><span class="p">)</span>
+</span><span id="arpeg.tuning.PreparedTuning.pitch--source--__span-0-98"><a id="arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-98" name="arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-98"></a>                <span class="k">else</span> <span class="n">log2</span><span class="p">(</span><span class="n">ratio</span><span class="p">)</span>
+</span><span id="arpeg.tuning.PreparedTuning.pitch--source--__span-0-99"><a id="arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-99" name="arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-99"></a>            <span class="p">)</span>
+</span><span id="arpeg.tuning.PreparedTuning.pitch--source--__span-0-100"><a id="arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-100" name="arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-100"></a>        <span class="k">except</span> <span class="p">(</span><span class="ne">ValueError</span><span class="p">,</span> <span class="ne">OverflowError</span><span class="p">)</span> <span class="k">as</span> <span class="n">error</span><span class="p">:</span>
+</span><span id="arpeg.tuning.PreparedTuning.pitch--source--__span-0-101"><a id="arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-101" name="arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-101"></a>            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span>
+</span><span id="arpeg.tuning.PreparedTuning.pitch--source--__span-0-102"><a id="arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-102" name="arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-102"></a>                <span class="s2">"computed tuning cannot realize this note"</span>
+</span><span id="arpeg.tuning.PreparedTuning.pitch--source--__span-0-103"><a id="arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-103" name="arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-103"></a>            <span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">error</span>
+</span><span id="arpeg.tuning.PreparedTuning.pitch--source--__span-0-104"><a id="arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-104" name="arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-104"></a>        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">pitches</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="mi">12</span> <span class="o">*</span> <span class="n">logarithm</span>
+</span><span id="arpeg.tuning.PreparedTuning.pitch--source--__span-0-105"><a id="arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-105" name="arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-105"></a>    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">period</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="arpeg.tuning.PreparedTuning.pitch--source--__span-0-106"><a id="arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-106" name="arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-106"></a>        <span class="k">if</span> <span class="ow">not</span> <span class="mi">0</span> <span class="o">&lt;=</span> <span class="n">index</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">pitches</span><span class="p">):</span>
+</span><span id="arpeg.tuning.PreparedTuning.pitch--source--__span-0-107"><a id="arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-107" name="arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-107"></a>            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">"note is outside the finite tuning"</span><span class="p">)</span>
+</span><span id="arpeg.tuning.PreparedTuning.pitch--source--__span-0-108"><a id="arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-108" name="arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-108"></a>        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">pitches</span><span class="p">[</span><span class="n">index</span><span class="p">]</span>
+</span><span id="arpeg.tuning.PreparedTuning.pitch--source--__span-0-109"><a id="arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-109" name="arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-109"></a>    <span class="n">cycle</span><span class="p">,</span> <span class="n">rank</span> <span class="o">=</span> <span class="nb">divmod</span><span class="p">(</span><span class="n">index</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">period</span><span class="p">)</span>
+</span><span id="arpeg.tuning.PreparedTuning.pitch--source--__span-0-110"><a id="arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-110" name="arpeg.tuning.PreparedTuning.pitch--source--__codelineno-0-110"></a>    <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">pitches</span><span class="p">[</span><span class="n">rank</span><span class="p">]</span> <span class="o">+</span> <span class="n">cycle</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">period_semitones</span>
+</span></code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="arpeg.tuning.RealizedPitch" class="doc doc-heading">
+            <code>RealizedPitch</code>
+
+
+<a href="#arpeg.tuning.RealizedPitch" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents ">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="pydantic.BaseModel">BaseModel</span></code></p>
+
+
+
+
+
+
+
+
+
+
+              <details class="mkdocstrings-source">
+                <summary>Source code in <code>arpeg/tuning.py</code></summary>
+                <div class="language-python highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#arpeg.tuning.RealizedPitch--source--__codelineno-0-113">113</a></span>
+<span class="normal"><a href="#arpeg.tuning.RealizedPitch--source--__codelineno-0-114">114</a></span>
+<span class="normal"><a href="#arpeg.tuning.RealizedPitch--source--__codelineno-0-115">115</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="arpeg.tuning.RealizedPitch--source--__span-0-113"><a id="arpeg.tuning.RealizedPitch--source--__codelineno-0-113" name="arpeg.tuning.RealizedPitch--source--__codelineno-0-113"></a><span class="k">class</span><span class="w"> </span><span class="nc">RealizedPitch</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">,</span> <span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+</span><span id="arpeg.tuning.RealizedPitch--source--__span-0-114"><a id="arpeg.tuning.RealizedPitch--source--__codelineno-0-114" name="arpeg.tuning.RealizedPitch--source--__codelineno-0-114"></a>    <span class="n">key</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">ge</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">le</span><span class="o">=</span><span class="mi">127</span><span class="p">)</span>
+</span><span id="arpeg.tuning.RealizedPitch--source--__span-0-115"><a id="arpeg.tuning.RealizedPitch--source--__codelineno-0-115" name="arpeg.tuning.RealizedPitch--source--__codelineno-0-115"></a>    <span class="n">tuning_semitones</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">0</span>
+</span></code></pre></div></td></tr></table></div>
+              </details>
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="arpeg.tuning.RealizedPitch.key" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">key</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">ge</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">le</span><span class="o">=</span><span class="mi">127</span><span class="p">)</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#arpeg.tuning.RealizedPitch.key" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="arpeg.tuning.RealizedPitch.tuning_semitones" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">tuning_semitones</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">0</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#arpeg.tuning.RealizedPitch.tuning_semitones" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="arpeg.tuning.pitch_logarithm" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">pitch_logarithm</span><span class="p">(</span><span class="n">expression</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span></code>
+
+<a href="#arpeg.tuning.pitch_logarithm" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents ">
+
+
+            <details class="mkdocstrings-source">
+              <summary>Source code in <code>arpeg/tuning.py</code></summary>
+              <div class="language-python highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#arpeg.tuning.pitch_logarithm--source--__codelineno-0-118">118</a></span>
+<span class="normal"><a href="#arpeg.tuning.pitch_logarithm--source--__codelineno-0-119">119</a></span>
+<span class="normal"><a href="#arpeg.tuning.pitch_logarithm--source--__codelineno-0-120">120</a></span>
+<span class="normal"><a href="#arpeg.tuning.pitch_logarithm--source--__codelineno-0-121">121</a></span>
+<span class="normal"><a href="#arpeg.tuning.pitch_logarithm--source--__codelineno-0-122">122</a></span>
+<span class="normal"><a href="#arpeg.tuning.pitch_logarithm--source--__codelineno-0-123">123</a></span>
+<span class="normal"><a href="#arpeg.tuning.pitch_logarithm--source--__codelineno-0-124">124</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="arpeg.tuning.pitch_logarithm--source--__span-0-118"><a id="arpeg.tuning.pitch_logarithm--source--__codelineno-0-118" name="arpeg.tuning.pitch_logarithm--source--__codelineno-0-118"></a><span class="k">def</span><span class="w"> </span><span class="nf">pitch_logarithm</span><span class="p">(</span><span class="n">expression</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+</span><span id="arpeg.tuning.pitch_logarithm--source--__span-0-119"><a id="arpeg.tuning.pitch_logarithm--source--__codelineno-0-119" name="arpeg.tuning.pitch_logarithm--source--__codelineno-0-119"></a>    <span class="n">value</span> <span class="o">=</span> <span class="n">evaluate</span><span class="p">(</span><span class="n">expression</span><span class="p">)</span>
+</span><span id="arpeg.tuning.pitch_logarithm--source--__span-0-120"><a id="arpeg.tuning.pitch_logarithm--source--__codelineno-0-120" name="arpeg.tuning.pitch_logarithm--source--__codelineno-0-120"></a>    <span class="k">return</span> <span class="p">(</span>
+</span><span id="arpeg.tuning.pitch_logarithm--source--__span-0-121"><a id="arpeg.tuning.pitch_logarithm--source--__codelineno-0-121" name="arpeg.tuning.pitch_logarithm--source--__codelineno-0-121"></a>        <span class="n">log2</span><span class="p">(</span><span class="n">value</span><span class="o">.</span><span class="n">numerator</span><span class="p">)</span> <span class="o">-</span> <span class="n">log2</span><span class="p">(</span><span class="n">value</span><span class="o">.</span><span class="n">denominator</span><span class="p">)</span>
+</span><span id="arpeg.tuning.pitch_logarithm--source--__span-0-122"><a id="arpeg.tuning.pitch_logarithm--source--__codelineno-0-122" name="arpeg.tuning.pitch_logarithm--source--__codelineno-0-122"></a>        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">Fraction</span><span class="p">)</span>
+</span><span id="arpeg.tuning.pitch_logarithm--source--__span-0-123"><a id="arpeg.tuning.pitch_logarithm--source--__codelineno-0-123" name="arpeg.tuning.pitch_logarithm--source--__codelineno-0-123"></a>        <span class="k">else</span> <span class="n">log2</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+</span><span id="arpeg.tuning.pitch_logarithm--source--__span-0-124"><a id="arpeg.tuning.pitch_logarithm--source--__codelineno-0-124" name="arpeg.tuning.pitch_logarithm--source--__codelineno-0-124"></a>    <span class="p">)</span>
+</span></code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+
+
+
+
+
+
+
+  
+  
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://zensical.org/" target="_blank" rel="noopener">
+      Zensical
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog" role="status" aria-atomic="true">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      
+      
+        
+        
+      <script id="__config" type="application/json">{"annotate":null,"base":"../../..","features":["navigation.indexes","content.code.copy"],"redirect":null,"search":"../../../assets/javascripts/workers/search.c47bb847.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","clipboard.error":"Could not copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":null}</script>
+    
+    
+      <script src="../../../assets/javascripts/bundle.77dd0ce9.min.js"></script>
+      
+    
+  </body>
+</html>

@@ -1,0 +1,1643 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="🧬 An expressive arpeggiator 🧬">
+      
+      
+      
+        <link rel="canonical" href="https://rec.github.io/arpeg/performance/">
+      
+      
+      
+        <link rel="prev" href="../envelfo/">
+      
+      
+        <link rel="next" href="../reference/arpeg/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="zensical-0.0.73">
+    
+    
+      
+        <title>Native delivery and performance verification - arpeg</title>
+      
+    
+    
+      
+        
+      
+      <link rel="stylesheet" href="../assets/stylesheets/modern/main.4ab2de0c.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Inter:300,300i,400,400i,500,500i,700,700i%7CJetBrains+Mono:400,400i,700,700i&amp;display=fallback">
+        <style>:root{--md-text-font:"Inter";--md-code-font:"JetBrains Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_scope.pathname.endsWith("/")||(__md_scope=new URL(__md_scope.pathname+"/",location)),__md_hash=e=>[...e].reduce(((e,t)=>(e<<5)-e+t.charCodeAt(0)),0),__md_get=(e,t=localStorage,_=__md_scope)=>JSON.parse(t.getItem(_.pathname+"."+e)),__md_set=(e,t,_=localStorage,a=__md_scope)=>{try{_.setItem(a.pathname+"."+e,JSON.stringify(t))}catch(e){}},document.documentElement.setAttribute("data-platform",navigator.platform)</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    <body dir="ltr">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer" aria-hidden="true"></label>
+    <div data-md-component="skip">
+      <a href="#__skip" class="md-skip">
+        Skip to content
+      </a>
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="./.." title="arpeg" class="md-header__button md-logo" aria-label="arpeg" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-menu" viewBox="0 0 24 24"><path d="M4 5h16M4 12h16M4 19h16"/></svg>
+      <span class="md-visually-hidden">Navigation</span>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            arpeg
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Native delivery and performance verification
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-search" viewBox="0 0 24 24"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>
+          <span class="md-visually-hidden">Search</span>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog" aria-label="Search">
+  <button type="button" class="md-search__button">
+    Search
+  </button>
+</div>
+      
+    
+    <div class="md-header__source">
+      
+    </div>
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="./.." title="arpeg" class="md-nav__button md-logo" aria-label="arpeg" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
+
+    </a>
+    arpeg
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  arpeg
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../envelfo/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Connecting arpeg and enveLFO
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Native delivery and performance verification
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="././" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Native delivery and performance verification
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#what-these-checks-cover" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        What these checks cover
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#local-observations-2026-10-13" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Local observations, 2026-10-13
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#correctness-and-capacity-evidence" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Correctness and capacity evidence
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#remaining-limitations-and-hardware-checks" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Remaining limitations and hardware checks
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#meedee-host-migration-2026-10-18" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        meedee host migration, 2026-10-18
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#python-meedee-host-migration-2026-10-19" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Python meedee host migration, 2026-10-19
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#device-free-musical-features-2026-10-21" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Device-free musical features, 2026-10-21
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#webassembly-and-javascript-verification-2026-10-27" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        WebAssembly and JavaScript verification, 2026-10-27
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  API Reference
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_4">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  API Reference
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_1" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../reference/arpeg/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>arpeg
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_4_1" id="__nav_4_1_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        
+          <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_1_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_4_1">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>arpeg
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/arpeg/bank/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  bank
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/arpeg/capture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  capture
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/arpeg/chance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  chance
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/arpeg/clock/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  clock
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/arpeg/engine/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  engine
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/arpeg/envelfo/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  envelfo
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/arpeg/expression/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  expression
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/arpeg/gesture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  gesture
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/arpeg/held/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  held
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/arpeg/history/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  history
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/arpeg/inbox/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  inbox
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/arpeg/inversion/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  inversion
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/arpeg/live/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  live
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/arpeg/marked_sample/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  marked_sample
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/arpeg/midi/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  midi
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/arpeg/octaves/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  octaves
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/arpeg/output/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  output
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/arpeg/ports/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  ports
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/arpeg/profile/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  profile
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/arpeg/rhythm/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  rhythm
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/arpeg/timing_ports/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  timing_ports
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/arpeg/tuning/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  tuning
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  
+                    
+                    
+                    
+                      
+                    
+                    
+                      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+                      <div class="md-sidebar-button__wrapper">
+                        <label class="md-sidebar-button" for="__toc"></label>
+                      </div>
+                    
+                  
+                  <div class="md-sidebar__inner">
+                    
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#what-these-checks-cover" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        What these checks cover
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#local-observations-2026-10-13" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Local observations, 2026-10-13
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#correctness-and-capacity-evidence" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Correctness and capacity evidence
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#remaining-limitations-and-hardware-checks" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Remaining limitations and hardware checks
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#meedee-host-migration-2026-10-18" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        meedee host migration, 2026-10-18
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#python-meedee-host-migration-2026-10-19" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Python meedee host migration, 2026-10-19
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#device-free-musical-features-2026-10-21" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Device-free musical features, 2026-10-21
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#webassembly-and-javascript-verification-2026-10-27" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        WebAssembly and JavaScript verification, 2026-10-27
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                <a id="__skip" tabindex="-1"></a>
+                
+                  
+
+
+<h1 id="native-delivery-and-performance-verification">Native delivery and performance verification<a class="headerlink" href="#native-delivery-and-performance-verification" title="Permanent link">&para;</a></h1>
+<h2 id="what-these-checks-cover">What these checks cover<a class="headerlink" href="#what-these-checks-cover" title="Permanent link">&para;</a></h2>
+<p><code>tools/check_performance.py</code> and the Rust <code>check_performance</code> example exercise
+the real MIDI players without opening MIDI ports. Each two-second workload
+holds one latched note at 120 BPM with sixteenth-note steps and a 150% gate,
+so successive occurrences hand off channel 1. Equal-valued CC2 messages arrive
+at 1,000 or 4,000 samples per second. The recovery case deliberately stalls
+the host loop for 200 ms halfway through the run.</p>
+<p>Both probes poll with a 1 ms sleep and drain decision/lifecycle notifications.
+They check matching occurrence identities, release every owned note on Stop,
+and fail if an event buffer exhausts. Timing numbers are observations, not
+pass/fail thresholds or a real-time guarantee.</p>
+<p>Run the probes one at a time after builds finish:</p>
+<div class="language-sh highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>uv<span class="w"> </span>run<span class="w"> </span>--frozen<span class="w"> </span>python<span class="w"> </span>tools/check_performance.py<span class="w"> </span>--controller-hz<span class="w"> </span><span class="m">1000</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>uv<span class="w"> </span>run<span class="w"> </span>--frozen<span class="w"> </span>python<span class="w"> </span>tools/check_performance.py<span class="w"> </span>--controller-hz<span class="w"> </span><span class="m">4000</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>uv<span class="w"> </span>run<span class="w"> </span>--frozen<span class="w"> </span>python<span class="w"> </span>tools/check_performance.py<span class="w"> </span>--controller-hz<span class="w"> </span><span class="m">1000</span><span class="w"> </span>--stall-ms<span class="w"> </span><span class="m">200</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>cargo<span class="w"> </span>run<span class="w"> </span>-p<span class="w"> </span>arpeg-midi<span class="w"> </span>--example<span class="w"> </span>check_performance<span class="w"> </span>--release<span class="w"> </span>--locked
+</span></code></pre></div>
+<p>The Rust command runs all three cases. Release CI runs both probes on each
+native platform and leaves their reports in the job logs.</p>
+<p><code>batch_p99_us</code> measures player processing and event collection, excluding the
+poll sleep. Note lateness compares exact lifecycle beats with the wall time at
+the end of their processing batch. It includes wake-up jitter and batch work.
+The current hosts generate complete batches before output-budget admission and
+delivery. These probes measure generation and collection, not port acceptance.
+Byte rate counts MIDI message bytes,
+including repeated controllers and entry bundles. It excludes transport framing.
+None of these numbers measures a MIDI driver, cable, synth, or audible latency.</p>
+<h2 id="local-observations-2026-10-13">Local observations, 2026-10-13<a class="headerlink" href="#local-observations-2026-10-13" title="Permanent link">&para;</a></h2>
+<p>Measured on macOS 14.5 ARM64 with Python 3.13.12 and Rust 1.87.0 in release mode.
+Builds had finished before the workloads ran. Each row is one two-second run;
+system load and timer behavior can change the results substantially.</p>
+<table>
+<thead>
+<tr>
+<th>Runtime</th>
+<th style="text-align: right;">CC2 samples/s</th>
+<th style="text-align: right;">Injected stall</th>
+<th style="text-align: right;">Batch p99, µs</th>
+<th style="text-align: right;">Maximum note lateness, ms</th>
+<th style="text-align: right;">MIDI bytes/s</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Rust</td>
+<td style="text-align: right;">1,000</td>
+<td style="text-align: right;">None</td>
+<td style="text-align: right;">141</td>
+<td style="text-align: right;">2.876</td>
+<td style="text-align: right;">3,066</td>
+</tr>
+<tr>
+<td>Rust</td>
+<td style="text-align: right;">4,000</td>
+<td style="text-align: right;">None</td>
+<td style="text-align: right;">184</td>
+<td style="text-align: right;">2.281</td>
+<td style="text-align: right;">12,060</td>
+</tr>
+<tr>
+<td>Rust</td>
+<td style="text-align: right;">1,000</td>
+<td style="text-align: right;">200 ms</td>
+<td style="text-align: right;">200</td>
+<td style="text-align: right;">208.916</td>
+<td style="text-align: right;">3,067</td>
+</tr>
+<tr>
+<td>Python</td>
+<td style="text-align: right;">1,000</td>
+<td style="text-align: right;">None</td>
+<td style="text-align: right;">2,317</td>
+<td style="text-align: right;">4.976</td>
+<td style="text-align: right;">3,066</td>
+</tr>
+<tr>
+<td>Python</td>
+<td style="text-align: right;">4,000</td>
+<td style="text-align: right;">None</td>
+<td style="text-align: right;">2,944</td>
+<td style="text-align: right;">4.003</td>
+<td style="text-align: right;">12,051</td>
+</tr>
+<tr>
+<td>Python</td>
+<td style="text-align: right;">1,000</td>
+<td style="text-align: right;">200 ms</td>
+<td style="text-align: right;">1,871</td>
+<td style="text-align: right;">216.069</td>
+<td style="text-align: right;">3,064</td>
+</tr>
+</tbody>
+</table>
+<p>Every row produced 16 attacks and 16 matching releases, with zero owned notes
+after Stop and no event-buffer exhaustion. Rust's player batches were much
+shorter; Python's p99 processing batches exceeded the nominal 1 ms poll interval.
+Neither runtime can preserve delivery deadlines through the injected stall.</p>
+<p>At that revision, the Python suite passed 226 tests. Native Rust tests and Clippy
+with <code>-D warnings</code> passed on the CI-pinned Rust 1.87 toolchain. Installed Clippy
+1.99 reported an existing <code>collapsible_match</code> warning in <code>rhythm.rs</code>.
+These timing observations predate the meedee migrations and strum/lane support;
+they are not measurements of the current transport or multiple-lane workloads.</p>
+<h2 id="correctness-and-capacity-evidence">Correctness and capacity evidence<a class="headerlink" href="#correctness-and-capacity-evidence" title="Permanent link">&para;</a></h2>
+<p>The Python/Rust dense-capture regression records 2,000 equal breath samples
+at 1 kHz. Fitting the phrase to a 100 ms gate retains the samples: its first
+50 ms emits 1,000 controllers. Stop emits one matching release and cancels the
+remaining stream. This also demonstrates how fitting can greatly increase
+controller bandwidth; preserved data does not imply a receiver can keep up.</p>
+<p>Existing shared lifecycle tests cover stale releases, handoffs, zero gates,
+repeats, pause/clear/seek cleanup, event-buffer exhaustion, and recovery after
+draining. Decision output is bounded at 4,096 events per lane, with up to 16
+lanes merged by the player. The shared 4,096-event lifecycle buffer reserves
+every owned release; queued strum attacks also have a 4,096-entry limit. Phrase
+tests cover the 128-take limit and recovery through undo/clear. Captured input
+has a one-million-event admission limit.</p>
+<p>Native archives retain executable permissions, playable profiles, and a matching
+SHA-256 checksum. The locally built macOS executable validates a profile without
+opening MIDI devices. Its dynamic dependencies are operating-system libraries;
+no Python, enge, NumPy, or external audio engine is linked. Hosted native jobs
+perform the same executable validation before retaining their archives. The
+publication job waits for all native and WebAssembly checks before attaching
+downloads to the release.</p>
+<h2 id="remaining-limitations-and-hardware-checks">Remaining limitations and hardware checks<a class="headerlink" href="#remaining-limitations-and-hardware-checks" title="Permanent link">&para;</a></h2>
+<p>The Python and Rust device hosts bound incoming queues at 4096 packets and
+1 MiB of MIDI payload, with a 64 KiB packet/assembled SysEx limit. Limits are
+configurable, shared across note and clock inputs, and tested at capacity
+boundaries and with concurrent producers. Console input is also bounded.
+Overflow is fatal: release owned output, report the failure, and end the play
+session. Fake-port Python tests verify cleanup, including a release produced
+just before overflow. Rust tests cover fragmented SysEx and capacity reservation
+before payload allocation. There is no queue-age cutoff.</p>
+<p>Native hosts now offer an optional output byte budget, disabled by default.
+<code>--output-bytes-per-second</code> sets the refill rate and <code>--output-burst-bytes</code> sets
+the allowance (default 64 bytes). Whole player-produced batches are admitted
+before any sends, retaining order and controller samples. Overload refuses the
+batch, reports an error, and ends playback. Cleanup bypasses the budget and uses
+a ledger of notes accepted by the port, rather than the player's potentially
+newer generated note. Python/Rust tests cover exact refill boundaries, burst
+caps, failed sends, release velocity, and refused note-entry groups; a Python
+fake-port test verifies cleanup when the player has already selected a new note.</p>
+<p>Hosts timestamp callbacks, use 1 ms polling, and send due output immediately;
+they do not yet use driver timestamps or future output scheduling. There is no
+controller coalescer or pacing queue. A long stall can produce a late burst
+within capacity, or end a session when its configured output budget is exceeded.
+Sustained input overload also ends the session.
+The input limits cover arpeg's retained payload, not MIDI-library or driver buffers.
+The output budget estimates capacity, without measuring driver queue occupancy.
+Python receives raw MIDI 1 bytes through meedee and maintains independent bounded
+decoders for note/shared-clock and separate-clock inputs. Decoder diagnostics,
+receive drops and sequence gaps end playback. Automated checks do not
+establish a latency ceiling or prove device operation under a MIDI storm.</p>
+<p>Hardware verification is pending. When the devices are available:</p>
+<ol>
+<li>Use a MIDI loopback destination and timestamp the returned notes/controllers
+   to measure actual delivery order and timing, including dense breath.</li>
+<li>Play the wind-controller profile into the intended synth; check inherited
+   breath, delayed attack, bend, and release articulation.</li>
+<li>Check Stop, external-clock loss/reacquisition, clear, and a disconnect while
+   notes are sounding. Software can attempt cleanup but cannot deliver a release
+   through an already disconnected output.</li>
+<li>Repeat native installation/validation on systems without a Python/audio
+   development environment. Linux/Windows hardware remains separate evidence
+   from their hosted build and software checks.</li>
+</ol>
+<h2 id="meedee-host-migration-2026-10-18">meedee host migration, 2026-10-18<a class="headerlink" href="#meedee-host-migration-2026-10-18" title="Permanent link">&para;</a></h2>
+<p>The Rust device host now uses the HTTPS <code>main</code> branch of meedee instead of
+midir. Cargo.lock resolves meedee to <code>38c0cbcd8e267c8acb5c481cdd5cb56411663cdc</code>.
+Only the device-host feature enables it. The Python host, musical engines,
+file renderer, WebAssembly bindings and authored profiles are unchanged.</p>
+<p>Host callbacks continue to timestamp arrival with <code>Instant</code>; backend timestamp
+capture is disabled. Raw MIDI 1 chunks go through arpeg's existing bounded
+framer. Separate note/clock inputs retain independent parser state and use each
+client's own discovery snapshot. A changed clock selection during discovery
+fails explicitly. meedee receive drops or callback panics terminate playback.
+The existing byte budget and sent-note ownership decide output and cleanup;
+failed sends are not retried. Explicit connection closes report errors, including
+when musical cleanup has already failed. Rust native operations remain in-process
+and can block on a native driver; Python isolation is not implicitly introduced.</p>
+<p>The Git dependency builds bundled libremidi successfully on this Mac with Rust
+1.99.0, CMake 4.4.4 and the installed C++ toolchain. Rust workspace tests pass:
+135 ordinary tests, with one native check ignored. The no-default-features suite
+passes 122 tests. Workspace Clippy with <code>-D warnings</code>, formatting and a release executable build
+pass. Standalone download documentation includes the statically linked transport
+licenses without changing the packaging tool.
+The WebAssembly dependency tree excludes meedee; the local Rust installation
+has no wasm32 target, so actual WebAssembly compilation remains with the
+existing release-only CI gate. No CI trigger changes or workflow runs were made.</p>
+<p>The native check requires explicit invocation:</p>
+<div class="language-sh highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>cargo<span class="w"> </span><span class="nb">test</span><span class="w"> </span>-p<span class="w"> </span>arpeg-midi<span class="w"> </span>--test<span class="w"> </span>native_host<span class="w"> </span>--locked<span class="w"> </span>--<span class="w"> </span>--ignored<span class="w"> </span>--nocapture
+</span></code></pre></div>
+<p>It launches a supervised native fixture with a 30-second deadline, terminating
+its process group on timeout. The fixture creates only its own virtual source,
+clock source and destination, discovers their CLI indices and launches the actual
+<code>arpeg play</code> executable. It verifies NoteOn delivery and matching NoteOff after
+quit with internal clock, shared external clock and separate external clock.
+A fourth case sets the native receive budget below a NoteOn packet's size and
+checks explicit transport-loss termination without producing output.
+Ordinary test runs do not create endpoints or contact the MIDI service.</p>
+<p>An agent-context attempt during this migration failed before creating endpoints,
+with CoreMIDI keeper initialization error 268435459. The owner's ordinary Terminal
+run passed all four cases, with the supervised result completing in 2.61 seconds. See
+<a href="../meedee-host-native-macos.txt">the retained Terminal result</a>. This establishes
+virtual-only production host behavior on this Mac, not physical interface
+latency, unplug/replug recovery or Linux/Windows qualification. Build dependencies
+and those platform gates remain explicit; release CI is still release-only.</p>
+<h2 id="python-meedee-host-migration-2026-10-19">Python meedee host migration, 2026-10-19<a class="headerlink" href="#python-meedee-host-migration-2026-10-19" title="Permanent link">&para;</a></h2>
+<p>The Python host and MidiPlayer now use native immutable meedee messages instead
+of Mido/RtMidi. The optional MIDI extra uses meedee from HTTPS <code>main</code>; uv.lock
+records revision <code>2f444e311a558dc8ada9bb89530639aaa6e04c87</code>.
+The pure musical engines remain independent of native transport.</p>
+<p>Python transport defaults to process isolation; <code>--no-isolated</code> selects
+in-process operation. Both modes preserve parent callback arrival timestamps,
+with backend timestamp capture disabled. Independent bounded decoders frame note
+and separate-clock inputs. Decoder diagnostics, receive drops, sequence gaps and
+worker failures end playback. Cleanup releases only successfully sent owned
+notes and does not retry failed sends. Native message channels use 1–16;
+existing wire output and musical conformance fixtures are unchanged.</p>
+<p>The ordinary Python suite passes 488 tests. Ruff, Python formatting, type checks
+and pyupgrade pass. Native checks are explicitly selected, not part of ordinary
+test collection:</p>
+<div class="language-sh highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>uv<span class="w"> </span>run<span class="w"> </span>--frozen<span class="w"> </span>--extra<span class="w"> </span>midi<span class="w"> </span>pytest<span class="w"> </span>-q<span class="w"> </span>-s<span class="w"> </span>test/qualification/python_host.py
+</span></code></pre></div>
+<p>Each process mode has a 45-second supervisor and uses only test-created virtual
+endpoints. The actual Python CLI delivers NoteOn and quit cleanup NoteOff with
+internal, shared external and separate external clocks. A fourth case per mode
+sets the native receive budget below a NoteOn packet's size, then checks explicit
+loss termination without another packet. That quiet-loss case exposed stale
+isolated drop reporting; the meedee revision above fixes it using the existing
+forwarder's idle wake-up, without additional MIDI traffic.</p>
+<p>The owner's ordinary Terminal run passes all eight scenarios in 8.28 seconds.
+See <a href="../meedee-python-native-macos.txt">the retained Terminal result</a>. These checks
+establish virtual-only operation on this Mac. They do not establish physical
+interface latency, unplug/replug behavior or Linux/Windows/Pi qualification.
+Isolation adds process and communication overhead; in-process native operations
+can block on drivers. Release-only CI triggers are unchanged.</p>
+<h2 id="device-free-musical-features-2026-10-21">Device-free musical features, 2026-10-21<a class="headerlink" href="#device-free-musical-features-2026-10-21" title="Permanent link">&para;</a></h2>
+<p>The delivery ending at <code>8c5200c</code> added strums and dedicated-channel arp lanes,
+following captured-bank selectors and authored phrase templates. The arpeg
+Python suite passed 612 tests; the related uFor schema work passed 1,305 tests.
+Rust workspace tests passed with default features disabled, including the
+shared strum/lane cases. Ruff, Python formatting, type checks, pyupgrade,
+Rust formatting, device-free Clippy with <code>-D warnings</code>, and <code>git diff --check</code>
+passed.</p>
+<p>Native Rust binaries and tests also compiled with <code>--no-run</code>. A first attempt
+encountered a CMake cache containing a different Cargo checkout path; compilation
+succeeded with a fresh target directory. No existing build artifacts were deleted.
+The verification commands included:</p>
+<div class="language-sh highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>uv<span class="w"> </span>run<span class="w"> </span>--frozen<span class="w"> </span>pytest<span class="w"> </span>-q<span class="w"> </span><span class="nb">test</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>cargo<span class="w"> </span><span class="nb">test</span><span class="w"> </span>--workspace<span class="w"> </span>--no-default-features<span class="w"> </span>--locked
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="nv">CARGO_TARGET_DIR</span><span class="o">=</span>/private/tmp/arpeg-strums-native-check<span class="w"> </span>cargo<span class="w"> </span><span class="nb">test</span><span class="w"> </span>--workspace<span class="w"> </span>--locked<span class="w"> </span>--no-run
+</span></code></pre></div>
+<p>Use the explicit <code>test</code> path for local Python collection: an unrestricted run
+also collected dependency checkouts under <code>target</code>, causing duplicate-module
+collection errors.</p>
+<p>No MIDI devices or virtual endpoints were opened for this delivery. Actual
+WebAssembly/JavaScript execution and physical MIDI checks were not performed;
+native compilation does not establish either. No release workflow was triggered.
+The documentation review on 2026-10-27 does not constitute a new test run.</p>
+<h2 id="webassembly-and-javascript-verification-2026-10-27">WebAssembly and JavaScript verification, 2026-10-27<a class="headerlink" href="#webassembly-and-javascript-verification-2026-10-27" title="Permanent link">&para;</a></h2>
+<p>On this macOS ARM64 machine, Rust 1.87.0 with the
+<code>wasm32-unknown-unknown</code> target, wasm-bindgen 0.2.129, and Node.js 23.11.0
+completed these checks:</p>
+<div class="language-sh highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>cargo<span class="w"> </span><span class="nb">test</span><span class="w"> </span>--workspace<span class="w"> </span>--no-default-features<span class="w"> </span>--target<span class="w"> </span>wasm32-unknown-unknown<span class="w"> </span>--tests<span class="w"> </span>--locked
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>node<span class="w"> </span>web/build.mjs
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>node<span class="w"> </span>--test<span class="w"> </span>crates/arpeg-wasm/tests/browser.mjs<span class="w"> </span>web/test/*.mjs
+</span></code></pre></div>
+<p>The Rust suite executed 139 tests inside WebAssembly through Node, with no
+failures. All 11 strum/lane tests passed, including irregular polling, channel
+expression, capacity reservations, and cancellation of unsent strums during
+cleanup. Native-only tests did not run on this target.</p>
+<p>The release module and static browser instrument built successfully. All 31
+JavaScript tests passed against the generated bindings and browser host helpers,
+including lane-channel metadata, Stop releases, queued-attack cancellation,
+irregular polling, tempo changes, and bend ordering.</p>
+<p>The checked-in <code>rust-toolchain.toml</code> declares the CI-matching compiler, required
+components, and WebAssembly target. Local tools are installed persistently in
+<code>~/.cargo/bin</code> and <code>~/.rustup</code>; the shell must put <code>~/.cargo/bin</code> first on PATH.
+No project dependency versions or lockfiles changed.</p>
+<p>These checks establish WebAssembly execution and JavaScript integration under
+Node. They do not measure a live browser audio device, input latency, or physical
+MIDI delivery. No MIDI endpoints, application server, or live audio session were
+opened, and no release workflow was triggered.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://zensical.org/" target="_blank" rel="noopener">
+      Zensical
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog" role="status" aria-atomic="true">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      
+      
+        
+        
+      <script id="__config" type="application/json">{"annotate":null,"base":"..","features":["navigation.indexes","content.code.copy"],"redirect":null,"search":"../assets/javascripts/workers/search.c47bb847.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","clipboard.error":"Could not copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.77dd0ce9.min.js"></script>
+      
+    
+  </body>
+</html>
