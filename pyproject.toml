@@ -42,9 +42,11 @@ dev = [
     "ruff>=0.16.9",
     "ty>=0.0.84",
     "envelfo",
+    "reccy",
 ]
 
 [tool.uv.sources]
 ufor = { git = "https://github.com/rec/ufor", branch = "main" }
 envelfo = { git = "https://github.com/rec/envelfo", branch = "main" }
 meedee = { git = "https://github.com/rec/meedee", branch = "main" }
+reccy = { git = "https://github.com/rec/reccy.git", branch = "main" }
