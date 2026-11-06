@@ -1,0 +1,31 @@
+name = "items"
+gate = "4/5"
+probability = "1"
+seed = 0
+retrigger = "on_empty"
+
+[bank]
+
+kind = "held"
+
+[selection]
+
+kind = "ascending"
+key = "pitch"
+repeats = 1
+
+[rhythm]
+
+kind = "grid"
+step = "1/4 beat"
+swing = "1/2"
+groove = ["1"]
+
+[patterns]
+
+accents = ["1"]
+gates = ["1"]
+
+[strum]
+
+spacing = "1/32 beat"
