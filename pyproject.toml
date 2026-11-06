@@ -43,6 +43,7 @@ dev = [
     "ty>=0.0.84",
     "envelfo",
     "reccy",
+    "pytest-regressions>=2.11.0",
 ]
 
 [tool.uv.sources]
