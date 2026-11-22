@@ -4,7 +4,7 @@ from tomllib import loads
 
 import pytest
 from envelfo import patch
-from meedee import codecs
+from middy import codecs
 from ufor import arpeggiator_ports, control, envelfo
 from ufor.segments import Segment
 

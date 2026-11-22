@@ -9,7 +9,7 @@ use crate::{
 use arpeg_core::ports::REGISTER_RANGE_ERROR;
 use arpeg_core::tuning::TUNING_ERROR;
 use arpeg_core::{Bank, clock::ClockMode, ports::InputPort};
-use meedee::transport::{
+use middy::transport::{
     Input, InputOptions, Output, OutputConnection, OutputOptions, Packet, TimestampMode,
 };
 use std::{

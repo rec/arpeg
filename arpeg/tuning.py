@@ -1,12 +1,13 @@
 """Prepare shared uFor tuning definitions as unrounded MIDI pitch coordinates."""
 
 from fractions import Fraction
-from math import exp2, isfinite, log2
+from math import log2
 from typing import Self
 
 from pydantic import BaseModel, Field
+from ufor import number
 from ufor.arpeggiator import Arpeggiator
-from ufor.expression import MAX_FRACTION_BITS, evaluate
+from ufor.expression import evaluate
 from ufor.tuning import Computed, FrequencyTable, IntervalPattern, RatioTable
 
 
@@ -29,7 +30,7 @@ class PreparedTuning(BaseModel, frozen=True):
         if isinstance(source, FrequencyTable):
             first = source.first_note
             pitches = [
-                69 + 12 * (pitch_logarithm(v) - log2(440)) for v in source.values
+                69 + 12 * (pitch_logarithm(v) - log2(440)) for v in source.frequencies
             ]
         else:
             root = 69 + 12 * (pitch_logarithm(tuning.root_frequency) - log2(440))
@@ -38,7 +39,7 @@ class PreparedTuning(BaseModel, frozen=True):
                 span = 12 * pitch_logarithm(source.octave_ratio)
                 pitches = [root]
             elif isinstance(source, RatioTable):
-                pitches = [root + 12 * pitch_logarithm(v) for v in source.values]
+                pitches = [root + 12 * pitch_logarithm(v) for v in source.ratios]
                 if source.repeat_ratio is not None:
                     period = len(pitches)
                     span = 12 * pitch_logarithm(source.repeat_ratio)
@@ -74,23 +75,14 @@ class PreparedTuning(BaseModel, frozen=True):
                 return self.pitches[0] + index * self.period_semitones / self.period
             try:
                 assert self.period is not None
-                exponent = Fraction(index, self.period)
-                estimate = exp2(index * self.period_semitones / (12 * self.period))
-                if not isfinite(estimate) or estimate <= 0:
-                    raise ValueError("computed ratio is outside numerical limits")
-                if (
-                    isinstance(self.computed_ratio, Fraction)
-                    and exponent.denominator == 1
-                    and max(
-                        self.computed_ratio.numerator.bit_length(),
-                        self.computed_ratio.denominator.bit_length(),
+                ratio = number.positive_number(
+                    number.limit_denominator(
+                        number.checked_power(
+                            self.computed_ratio,
+                            number.checked_fraction(index, self.period),
+                        ),
+                        self.computed_limit,
                     )
-                    * abs(exponent.numerator)
-                    > MAX_FRACTION_BITS
-                ):
-                    raise ValueError("computed ratio exceeds exact-number limit")
-                ratio = Fraction(self.computed_ratio**exponent).limit_denominator(
-                    self.computed_limit
                 )
                 logarithm = (
                     log2(ratio.numerator) - log2(ratio.denominator)

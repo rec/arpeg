@@ -113,7 +113,7 @@ fn phrase_intervals_precede_scale_tuning_and_global_transposition() {
             77,
         ),
         (
-            "selection={kind='index_pattern',indices=[0],intervals=[19]}\ntuning={source={kind='computed',notes_per_octave=19,octave_ratio='2'},root_note=69,root_frequency='440'}\nbend_range=2",
+            "selection={kind='index_pattern',indices=[0],intervals=[19]}\ntuning={source={notes_per_octave=19,octave_ratio='2'},root_note=69,root_frequency='440'}\nbend_range=2",
             69,
             81,
         ),

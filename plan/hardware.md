@@ -100,7 +100,7 @@ breadboard connections inside a device that will travel.
 
 ## 3. Software work needed before it can play on the Pi
 
-The Rust MIDI executable and Python host use meedee/libremidi. Both offer `play`
+The Rust MIDI executable and Python host use middy/libremidi. Both offer `play`
 and `list-ports`. Linux MIDI port access uses ALSA. A Pi needs its own Linux
 build, and a raw GPIO UART does not automatically appear as an ALSA MIDI port.
 

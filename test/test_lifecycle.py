@@ -2,8 +2,8 @@ from pathlib import Path
 from tomllib import loads
 
 import pytest
-from meedee import codecs
-from meedee.messages import Message
+from middy import codecs
+from middy.messages import Message
 from ufor.arpeggiator_ports import ArpeggiatorNoteEvent
 
 from arpeg.midi import MidiPlayer, decode_message

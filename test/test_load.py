@@ -1,7 +1,7 @@
 from pathlib import Path
 
-from meedee import codecs
-from meedee.messages import (
+from middy import codecs
+from middy.messages import (
     ControlChange,
     NoteOff,
     NoteOn,

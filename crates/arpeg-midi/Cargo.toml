@@ -11,15 +11,16 @@ required-features = ["device-host"]
 
 [features]
 default = ["device-host"]
-device-host = ["dep:ctrlc", "dep:meedee"]
+device-host = ["dep:ctrlc", "dep:middy"]
 
 [dependencies]
 arpeg-core = { path = "../arpeg-core" }
 ctrlc = { version = "3.4", optional = true }
-meedee = { git = "https://github.com/rec/meedee", branch = "main", optional = true }
+middy = { git = "https://github.com/rec/middy", branch = "main", optional = true }
 midly = { version = "0.5.3", default-features = false, features = ["std"] }
 num-rational = "0.4"
 toml = "1.1"
+ufor = { git = "https://github.com/rec/ufor", branch = "main" }
 
 [target.'cfg(target_arch = "wasm32")'.dev-dependencies]
 wasm-bindgen-test = "0.3.79"

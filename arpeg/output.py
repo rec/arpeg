@@ -2,8 +2,8 @@
 
 from collections.abc import Callable
 
-from meedee import codecs
-from meedee.messages import (
+from middy import codecs
+from middy.messages import (
     Message,
     NoteOff,
     NoteOn,
@@ -64,7 +64,8 @@ class MidiDelivery(BaseModel):
                 and message.velocity == 0
             ):
                 continue
-            note = (message.channel - 1) * 128 + message.note
+            assert (channel := message.channel) is not None
+            note = (channel - 1) * 128 + message.note
             if note in self.owned:
                 write(message)
                 self._record(message)
@@ -77,7 +78,8 @@ class MidiDelivery(BaseModel):
     def _record(self, message: Message) -> None:
         if not isinstance(message, (NoteOn, NoteOff)):
             return
-        note = (message.channel - 1) * 128 + message.note
+        assert (channel := message.channel) is not None
+        note = (channel - 1) * 128 + message.note
         if isinstance(message, NoteOn) and message.velocity > 0:
             self.owned[note] = self.owned.get(note, 0) + 1
         else:

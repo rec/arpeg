@@ -193,7 +193,7 @@ fn expression_uses_each_sounding_lane_channel_without_releasing_other_notes() {
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 fn incompatible_strum_tuning_is_rejected_with_owned_cleanup_preserved() {
     let mut player = player(
-        "strum={spacing='1/8 beat'}\ntuning={source={kind='computed',notes_per_octave=19,octave_ratio='2'},root_note=69,root_frequency='440'}\nbend_range=2",
+        "strum={spacing='1/8 beat'}\ntuning={source={notes_per_octave=19,octave_ratio='2'},root_note=69,root_frequency='440'}\nbend_range=2",
         ClockMode::Internal,
     );
     for key in [69, 70] {

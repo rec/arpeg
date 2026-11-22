@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 import tyro
-from meedee import codecs
+from middy import codecs
 from ufor.arpeggiator import ArpeggiatorScore
 from ufor.codec import parse_score
 

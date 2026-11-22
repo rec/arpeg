@@ -13,8 +13,8 @@ from time import monotonic
 from uuid import uuid4
 
 import pytest
-from meedee import codecs, events, midi
-from meedee.messages import Message, NoteOff, NoteOn
+from middy import codecs, events, midi
+from middy.messages import Message, NoteOff, NoteOn
 
 
 @pytest.mark.skipif(platform != "darwin", reason="CoreMIDI virtual-only qualification")
@@ -53,14 +53,10 @@ def exercise_host(isolated: bool) -> None:
         received.put_nowait(packet.packet)
 
     with ExitStack() as stack:
-        source = stack.enter_context(
-            midi.Output(isolated=False).create_virtual(prefix + "-notes")
-        )
-        clock = stack.enter_context(
-            midi.Output(isolated=False).create_virtual(prefix + "-clock")
-        )
+        source = stack.enter_context(midi.Output().create_virtual(prefix + "-notes"))
+        clock = stack.enter_context(midi.Output().create_virtual(prefix + "-clock"))
         sink = stack.enter_context(
-            midi.Input(isolated=False).create_virtual(prefix + "-sink", receive)
+            midi.Input(raw=True).create_virtual(prefix + "-sink", receive)
         )
         command = [str(Path(executable).with_name("arpeg-python"))]
         listing = Popen(
@@ -166,7 +162,7 @@ def port_index(listing: str, section: str, name: str) -> int:
 def await_note(
     received: Queue[bytes],
     expected: Message,
-    clock: midi.OutputConnection | None = None,
+    clock: midi.Output | None = None,
 ) -> None:
     deadline = monotonic() + 3
     decoder = codecs.Decoder()

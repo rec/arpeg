@@ -3,8 +3,8 @@ from pathlib import Path
 from tomllib import loads
 
 import pytest
-from meedee import codecs
-from meedee.messages import NoteOn
+from middy import codecs
+from middy.messages import NoteOn
 from ufor.arpeggiator import Octaves, PitchRegister, Transposition
 
 from arpeg.live import LiveArpeggiator

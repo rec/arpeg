@@ -6,8 +6,8 @@ from pathlib import Path
 from time import perf_counter_ns, sleep
 
 import tyro
-from meedee import codecs
-from meedee.messages import (
+from middy import codecs
+from middy.messages import (
     ControlChange,
     NoteOn,
 )

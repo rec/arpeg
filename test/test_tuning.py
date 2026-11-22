@@ -3,8 +3,8 @@ from pathlib import Path
 from tomllib import loads
 
 import pytest
-from meedee import codecs
-from meedee.messages import (
+from middy import codecs
+from middy.messages import (
     Message,
     NoteOn,
     PitchBend,
@@ -26,7 +26,7 @@ def test_nineteen_divisions_encode_tuning_and_current_expression() -> None:
             body=Arpeggiator.model_validate(
                 {
                     "rhythm": {"kind": "grid", "step": "1 beat"},
-                    "tuning": {"source": {"kind": "computed", "notes_per_octave": 19}},
+                    "tuning": {"source": {"notes_per_octave": 19}},
                     "bend_range": 2,
                 }
             ),
@@ -48,14 +48,13 @@ def test_nineteen_divisions_encode_tuning_and_current_expression() -> None:
 @pytest.mark.parametrize(
     "source",
     [
-        {"kind": "computed", "notes_per_octave": 19},
-        {"kind": "computed", "notes_per_octave": 12, "denominator_limit": 16},
-        {"kind": "ratios", "values": ["1", "9/8", "5/4"], "repeat_ratio": "2"},
-        {"kind": "intervals", "intervals": ["9/8", "10/9", "8/5"]},
+        {"notes_per_octave": 19},
+        {"notes_per_octave": 12, "denominator_limit": 16},
+        {"ratios": ["1", "9/8", "5/4"], "repeat_ratio": "2"},
+        {"intervals": ["9/8", "10/9", "8/5"]},
         {
-            "kind": "frequencies",
             "first_note": 69,
-            "values": ["440", "440/(2^(1/12))", "660"],
+            "frequencies": ["440", "440/(2^(1/12))", "660"],
         },
     ],
 )
@@ -72,7 +71,7 @@ def test_prepared_pitches_match_ufor_frequency_semantics(
     )
     prepared = PreparedTuning.prepare(body)
     assert prepared is not None
-    indices = [69, 70, 71] if source["kind"] == "frequencies" else [60, 69, 70, 81]
+    indices = [69, 70, 71] if "frequencies" in source else [60, 69, 70, 81]
     for i in indices:
         assert prepared.pitch(i) == pytest.approx(
             69 + 12 * log2(float(tuning(i)) / 440), abs=1e-10
@@ -90,7 +89,6 @@ def test_period_transforms_follow_a_three_to_one_tuning(
             "rhythm": {"kind": "grid", "step": "1 beat"},
             "tuning": {
                 "source": {
-                    "kind": "computed",
                     "notes_per_octave": 13,
                     "octave_ratio": "3",
                 }
@@ -113,7 +111,7 @@ def test_bend_overflow_cleanup_releases_the_note_actually_sent() -> None:
     body = Arpeggiator.model_validate(
         {
             "rhythm": {"kind": "grid", "step": "1/4 beat"},
-            "tuning": {"source": {"kind": "computed", "notes_per_octave": 19}},
+            "tuning": {"source": {"notes_per_octave": 19}},
             "bend_range": 2,
         }
     )
@@ -165,7 +163,7 @@ def test_recorded_bends_keep_the_tuning_offset_and_release_velocity() -> None:
         .read_text()
         .replace(
             "[body]",
-            '[body]\nbend_range=2\ntuning={source={kind="computed",notes_per_octave=19}}',
+            "[body]\nbend_range=2\ntuning={source={notes_per_octave=19}}",
         )
     )
     player = MidiPlayer(profile=profile)

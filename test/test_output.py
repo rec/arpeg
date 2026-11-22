@@ -1,5 +1,5 @@
 import pytest
-from meedee.messages import ControlChange, Message, NoteOff, NoteOn, TimingClock
+from middy.messages import ControlChange, Message, NoteOff, NoteOn, TimingClock
 
 from arpeg.output import MidiDelivery, OutputOverload
 

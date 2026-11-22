@@ -8,8 +8,8 @@ from types import SimpleNamespace
 from typing import Literal
 
 import pytest
-from meedee import codecs, events
-from meedee.messages import (
+from middy import codecs, events
+from middy.messages import (
     Message,
     NoteOff,
     NoteOn,

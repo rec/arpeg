@@ -7,7 +7,7 @@ description = "Host-clock connections between arpeg and enveLFO"
 
 [dependencies]
 arpeg-core = { path = "../arpeg-core" }
-envelfo-core = { git = "ssh://git@github.com/rec/envelfo.git", rev = "b719734d0e7becf3828ebad29199fd8e40eca54b" }
+envelfo-core = { git = "https://github.com/rec/envelfo", rev = "b719734d0e7becf3828ebad29199fd8e40eca54b" }
 
 [dev-dependencies]
 arpeg-midi = { path = "../arpeg-midi", default-features = false }

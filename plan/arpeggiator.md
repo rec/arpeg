@@ -121,23 +121,13 @@ from event-core timing, and record protocol/profile limits with release evidence
 
 ## Dependency updates
 
-The lockfiles still select the existing dependencies. These items come up when
-updating them or preparing a release from fresh source dependencies.
-
-- **MIDI hosts.** Migrate the Python and Rust hosts from meedee to middy.
-  Recheck MIDI 1 decoding, transport-loss reporting, clock and expression
-  handling, and release cleanup through the new APIs. Qualify actual delivery
-  on the new transport. MIDI 2.0 and MPE still need arpeg-side behavior and
-  device qualification.
-- **uFor.** Update Python tuning preparation for field-based tuning sources
-  and the current expression API. Align the Rust/WebAssembly profile parser,
-  presets, and shared tuning traces. The old table field is `values`; the
-  current uFor fields are `ratios` and `frequencies`. Arpeg also imports
-  `MAX_FRACTION_BITS`, which current uFor has removed.
-- **enveLFO.** Move the optional Rust bridge from its pinned `envelfo-core`
-  package to upstream's consolidated `engelfo` crate when updating the bridge.
-  Verify Python and Rust scheduling and continuation together after the update,
-  including a device-free WebAssembly build.
+- **MIDI hosts.** Qualify native middy delivery, transport-loss handling, and
+  owned-note cleanup. Switch Python source configuration to a published middy
+  wheel once the compatible release is available and check a clean install.
+- **enveLFO.** Move the optional Rust bridge from pinned `envelfo-core` to
+  `engelfo` once upstream can build its control runtime without middy's native
+  transport. Verify Python and Rust scheduling and continuation together,
+  including WebAssembly.
 
 ## Additional work beyond the prompt
 

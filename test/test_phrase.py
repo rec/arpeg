@@ -2,7 +2,7 @@ from fractions import Fraction
 from pathlib import Path
 
 import pytest
-from meedee import codecs
+from middy import codecs
 
 from arpeg.history import LiveHistoryArpeggiator
 from arpeg.midi import MidiPlayer, decode_message

@@ -5,6 +5,10 @@ use arpeg_core::{
     tuning::PreparedTuning,
 };
 use toml::{Table, Value};
+use ufor::{
+    expression::evaluate,
+    tuning::{Source, Tuning},
+};
 
 pub fn scale(value: &Value) -> Result<ScaleTransform, String> {
     let table = value.as_table().ok_or("scale must be a table")?;
@@ -171,88 +175,58 @@ pub fn scale(value: &Value) -> Result<ScaleTransform, String> {
 }
 
 pub fn prepare(value: &Value) -> Result<PreparedTuning, String> {
-    let t = value.as_table().ok_or("tuning must be a table")?;
-    fields(
-        t,
-        &["source", "root_note", "root_frequency", "detune_cents"],
-    )?;
-    let source = t
-        .get("source")
-        .and_then(Value::as_table)
-        .ok_or("tuning requires source")?;
-    let kind = text(source, "kind", "")?;
-    let detune = number(t, "detune_cents", 0.0)? / 100.0;
-    let root = 69.0
-        + 12.0 * (pitch_logarithm(text(t, "root_frequency", "440")?)? - 440.0_f64.log2())
-        + detune;
+    let tuning: Tuning = value
+        .clone()
+        .try_into()
+        .map_err(|e| format!("invalid tuning: {e}"))?;
+    let detune = tuning.detune_cents() / 100.0;
+    let root =
+        69.0 + 12.0 * (pitch_logarithm(tuning.root_frequency())? - 440.0_f64.log2()) + detune;
     let mut result = PreparedTuning {
         pitches: Vec::new(),
-        first_note: integer(t, "root_note", 69)?,
+        first_note: tuning.root_note(),
         period: None,
         period_semitones: 0.0,
         computed_limit: None,
     };
-    match kind {
-        "computed" => {
-            fields(
-                source,
-                &[
-                    "kind",
-                    "notes_per_octave",
-                    "octave_ratio",
-                    "denominator_limit",
-                ],
-            )?;
-            let steps = integer(source, "notes_per_octave", 12)?;
-            let limit = integer(source, "denominator_limit", 0)?;
-            if steps <= 0 || limit < 0 {
-                return Err("invalid computed tuning bounds".into());
-            }
-            result.period = Some(steps);
-            result.period_semitones = 12.0 * pitch_logarithm(text(source, "octave_ratio", "2")?)?;
+    match tuning.source() {
+        Source::Computed(source) => {
+            result.period = Some(source.notes_per_octave());
+            result.period_semitones = 12.0 * pitch_logarithm(source.octave_ratio())?;
             result.pitches = vec![root];
-            result.computed_limit = Some(limit as u64);
+            result.computed_limit = Some(source.denominator_limit() as u64);
         }
-        "ratios" => {
-            fields(
-                source,
-                &["kind", "values", "repeat_ratio", "name", "description"],
-            )?;
-            result.pitches = expressions(source, "values")?
-                .into_iter()
-                .map(|v| root + 12.0 * v)
-                .collect();
-            if let Some(v) = source.get("repeat_ratio") {
+        Source::Ratios(source) => {
+            result.pitches = source
+                .ratios()
+                .iter()
+                .map(|v| Ok(root + 12.0 * pitch_logarithm(v)?))
+                .collect::<Result<_, String>>()?;
+            if let Some(v) = source.repeat_ratio() {
                 result.period = Some(result.pitches.len() as i64);
-                result.period_semitones =
-                    12.0 * pitch_logarithm(v.as_str().ok_or("repeat_ratio must be text")?)?;
+                result.period_semitones = 12.0 * pitch_logarithm(v)?;
             }
         }
-        "intervals" => {
-            fields(source, &["kind", "intervals", "repeat"])?;
+        Source::Intervals(source) => {
             result.pitches = vec![root];
-            for v in expressions(source, "intervals")? {
+            for v in source.intervals() {
                 result
                     .pitches
-                    .push(result.pitches.last().unwrap() + 12.0 * v);
+                    .push(result.pitches.last().unwrap() + 12.0 * pitch_logarithm(v)?);
             }
-            let repeat = source
-                .get("repeat")
-                .map_or(Ok(true), |v| v.as_bool().ok_or("repeat must be boolean"))?;
-            if repeat {
+            if source.repeats() {
                 result.period = Some(result.pitches.len() as i64 - 1);
                 result.period_semitones = result.pitches.pop().unwrap() - root;
             }
         }
-        "frequencies" => {
-            fields(source, &["kind", "values", "first_note"])?;
-            result.first_note = integer(source, "first_note", 0)?;
-            result.pitches = expressions(source, "values")?
-                .into_iter()
-                .map(|v| 69.0 + 12.0 * (v - 440.0_f64.log2()) + detune)
-                .collect();
+        Source::Frequencies(source) => {
+            result.first_note = source.first_note();
+            result.pitches = source
+                .frequencies()
+                .iter()
+                .map(|v| Ok(69.0 + 12.0 * (pitch_logarithm(v)? - 440.0_f64.log2()) + detune))
+                .collect::<Result<_, String>>()?;
         }
-        _ => return Err("unsupported tuning source".into()),
     }
     if !result.pitches.iter().all(|v| v.is_finite()) || !result.period_semitones.is_finite() {
         return Err("nonfinite prepared tuning".into());
@@ -297,19 +271,6 @@ fn fields(table: &Table, allowed: &[&str]) -> Result<(), String> {
         Ok(())
     }
 }
-fn expressions(table: &Table, name: &str) -> Result<Vec<f64>, String> {
-    let values = table
-        .get(name)
-        .and_then(Value::as_array)
-        .ok_or("tuning values must be a list")?;
-    if values.is_empty() {
-        return Err("tuning list must not be empty".into());
-    }
-    values
-        .iter()
-        .map(|v| pitch_logarithm(v.as_str().ok_or("tuning values must be expressions")?))
-        .collect()
-}
 fn spelling(name: char, offset: i64, sharp: bool, accidentals: &str) -> String {
     if accidentals == "none" {
         return name.to_string();
@@ -332,207 +293,9 @@ fn spelling(name: char, offset: i64, sharp: bool, accidentals: &str) -> String {
     }
 }
 
-pub fn pitch_logarithm(text: &str) -> Result<f64, String> {
-    let text = text
-        .trim()
-        .trim_end_matches("hertz")
-        .trim_end_matches("Hz")
-        .trim();
-    if text.len() > 4096
-        || !text
-            .chars()
-            .all(|c| c.is_ascii_digit() || ".eE/+^-() \t\r\n".contains(c))
-    {
-        return Err("invalid pitch expression".into());
-    }
-    let mut parser = Expression {
-        bytes: text.as_bytes(),
-        at: 0,
-        depth: 0,
-    };
-    let value = parser.division()?;
-    parser.space();
-    if parser.at != parser.bytes.len() || value.sign != 1 || !value.logarithm.is_finite() {
-        return Err("pitch expression must be finite and positive".into());
-    }
-    Ok(value.logarithm)
-}
-
-#[derive(Clone, Copy)]
-struct Number {
-    value: f64,
-    sign: i8,
-    logarithm: f64,
-}
-struct Expression<'a> {
-    bytes: &'a [u8],
-    at: usize,
-    depth: usize,
-}
-impl Expression<'_> {
-    fn space(&mut self) {
-        while self.bytes.get(self.at).is_some_and(u8::is_ascii_whitespace) {
-            self.at += 1;
-        }
-    }
-    fn take(&mut self, c: u8) -> bool {
-        self.space();
-        if self.bytes.get(self.at) == Some(&c) {
-            self.at += 1;
-            true
-        } else {
-            false
-        }
-    }
-    fn division(&mut self) -> Result<Number, String> {
-        let mut value = self.unary()?;
-        while self.take(b'/') {
-            let other = self.unary()?;
-            if other.sign == 0 {
-                return Err("division by zero in pitch expression".into());
-            }
-            value.sign *= other.sign;
-            value.logarithm -= other.logarithm;
-            value.value /= other.value;
-        }
-        Ok(value)
-    }
-    fn unary(&mut self) -> Result<Number, String> {
-        self.depth += 1;
-        if self.depth > 64 {
-            return Err("pitch expression exceeds depth limit".into());
-        }
-        let value = if self.take(b'-') {
-            let mut value = self.unary()?;
-            value.sign = -value.sign;
-            value.value = -value.value;
-            value
-        } else if self.take(b'+') {
-            self.unary()?
-        } else {
-            self.power()?
-        };
-        self.depth -= 1;
-        Ok(value)
-    }
-    fn power(&mut self) -> Result<Number, String> {
-        let mut base = self.atom()?;
-        if self.take(b'^') {
-            let value = self.unary()?;
-            let exponent = if value.sign == 0 {
-                0.0
-            } else if value.value.is_finite() {
-                value.value
-            } else {
-                f64::from(value.sign) * value.logarithm.exp2()
-            };
-            if !exponent.is_finite() || exponent.abs() > 1024.0 {
-                return Err("pitch exponent exceeds 1024".into());
-            }
-            if base.sign == 0 && exponent < 0.0 || base.sign < 0 && exponent.fract() != 0.0 {
-                return Err("undefined pitch power".into());
-            }
-            if exponent == 0.0 {
-                return Ok(Number {
-                    sign: 1,
-                    value: 1.0,
-                    logarithm: 0.0,
-                });
-            }
-            if base.sign < 0 {
-                base.sign = if exponent.rem_euclid(2.0) == 0.0 {
-                    1
-                } else {
-                    -1
-                };
-            }
-            base.value = base.value.powf(exponent);
-            base.logarithm *= exponent;
-        }
-        Ok(base)
-    }
-    fn atom(&mut self) -> Result<Number, String> {
-        if self.take(b'(') {
-            let value = self.division()?;
-            if !self.take(b')') {
-                return Err("missing pitch parenthesis".into());
-            }
-            return Ok(value);
-        }
-        self.space();
-        let start = self.at;
-        while self
-            .bytes
-            .get(self.at)
-            .is_some_and(|c| c.is_ascii_digit() || *c == b'.')
-        {
-            self.at += 1;
-        }
-        if self
-            .bytes
-            .get(self.at)
-            .is_some_and(|c| *c == b'e' || *c == b'E')
-        {
-            self.at += 1;
-            if self
-                .bytes
-                .get(self.at)
-                .is_some_and(|c| *c == b'+' || *c == b'-')
-            {
-                self.at += 1;
-            }
-            while self.bytes.get(self.at).is_some_and(u8::is_ascii_digit) {
-                self.at += 1;
-            }
-        }
-        let literal =
-            std::str::from_utf8(&self.bytes[start..self.at]).map_err(|_| "invalid pitch number")?;
-        if let Ok(value) = literal.parse::<f64>() {
-            if value.is_finite() && value > 0.0 {
-                return Ok(Number {
-                    sign: 1,
-                    value,
-                    logarithm: value.log2(),
-                });
-            }
-        }
-        let parts: Vec<_> = literal.split(['e', 'E']).collect();
-        if parts.len() > 2 || parts[0].matches('.').count() > 1 {
-            return Err("invalid pitch number".into());
-        }
-        let exponent = if parts.len() == 2 {
-            parts[1]
-                .parse::<i32>()
-                .map_err(|_| "invalid pitch exponent")?
-        } else {
-            0
-        };
-        if !(-4096..=4096).contains(&exponent) {
-            return Err("pitch numeric exponent exceeds 4096".into());
-        }
-        let fraction = parts[0].split('.').nth(1).map_or(0, str::len);
-        let digits = parts[0].replace('.', "");
-        if digits.is_empty() {
-            return Err("invalid pitch number".into());
-        }
-        let digits = digits.trim_start_matches('0');
-        if digits.is_empty() {
-            return Ok(Number {
-                sign: 0,
-                value: 0.0,
-                logarithm: 0.0,
-            });
-        }
-        let used = digits.len().min(16);
-        let leading = digits[..used]
-            .parse::<f64>()
-            .map_err(|_| "invalid pitch number")?;
-        let decimal_power =
-            digits.len() as f64 - used as f64 - fraction as f64 + f64::from(exponent);
-        Ok(Number {
-            value: literal.parse::<f64>().unwrap_or(f64::NAN),
-            sign: 1,
-            logarithm: leading.log2() + decimal_power * 10.0_f64.log2(),
-        })
-    }
+fn pitch_logarithm(text: &str) -> Result<f64, String> {
+    evaluate(text)
+        .and_then(ufor::number::Number::positive)
+        .map(|v| v.as_f64().log2())
+        .map_err(|e| e.to_string())
 }

@@ -3,7 +3,7 @@ revision = 3
 requires-python = ">=3.13"
 
 [options]
-exclude-newer = "2026-10-30T16:37:37.137928Z"
+exclude-newer = "2026-11-15T14:26:16.981044Z"
 exclude-newer-span = "P1W"
 
 [[package]]
@@ -30,13 +30,13 @@ envelfo = [
     { name = "envelfo" },
 ]
 midi = [
-    { name = "meedee" },
+    { name = "middy" },
 ]
 
 [package.dev-dependencies]
 dev = [
     { name = "envelfo" },
-    { name = "meedee" },
+    { name = "middy" },
     { name = "pytest" },
     { name = "pytest-regressions" },
     { name = "pyupgrade" },
@@ -48,7 +48,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "envelfo", marker = "extra == 'envelfo'", git = "https://github.com/rec/envelfo?branch=main" },
-    { name = "meedee", marker = "extra == 'midi'", git = "https://github.com/rec/meedee?branch=main" },
+    { name = "middy", marker = "extra == 'midi'", git = "https://github.com/rec/middy?branch=main" },
     { name = "pydantic", specifier = ">=2.13.5" },
     { name = "tyro", specifier = ">=1.0.16" },
     { name = "ufor", git = "https://github.com/rec/ufor?branch=main" },
@@ -58,7 +58,7 @@ provides-extras = ["envelfo", "midi"]
 [package.metadata.requires-dev]
 dev = [
     { name = "envelfo", git = "https://github.com/rec/envelfo?branch=main" },
-    { name = "meedee", git = "https://github.com/rec/meedee?branch=main" },
+    { name = "middy", git = "https://github.com/rec/middy?branch=main" },
     { name = "pytest", specifier = ">=9.1.1" },
     { name = "pytest-regressions", specifier = ">=2.11.0" },
     { name = "pyupgrade", specifier = ">=3.21.2" },
@@ -88,7 +88,7 @@ wheels = [
 [[package]]
 name = "envelfo"
 version = "0.1.0"
-source = { git = "https://github.com/rec/envelfo?branch=main#32c128e3a9db95282999c10b0618b8f5ebe492a3" }
+source = { git = "https://github.com/rec/envelfo?branch=main#c287217adc29f9a6c1580b03bdb4267286328f14" }
 dependencies = [
     { name = "ufor" },
 ]
@@ -127,9 +127,14 @@ wheels = [
 ]
 
 [[package]]
-name = "meedee"
+name = "middy"
 version = "0.2.0"
-source = { git = "https://github.com/rec/meedee?branch=main#2f444e311a558dc8ada9bb89530639aaa6e04c87" }
+source = { git = "https://github.com/rec/middy?branch=main#4ab130ae0223a81aeab0cddf68073c282ea17315" }
+dependencies = [
+    { name = "pydantic" },
+    { name = "reccy" },
+    { name = "ufor" },
+]
 
 [[package]]
 name = "packaging"
@@ -346,7 +351,7 @@ wheels = [
 [[package]]
 name = "reccy"
 version = "0.2.0"
-source = { git = "https://github.com/rec/reccy.git?branch=main#e23e4261f352b635ab33fdba6f3d9d548e7e826b" }
+source = { git = "https://github.com/rec/reccy.git?branch=main#878920fff1339c823a3956f143bcdfa53cb9e416" }
 dependencies = [
     { name = "pint" },
     { name = "pydantic" },
@@ -482,7 +487,7 @@ wheels = [
 [[package]]
 name = "ufor"
 version = "0.2.0"
-source = { git = "https://github.com/rec/ufor?branch=main#75b2c9711c5dbdde4ad73ea8456c54f94bd15d2b" }
+source = { git = "https://github.com/rec/ufor?branch=main#6491c28807dd3d8b5dd81629d4f2fe08c59482fe" }
 dependencies = [
     { name = "pydantic" },
     { name = "reccy" },

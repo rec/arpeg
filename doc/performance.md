@@ -113,7 +113,7 @@ within capacity, or end a session when its configured output budget is exceeded.
 Sustained input overload also ends the session.
 The input limits cover arpeg's retained payload, not MIDI-library or driver buffers.
 The output budget estimates capacity, without measuring driver queue occupancy.
-Python receives raw MIDI 1 bytes through meedee and maintains independent bounded
+Python receives raw MIDI 1 bytes through middy and maintains independent bounded
 decoders for note/shared-clock and separate-clock inputs. Decoder diagnostics,
 receive drops and sequence gaps end playback. Automated checks do not
 establish a latency ceiling or prove device operation under a MIDI storm.

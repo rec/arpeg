@@ -59,11 +59,11 @@ fn finite_tunings_and_destination_ranges_are_explicit() {
     let base =
         "name=\"tuning\"\ntitle=\"Tuning\"\n[body]\nrhythm={kind=\"grid\",step=\"1 beat\"}\n";
     for fields in [
-        "tuning={source={kind=\"computed\"}}",
+        "tuning={source={}}",
         "bend_range=2",
-        "bend_range=0\ntuning={source={kind=\"computed\"}}",
-        "bend_range=2\nvoicing=[1]\ntuning={source={kind=\"frequencies\",values=[\"440\"]}}",
-        "bend_range=2\noctaves={offsets=[1]}\ntuning={source={kind=\"ratios\",values=[\"1\"]}}",
+        "bend_range=0\ntuning={source={}}",
+        "bend_range=2\nvoicing=[1]\ntuning={source={frequencies=[\"440\"]}}",
+        "bend_range=2\noctaves={offsets=[1]}\ntuning={source={ratios=[\"1\"]}}",
     ] {
         assert!(
             parse_profile(&format!("{base}{fields}"), None).is_err(),
@@ -77,7 +77,7 @@ fn finite_tunings_and_destination_ranges_are_explicit() {
 fn recorded_bends_preserve_tuning_and_release_velocity() {
     let profile = include_str!("../../../conformance/history-wind.toml").replace(
         "[body]",
-        "[body]\nbend_range=2\ntuning={source={kind=\"computed\",notes_per_octave=19}}",
+        "[body]\nbend_range=2\ntuning={source={notes_per_octave=19}}",
     );
     let mut player = MidiPlayer::new(
         parse_profile(&profile, None).unwrap(),
@@ -111,11 +111,11 @@ fn recorded_bends_preserve_tuning_and_release_velocity() {
 fn tuning_expression_and_coordinate_limits_report_errors() {
     for frequency in ["1e-2147483648", "1/0", "(-2)^(1/2)", "2^1025"] {
         let profile = format!(
-            "name=\"tuning\"\ntitle=\"Tuning\"\n[body]\nrhythm={{kind=\"grid\",step=\"1 beat\"}}\nbend_range=2\ntuning={{source={{kind=\"frequencies\",values=[\"{frequency}\"]}}}}"
+            "name=\"tuning\"\ntitle=\"Tuning\"\n[body]\nrhythm={{kind=\"grid\",step=\"1 beat\"}}\nbend_range=2\ntuning={{source={{frequencies=[\"{frequency}\"]}}}}"
         );
         assert!(parse_profile(&profile, None).is_err());
     }
-    let profile = "name=\"tuning\"\ntitle=\"Tuning\"\n[body]\nrhythm={kind=\"grid\",step=\"1 beat\"}\nbend_range=2\ntuning={source={kind=\"computed\",notes_per_octave=9223372036854775807}}\ninversion=-9223372036854775808\nvoicing=[-9223372036854775808]\noctaves={offsets=[-9223372036854775808]}";
+    let profile = "name=\"tuning\"\ntitle=\"Tuning\"\n[body]\nrhythm={kind=\"grid\",step=\"1 beat\"}\nbend_range=2\ntuning={source={notes_per_octave=9223372036854775807}}\ninversion=-9223372036854775808\nvoicing=[-9223372036854775808]\noctaves={offsets=[-9223372036854775808]}";
     let mut player = MidiPlayer::new(
         parse_profile(profile, None).unwrap(),
         ClockMode::Internal,

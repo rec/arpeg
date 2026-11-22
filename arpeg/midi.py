@@ -1,4 +1,4 @@
-"""meedee MIDI host for the Python reference engines."""
+"""middy MIDI host for the Python reference engines."""
 
 from contextlib import ExitStack
 from fractions import Fraction
@@ -11,8 +11,8 @@ from time import perf_counter_ns, sleep
 from typing import Annotated, Literal, Self
 
 import tyro
-from meedee import codecs, events, midi
-from meedee.messages import Message
+from middy import codecs, events, midi
+from middy.messages import Message
 from pydantic import BaseModel, Field, model_validator
 from ufor import arpeggiator, arpeggiator_ports
 from ufor.events import MidiEvent
@@ -45,8 +45,8 @@ class ListPorts(BaseModel, frozen=True):
     isolated: bool = True
 
     def run(self) -> None:
-        input_client = midi.Input(isolated=self.isolated)
-        output_client = midi.Output(isolated=self.isolated)
+        input_client = midi.Input(run_in_subprocess=self.isolated)
+        output_client = midi.Output(run_in_subprocess=self.isolated)
         print("Sources:")
         for index, port in enumerate(input_client.ports()):
             print(f"  {index}: {port.name}")
@@ -83,11 +83,12 @@ class Play(BaseModel, frozen=True):
             ),
         )
         input_client = midi.Input(
-            isolated=self.isolated,
+            raw=True,
+            run_in_subprocess=self.isolated,
             timestamps=midi.TimestampMode.Off,
             receive_byte_limit=self.input_bytes,
         )
-        output_client = midi.Output(isolated=self.isolated)
+        output_client = midi.Output(run_in_subprocess=self.isolated)
         sources = input_client.ports()
         destinations = output_client.ports()
         if self.source >= len(sources):
@@ -151,7 +152,8 @@ class Play(BaseModel, frozen=True):
             if separate:
                 assert self.clock_source is not None
                 clock = midi.Input(
-                    isolated=self.isolated,
+                    raw=True,
+                    run_in_subprocess=self.isolated,
                     timestamps=midi.TimestampMode.Off,
                     receive_byte_limit=self.input_bytes,
                 )

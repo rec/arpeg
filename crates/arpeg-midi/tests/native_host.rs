@@ -1,7 +1,7 @@
 //! Opt-in CoreMIDI qualification through the actual arpeg executable.
 #![cfg(all(feature = "device-host", target_os = "macos"))]
 
-use meedee::transport::{Input, InputOptions, Output, OutputConnection, OutputOptions, Packet};
+use middy::transport::{Input, InputOptions, Output, OutputConnection, OutputOptions, Packet};
 use std::{
     io::{BufRead, BufReader, Read, Write},
     os::unix::process::CommandExt,

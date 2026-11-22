@@ -3,7 +3,7 @@
 This archive contains a native executable and three example profiles. It needs
 no Python, Rust compiler, enge, sample assets, or audio engine. It uses your
 operating system's MIDI service and the normal driver for your MIDI interface.
-MIDI transport uses meedee with statically linked libremidi; no separate
+MIDI transport uses middy with statically linked libremidi; no separate
 libremidi installation is required. The Rust executable does not use Python's
 optional process isolation, so an unresponsive native driver can block it.
 
@@ -50,7 +50,7 @@ bytes per packet or assembled SysEx. Change these with `--input-packets`,
 Overflow releases owned notes, reports the error, and ends playback. Restart
 the session to obtain fresh input state. There is no queue-age cutoff. Console
 input is also bounded at 32 queued commands and 1024 bytes per line.
-These limits cover arpeg's retained input; meedee separately bounds native
+These limits cover arpeg's retained input; middy separately bounds native
 receive payloads to the configured input-byte budget per input client. Driver
 buffers and allocation/object overhead are outside those limits. Observed native
 receive drops or callback panics also end the session rather than silently
@@ -67,15 +67,17 @@ larger than the allowance is refused even after idle time. On overload, playback
 ends with an error; cleanup bypasses the budget and sends Note Offs only for notes
 accepted by the port. Driver buffers and actual device delivery are not measured.
 
-## MIDI transport notices
+## Dependency notices
 
-The executable statically includes meedee and libremidi. Their notices follow.
+The executable statically includes middy, libremidi, and uFor. Their notices follow.
 
-### meedee
+### middy and uFor
 
 MIT License
 
-Copyright (c) 2026 meedee contributors
+Copyright (c) 2026 middy contributors
+Copyright (c) 2019 Tom Swirly (uFor)
+Copyright (c) 2025-2026 Tom Ritchford (uFor)
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal

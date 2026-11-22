@@ -399,10 +399,14 @@ bend_range = 2
 rhythm = { kind = "grid", step = "1/4 beat" }
 
 [body.tuning]
-source = { kind = "computed", notes_per_octave = 19, octave_ratio = "2" }
+source = { notes_per_octave = 19, octave_ratio = "2" }
 root_note = 69
 root_frequency = "440"
 ```
+
+Tuning sources follow uFor's field-based format. In existing tuning presets,
+remove the source's `kind` and rename a table's `values` to `ratios` or
+`frequencies` as appropriate.
 
 Incoming MIDI numbers index the tuning grid. Here 69 is 440 Hz, 70 is the next
 of nineteen divisions, and 88 is one period above 69. The receiver must use the
@@ -671,9 +675,9 @@ See [marked-sample playback](doc/marked-samples.md) for the playback contract.
 
 The standalone `arpeg` executable validates supported profiles, renders
 single-track metrical MIDI files containing note and tempo events, and plays
-classic or recorded-history arpeggios through meedee/libremidi on Linux, Windows,
+classic or recorded-history arpeggios through middy/libremidi on Linux, Windows,
 and macOS.
-The Python `arpeg-python` host also uses meedee/libremidi and runs the reference
+The Python `arpeg-python` host also uses middy/libremidi and runs the reference
 engines with the same presets. Its MIDI clients are isolated in worker processes
 by default; `--no-isolated` selects lower-resource in-process operation. Both
 hosts read MIDI channel 1 and output on the configured lane channels (channel 1
@@ -682,10 +686,8 @@ hosts also accept external MIDI Clock and transport. They timestamp
 messages when the input callback runs in the host process, poll every
 millisecond, and send events immediately when due. Isolation adds transport
 overhead; both hosts disable backend timestamp capture and do not schedule
-future native output timestamps. Virtual-only Mac checks cover delivery and cleanup with
-internal/shared/separate clocks and explicit termination on transport loss;
-physical timing and Linux/Windows native behavior remain unverified for this
-transport migration. See [the migration evidence](doc/performance.md#meedee-host-migration-2026-10-18).
+future native output timestamps. The prior macOS virtual checks used meedee.
+Middy delivery, cleanup, and timing still need native qualification.
 
 Published releases build native ZIP downloads for Apple Silicon and Intel Macs,
 Windows x64, and Linux x64. Once every native and WebAssembly check passes, the
@@ -697,28 +699,29 @@ timing/load probes, dense-capture cleanup regressions, and remaining device-host
 limits. These checks do not establish physical MIDI or synth latency.
 
 Python MIDI port access requires the `midi` extra. The default package installs
-the pure reference engines without meedee. The `midi` extra supplies meedee
+the pure reference engines without middy. The `midi` extra supplies middy
 and its native extension; development installs include it for message tests.
-`MidiPlayer` accepts and returns immutable `meedee.messages.Message` objects,
-with channels 1–16. Mido/RtMidi are no longer used. Source installs build the
-HTTPS Git `main` dependency and require the native build tools listed below:
+`MidiPlayer` accepts and returns immutable `middy.messages.Message` objects
+with channels 1–16. Checkout installs build middy from the Git revision in
+`uv.lock` and require the native build tools listed below. A compatible
+published middy wheel supplies the compiled Python extension.
 
 ```sh
-uv sync --extra midi
-uv run --extra midi arpeg-python list-ports
-uv run --extra midi arpeg-python play --profile conformance/up.toml --source 0 --destination 1 --bpm 120
-uv run --extra midi arpeg-python play --profile conformance/history-wind.toml --source 0 --destination 1 --bpm 120
+uv sync --frozen --no-editable --extra midi
+uv run --no-sync arpeg-python list-ports
+uv run --no-sync arpeg-python play --profile conformance/up.toml --source 0 --destination 1 --bpm 120
+uv run --no-sync arpeg-python play --profile conformance/history-wind.toml --source 0 --destination 1 --bpm 120
 ```
 
 Use the indices listed by the host you intend to run; Python and Rust port
 enumeration need not use the same order. The Python host decodes raw chunks
-with a bounded meedee decoder per input. Running status, fragmented SysEx and
+with a bounded middy decoder per input. Running status, fragmented SysEx and
 interleaved real-time messages retain their protocol semantics. Decoder
 diagnostics, packet-sequence gaps and observed receive loss stop playback and
 attempt the existing owned-note cleanup, without retrying uncertain sends.
-Backend selection stays inside meedee; the Rust host keeps its existing framer.
+Backend selection stays inside middy; the Rust host keeps its existing framer.
 The Python CLI can select in-process operation with `--no-isolated` for both
-`list-ports` and `play`. See [Python migration evidence](doc/performance.md#python-meedee-host-migration-2026-10-19).
+`list-ports` and `play`.
 
 ```sh
 cargo run -p arpeg-midi -- validate conformance/up.toml
@@ -743,7 +746,7 @@ Both play commands accept these positive integer limits:
 | `--input-bytes` | 1048576 | Queued MIDI payload bytes across those inputs |
 | `--max-message-bytes` | 65536 | One packet or assembled SysEx message, including delimiters |
 
-Both hosts receive raw meedee byte chunks and bound SysEx assembled across
+Both hosts receive raw middy byte chunks and bound SysEx assembled across
 packets. Overflow attempts to release owned output notes, reports an error, and
 ends the session. Restart playback to obtain fresh input state. There is no queue-age
 cutoff or controller coalescing. Console input is limited to 32 queued commands
@@ -751,7 +754,7 @@ and 1024 UTF-8 bytes per line, including its newline, with the same overflow
 policy. Callbacks never wait for queue space.
 
 These limits bound payload retained by arpeg, plus one packet being processed
-and one partial SysEx per input. meedee additionally maintains bounded receive
+and one partial SysEx per input. Middy additionally maintains bounded receive
 queues per connection; operating-system and driver buffers are separate.
 
 ### Output bandwidth
@@ -1102,14 +1105,14 @@ rhythm = { kind = "grid", step = "1/4 beat" }
 ## Development
 
 Building the Rust MIDI host requires Rust 1.87+, CMake 3.22+ and a C++20 compiler.
-The optional device-host dependency uses meedee's HTTPS Git `main` branch;
+The optional device-host dependency uses middy's Git `main` branch;
 `Cargo.lock` records the resolved commit for reproducible `--locked` builds.
-meedee statically builds its bundled libremidi, so no separate libremidi install
+Middy statically builds its bundled libremidi, so no separate libremidi install
 is needed. Linux also requires ALSA development headers and `pkg-config`
 (`libasound2-dev` and `pkg-config` on Debian/Ubuntu), with ALSA available at runtime.
 Windows needs an MSVC C++ toolchain/Windows SDK and uses WinMM; macOS uses CoreMIDI.
 Windows MIDI Services is not enabled by this migration. Pure event-core and
-WebAssembly builds keep device-host disabled and do not compile meedee or start
+WebAssembly builds keep device-host disabled and do not compile middy or start
 native MIDI clients. Cross-compiling the device host also requires a target CMake
 toolchain and sysroot; a Cargo target flag alone is insufficient.
 
@@ -1118,10 +1121,10 @@ macOS, including Python installation with the MIDI extra. These tests need no
 physical MIDI device and do not establish hardware latency or USB-driver behavior.
 
 ```sh
-uv sync
-uv run pytest
-uv run ruff check .
-uv run ruff format --check .
-uv run ty check arpeg
+uv sync --frozen --no-editable
+uv run --no-sync python -m pytest test
+uv run --no-sync ruff check .
+uv run --no-sync ruff format --check .
+uv run --no-sync ty check arpeg
 cargo test --workspace
 ```

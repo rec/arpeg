@@ -3,7 +3,7 @@ from pathlib import Path
 from tomllib import loads
 
 import pytest
-from meedee import codecs
+from middy import codecs
 from ufor.arpeggiator import ArpeggiatorScore
 
 from arpeg.clock import ClockMode, TransportClock
@@ -139,7 +139,6 @@ def test_strum_rejects_incompatible_per_note_tuning_and_keeps_cleanup() -> None:
             "strum": {"spacing": "1/8 beat"},
             "tuning": {
                 "source": {
-                    "kind": "computed",
                     "notes_per_octave": 19,
                     "octave_ratio": "2",
                 },

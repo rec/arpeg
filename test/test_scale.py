@@ -3,7 +3,7 @@ from pathlib import Path
 from tomllib import loads
 
 import pytest
-from meedee import codecs
+from middy import codecs
 from ufor.arpeggiator import Octaves, PitchRegister, ScaleTransform, Transposition
 from ufor.scale import Scale
 

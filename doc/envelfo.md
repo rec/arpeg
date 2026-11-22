@@ -1,6 +1,7 @@
 # Connecting arpeg and enveLFO
 
-Install the Python extra with `uv sync --extra envelfo` in this checkout, or
+Install the Python extra with `uv sync --frozen --no-editable --extra envelfo`
+in this checkout, or
 `pip install 'arpeg[envelfo]'` for a published package. The optional module is
 `arpeg.envelfo`; ordinary arpeg imports do not import the enveLFO runtime.
 Rust hosts use the separate `arpeg-envelfo` crate. Neither event core depends
@@ -8,7 +9,7 @@ on the other. This integration has no NumPy, audio engine, Python bindings,
 MIDI device dependency, or new executable. The Rust MIDI player is used only
 as a device-free development dependency in its conformance tests. The Python
 `MidiPlayer` examples additionally require `arpeg[midi,envelfo]` (or both extras
-with uv); the bridge itself remains independent of meedee and MIDI devices.
+with uv); the bridge itself remains independent of middy and MIDI devices.
 
 ## Contract and scheduling phases
 

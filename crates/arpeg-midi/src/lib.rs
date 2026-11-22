@@ -970,7 +970,9 @@ pub fn parse_profile(text: &str, path: Option<&Path>) -> Result<Profile, String>
             return Err("lanes require 1..15 additional lanes".into());
         }
         let mut channels = vec![channel];
-        for (lane, value) in table {
+        let mut named_lanes: Vec<_> = table.iter().collect();
+        named_lanes.sort_unstable_by(|(left, _), (right, _)| left.cmp(right));
+        for (lane, value) in named_lanes {
             let child = value.as_table().ok_or("lane must be a profile body")?;
             if lane.is_empty() || child.contains_key("lanes") {
                 return Err("lane names must be nonempty and lanes cannot nest".into());

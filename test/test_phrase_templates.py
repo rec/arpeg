@@ -103,7 +103,6 @@ def test_intervals_count_tuning_grid_steps() -> None:
             selection={"kind": "index_pattern", "indices": [0], "intervals": [19]},
             tuning={
                 "source": {
-                    "kind": "computed",
                     "notes_per_octave": 19,
                     "octave_ratio": "2",
                 },

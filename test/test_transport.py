@@ -4,8 +4,8 @@ from tomllib import loads
 from typing import Literal
 
 import pytest
-from meedee import codecs
-from meedee.messages import Message
+from middy import codecs
+from middy.messages import Message
 from ufor.arpeggiator import ArpeggiatorScore
 from ufor.codec import parse_score
 

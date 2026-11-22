@@ -4,8 +4,8 @@ from tomllib import loads
 
 import pytest
 from envelfo.runtime import envelfo_at, envelfo_event, initial_envelfo
-from meedee import codecs
-from meedee.messages import Message, NoteOff, NoteOn
+from middy import codecs
+from middy.messages import Message, NoteOff, NoteOn
 from pydantic import TypeAdapter
 from ufor import arpeggiator_ports, envelfo
 from ufor.arpeggiator import SelectionOffset, Transposition
