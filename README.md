@@ -667,6 +667,7 @@ checks the same [region fixture](conformance/marked-sample.json). The enge
 `sample_regions` adapter consumes these notes through its prepared sampler;
 adjacent source regions share a continuous cursor run. Source-rate identity and
 reordered playback have one-second WAV regressions on both sampler backends.
+See [marked-sample playback](doc/marked-samples.md) for the playback contract.
 
 The standalone `arpeg` executable validates supported profiles, renders
 single-track metrical MIDI files containing note and tempo events, and plays

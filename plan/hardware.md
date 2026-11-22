@@ -13,11 +13,8 @@ point is a Pi Zero 2 W, Type A MIDI sockets, external 5 V power, and a fixed
 profile with internal tempo. These choices remain proposals until the parts
 and intended instruments are confirmed.
 
-Status reviewed 2026-10-27: this appliance remains planned. Desktop MIDI hosts
-and external-clock support already exist; UART integration, Pi qualification,
-boot configuration, electronics and enclosure work remain unfinished.
-
-Additional work beyond the prompt: None.
+Reviewed 2026-11-22. UART integration, Pi qualification, boot configuration,
+electronics, and enclosure work remain open.
 
 ## 1. What has to fit inside the box?
 
@@ -249,3 +246,7 @@ files. This lets another person repair or reproduce the device later.
 The next concrete step is to identify the instruments and select or commission
 the MIDI interface. Then prove the Pi and interface on the bench before designing
 the final box.
+
+## Additional work beyond the prompt
+
+None.

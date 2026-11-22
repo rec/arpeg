@@ -1,61 +1,36 @@
 # Remaining arpeggiator work
 
-Reviewed 2026-10-27. This plan contains unfinished work and its acceptance
-contracts. Completed feature descriptions and playable presets are in
-[README.md](../README.md); host integration is in
-[doc/envelfo.md](../doc/envelfo.md), and verification evidence and hardware gaps
-are in [doc/performance.md](../doc/performance.md). The separate
-[hardware plan](hardware.md) covers the proposed Raspberry Pi appliance.
-
-The runtimes, standalone MIDI host, external clock, expressive capture, authored
-phrase templates, strums, and dedicated-channel lanes already exist. The original
-project-creation handoff and completed implementation slices have been removed.
-Remaining items below are separate implementation choices, not authorization to
-start them all.
+Reviewed 2026-11-22. See the [README](../README.md) for supported features and
+playable presets, [performance verification](../doc/performance.md) for recorded
+checks, and the [hardware plan](hardware.md) for the Raspberry Pi appliance.
 
 ## Browser timing verification
 
-WebAssembly execution and generated JavaScript binding checks passed on
-2026-10-27, including strums, channel metadata, independent lanes, and cleanup.
-See [doc/performance.md](../doc/performance.md) for the verification evidence.
-
-Measure browser/audio timing separately from native event scheduling. Capture
-editing, sample playback, and external MIDI remain outside the browser front end.
+Measure input-to-audio latency and scheduling jitter in an actual browser with
+an audio device. Record the browser, platform, audio configuration, and test
+load separately from the [WebAssembly and Node results](../doc/performance.md#webassembly-and-javascript-verification-2026-10-27).
 
 ## Live marked-sample playback
 
-Frame markers already lower to identified source regions, and enge supplies
-sample realization. Connect live selection to that existing playback path.
-Do not add another asset loader, private resampler, or audio dependency to the
-standalone MIDI core.
+Connect arpeg's live selection to [enge's prepared region playback](../doc/marked-samples.md).
+Define how the audio host admits selections and schedules them on frame
+boundaries. Reuse prepared assets and the existing sampler, and keep the
+standalone MIDI core independent of audio.
 
-Preserve these acceptance contracts:
-
-- Assets are immutable. Regions use integer source-frame boundaries and explicit
-  channel selection. Selection keys describe traversal independently of acoustic
-  pitch; unknown pitch stays unknown for noise, drums, and speech.
-- Exhaustive regions begin at frame zero and cover the decoded asset. Ascending
-  source-order selection, original timing and rate, and one traversal must
-  reproduce the decoded source stream exactly at the same sample rate.
-- Identity playback keeps a continuous cursor through adjacent regions and
-  bypasses extra envelopes, fades, normalization, resampling, and time stretching.
-- Reordered/repeated regions need explicit seam, tail, one-shot/gated/looped
-  sustain, and any pitch/time-processing policies. They need listening regressions
-  and do not inherit the identity guarantee.
-- External MIDI samplers require an explicit region-to-key map. Diagnose an
-  unmapped audio destination before playback.
-
-Audio regressions must write WAV at 48,000 samples per second for at least one
-second. Test exhaustive reconstruction and reordered/repeated playback separately.
-Advanced selectors for sample regions remain unsupported.
+- Preserve exact source-order reconstruction through the live path. Verify it
+  separately from reordered or repeated playback with WAV regressions of at
+  least one second at 48 kHz.
+- Define how live gates drive enge's whole-region or gate-tail behavior, and when
+  to apply its seam fade. Looped sustain, pitch/time processing, and advanced
+  region selectors require explicit playback policies and separate regressions.
+- Define a region-to-key map for external MIDI samplers and diagnose an unmapped
+  destination before playback.
 
 ## Phrase conversion and captured-bank extensions
 
-Authored rank substitution and literal interval templates are complete. Remaining
-phrase work includes fixed-note/drum material independent of live input and
-conversion of a recorded phrase against a separately played chord. Automatic
-chord recognition needs explicit ambiguity rules; it is not required for literal
-interval templates and must not be introduced implicitly.
+Add fixed-note/drum material independent of live input and conversion of a
+recorded phrase against a separately played chord. If the conversion uses
+automatic chord recognition, specify how it resolves ambiguity.
 
 Define source-note and gesture ownership before another pitch-conversion mode.
 Preserve the original event ledger, source identity, entry state, release
@@ -76,25 +51,19 @@ Additional captured-bank work includes:
   duration and a hard recording limit; breath noise or a stuck note cannot leave
   an unbounded capture open.
 
-For a sequential phrase, cells run from one onset to the next or to the phrase
-end. Keep unowned post-release controls in the following gap and use their state
-for the next note's entry. Emit them as an old note's tail only under an explicit
-ownership policy and an independently addressable destination. Never apply them
-to whichever rearranged note happens to be sounding.
-
-Completed gestures become eligible after their declared end, including capture
-tails. Original timing, gate fitting, deliberate gesture reversal, and future
-crop/hold policies are distinct operations. Fitting must preserve event order;
-zero-length source gates must not cause division by zero. Keep unknown initial
-controller state unknown rather than inventing zero or a future breath attack.
+For additional gesture playback modes, specify reversal, crop, hold, and any
+post-release tail ownership separately. Preserve the existing capture eligibility
+boundary, entry state, event order during gate fitting, and treatment of controls
+in the following gap. An emitted tail needs an independently addressable
+destination.
 
 ## Live timing, conditions, and algorithmic extensions
 
 Remaining timing work includes live swing/groove modulation and timing templates
 for custom patterns. Specify the boundary where changes take effect, preservation
 of rhythm phase, and treatment of queued repeats, strums, gates and ties. Do not
-insert events into already emitted time. Ordinary pattern/pass conditions are
-implemented; richer conditions need their own concrete behavior and traces.
+insert events into already emitted time. Specify concrete behavior and traces
+for any extensions to pattern/pass conditions.
 
 Random grammar alternatives and recursive branch expansion remain deferred.
 External algorithms must prepare or record bounded decisions outside event/audio
@@ -106,7 +75,6 @@ unsupported live features instead of discarding them.
 
 ## Expression, allocation, and continuation
 
-Live players currently use one expression stream per dedicated lane channel.
 Independent overlapping per-note gestures need explicit channel allocation,
 release-tail reservations, and a channel-exhaustion policy. MPE and MIDI 2.0 are
 separate extensions; a UMP container alone does not establish per-note capability.
@@ -122,14 +90,12 @@ pedal ownership and pedal-held lifetimes are distinct from arp latch and key-up;
 a generated note-off does not guarantee silence. Repeated same-key sources keep
 distinct identities and a documented pairing/handoff policy.
 
-Expression-source mixing remains unfinished. Recorded, live, and enveLFO sources
-currently have one owner per expression lane. Combining them requires explicit
-typed operations and bounds, such as multiplying breath or adding bend offsets.
+Define explicit typed operations and bounds for expression-source mixing,
+such as multiplying breath or adding bend offsets.
 
-The optional enveLFO bridge already supports scheduled pre-note expression.
-Remaining integration work includes feedback/density/gate/selection mappings
-and serialized combined Rust host snapshots. Feedback must have an explicit
-delay and bounded event budget, never an unbounded same-timestamp loop. Preserve
+Extend the [enveLFO bridge](../doc/envelfo.md) to map Patch outputs into arpeg's
+existing density, gate, and selection ports, and add serialized combined Rust
+host snapshots. Feedback needs an explicit delay and bounded event budget. Preserve
 transport observations, random state, pending occurrences, controller state,
 and delivery ownership at a consistent snapshot boundary. Hardware restoration
 requires reconciliation; internal state cannot rewind a synthesizer.
@@ -152,6 +118,26 @@ Keep release obligations on capacity exhaustion: refuse new admission, report
 the failure, and release only owned output. Do not evict a still-needed breath
 stream to admit another note. Measure driver and physical delivery separately
 from event-core timing, and record protocol/profile limits with release evidence.
+
+## Dependency updates
+
+The lockfiles still select the existing dependencies. These items come up when
+updating them or preparing a release from fresh source dependencies.
+
+- **MIDI hosts.** Migrate the Python and Rust hosts from meedee to middy.
+  Recheck MIDI 1 decoding, transport-loss reporting, clock and expression
+  handling, and release cleanup through the new APIs. Qualify actual delivery
+  on the new transport. MIDI 2.0 and MPE still need arpeg-side behavior and
+  device qualification.
+- **uFor.** Update Python tuning preparation for field-based tuning sources
+  and the current expression API. Align the Rust/WebAssembly profile parser,
+  presets, and shared tuning traces. The old table field is `values`; the
+  current uFor fields are `ratios` and `frequencies`. Arpeg also imports
+  `MAX_FRACTION_BITS`, which current uFor has removed.
+- **enveLFO.** Move the optional Rust bridge from its pinned `envelfo-core`
+  package to upstream's consolidated `engelfo` crate when updating the bridge.
+  Verify Python and Rust scheduling and continuation together after the update,
+  including a device-free WebAssembly build.
 
 ## Additional work beyond the prompt
 
